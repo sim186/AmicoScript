@@ -22,3 +22,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# PyInstaller / Build artifacts
+build/
+dist/
+*.spec

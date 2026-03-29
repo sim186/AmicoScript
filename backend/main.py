@@ -14,10 +14,23 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+import sys
 
-FRONTEND_DIR = Path("frontend")
+# Fix for PyInstaller paths
+if hasattr(sys, '_MEIPASS'):
+    # Running in a bundle
+    BASE_DIR = Path(sys._MEIPASS)
+    # Uploads should be in a persistent location, e.g., user home or near the exe
+    # For now, let's keep it near the exe (one level up from _MEIPASS if onedir)
+    EXE_DIR = Path(sys.executable).parent
+    UPLOAD_DIR = EXE_DIR / "uploads"
+else:
+    # Running in normal Python
+    BASE_DIR = Path(__file__).parent
+    UPLOAD_DIR = BASE_DIR / "uploads"
+
+UPLOAD_DIR.mkdir(exist_ok=True)
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 
@@ -383,6 +396,30 @@ def get_result(job_id: str) -> dict:
     if job["status"] != "done":
         raise HTTPException(409, f"Job not complete (status: {job['status']})")
     return job["result"]
+
+
+@app.post("/api/jobs/{job_id}/rename-speaker")
+async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str = Form(...)) -> dict:
+    job = _get_job(job_id)
+    if job["status"] != "done":
+        raise HTTPException(409, "Job not complete")
+
+    result = job["result"]
+    if not result:
+        raise HTTPException(404, "Result not found")
+
+    # Update speakers list
+    if old_name in result["speakers"]:
+        idx = result["speakers"].index(old_name)
+        result["speakers"][idx] = new_name
+        result["speakers"] = sorted(list(set(result["speakers"])))
+
+    # Update segments
+    for seg in result["segments"]:
+        if seg["speaker"] == old_name:
+            seg["speaker"] = new_name
+
+    return {"ok": True, "new_name": new_name}
 
 
 @app.get("/api/jobs/{job_id}/export/{fmt}")

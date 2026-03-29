@@ -37,6 +37,27 @@ The app runs at `http://localhost:8002`. The frontend is served directly by Fast
 
 ---
 
+## Standalone Executable (macOS / Windows)
+
+You can build a standalone executable that doesn't require Docker or a Python environment using PyInstaller.
+
+```bash
+# Make sure you have the backend requirements and PyInstaller installed
+cd backend
+pip install -r requirements.txt
+pip install pyinstaller
+cd ..
+
+# Run the packaging script
+python package.py
+```
+
+This will create a `dist/AmicoScript` directory containing the compiled application. On macOS, it will also generate an `.app` bundle.
+
+> **Note:** The standalone executable bundles the Python environment and its dependencies, but you may still need to ensure system libraries (like `ffmpeg`) are available on the target machine, or bundle them manually.
+
+---
+
 ## Speaker diarization (optional)
 
 Speaker identification requires a free HuggingFace account:

@@ -706,15 +706,56 @@ function renderSpeakerLegend(speakers) {
     const idx = i % 8;
     const div = document.createElement('div');
     div.setAttribute('role', 'listitem');
-    div.className = 'flex items-center gap-2 cursor-pointer select-none group rounded-lg px-2 py-1.5 hover:bg-slate-50 transition';
+    div.className = 'flex items-center gap-2 select-none group rounded-lg px-2 py-1.5 hover:bg-slate-50 transition';
     div.innerHTML = `
-      <span class="w-2.5 h-2.5 rounded-full shrink-0 spk-${idx}"></span>
-      <span class="text-sm text-slate-600 group-hover:text-slate-900 transition flex-1">${escHtml(spk)}</span>
+      <span class="w-2.5 h-2.5 rounded-full shrink-0 spk-${idx} cursor-pointer" onclick="toggleSpeakerFilter('${escHtml(spk)}', ${idx})"></span>
+      <span class="text-sm text-slate-600 group-hover:text-slate-900 transition flex-1 cursor-pointer" onclick="toggleSpeakerFilter('${escHtml(spk)}', ${idx})">${escHtml(spk)}</span>
+      <button class="opacity-0 group-hover:opacity-100 p-1 hover:text-brand transition focus:outline-none" title="Rename speaker" onclick="promptRenameSpeaker('${escHtml(spk)}')">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+        </svg>
+      </button>
       <span id="filter-dot-${idx}" class="hidden w-1.5 h-1.5 rounded-full bg-brand shrink-0"></span>
     `;
-    div.addEventListener('click', () => toggleSpeakerFilter(spk, idx));
     list.appendChild(div);
   });
+}
+
+async function promptRenameSpeaker(oldName) {
+  const newName = prompt(`Rename speaker "${oldName}" to:`, oldName);
+  if (!newName || newName === oldName) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('old_name', oldName);
+    fd.append('new_name', newName);
+
+    const res = await fetch(`/api/jobs/${state.jobId}/rename-speaker`, {
+      method: 'POST',
+      body: fd,
+    });
+    if (!res.ok) throw new Error('Failed to rename speaker');
+
+    // Update local state
+    if (state.result) {
+      const idx = state.result.speakers.indexOf(oldName);
+      if (idx !== -1) {
+        state.result.speakers[idx] = newName;
+        state.result.speakers.sort();
+      }
+      state.result.segments.forEach(seg => {
+        if (seg["speaker"] === oldName) seg["speaker"] = newName;
+      });
+      if (state.activeSpeakerFilter === oldName) {
+        state.activeSpeakerFilter = newName;
+      }
+    }
+
+    renderSpeakerLegend(state.result.speakers);
+    applyFilters();
+  } catch (err) {
+    alert(`Rename failed: ${err.message}`);
+  }
 }
 
 function toggleSpeakerFilter(spk, idx) {
