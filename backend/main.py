@@ -276,29 +276,72 @@ def _worker(job_id: str) -> None:
         if opts["diarize"] and opts.get("hf_token"):
             _push_event(job_id, "diarizing", 0.82, "Running speaker diarization…")
 
-            import warnings  # noqa: PLC0415
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                try:
-                    from pyannote.audio import Pipeline  # noqa: PLC0415
-                except Exception as imp_err:
-                    raise RuntimeError(
-                        "Failed to load pyannote.audio. This is usually caused by "
-                        "torchcodec/FFmpeg incompatibility. Make sure FFmpeg shared "
-                        "libraries are installed (apt-get install libavcodec-dev "
-                        "libavformat-dev libavutil-dev)."
-                    ) from imp_err
+            # Inject a torchaudio-backed torchcodec shim into sys.modules
+            # BEFORE importing pyannote.audio. This prevents pyannote from
+            # loading the real torchcodec C extension (which fails when
+            # FFmpeg shared libs or CUDA libs are unavailable — e.g. Docker
+            # on ARM / PyInstaller bundles).
+            import sys as _sys  # noqa: PLC0415
+            import types as _types  # noqa: PLC0415
+            import torchaudio as _ta  # noqa: PLC0415
+            import torch as _torch  # noqa: PLC0415
+
+            if "torchcodec" not in _sys.modules:
+                _tc = _types.ModuleType("torchcodec")
+                _tc_decoders = _types.ModuleType("torchcodec.decoders")
+
+                class _AudioStreamMetadata:
+                    """Mimics torchcodec.decoders.AudioStreamMetadata."""
+                    def __init__(self, sample_rate, num_frames):
+                        self.sample_rate = sample_rate
+                        self.num_frames = num_frames
+                        self.duration_seconds_from_header = num_frames / sample_rate if sample_rate else 0
+
+                class _AudioSamples:
+                    """Mimics torchcodec.AudioSamples."""
+                    def __init__(self, data, sample_rate):
+                        self.data = data
+                        self.sample_rate = sample_rate
+
+                class _AudioDecoder:
+                    """torchaudio-backed replacement for torchcodec.decoders.AudioDecoder."""
+                    def __init__(self, source):
+                        self._source = source
+                        info = _ta.info(source)
+                        self.metadata = _AudioStreamMetadata(
+                            sample_rate=info.sample_rate,
+                            num_frames=info.num_frames,
+                        )
+
+                    def get_all_samples(self):
+                        waveform, sr = _ta.load(self._source)
+                        return _AudioSamples(waveform, sr)
+
+                    def get_samples_played_in_range(self, start, end):
+                        info = _ta.info(self._source)
+                        sr = info.sample_rate
+                        frame_offset = int(start * sr)
+                        num_frames = int((end - start) * sr)
+                        waveform, sr = _ta.load(
+                            self._source, frame_offset=frame_offset, num_frames=num_frames
+                        )
+                        return _AudioSamples(waveform, sr)
+
+                _tc_decoders.AudioDecoder = _AudioDecoder
+                _tc_decoders.AudioStreamMetadata = _AudioStreamMetadata
+                _tc.AudioSamples = _AudioSamples
+                _tc.decoders = _tc_decoders
+                _sys.modules["torchcodec"] = _tc
+                _sys.modules["torchcodec.decoders"] = _tc_decoders
+
+            from pyannote.audio import Pipeline  # noqa: PLC0415
 
             pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
                 token=opts["hf_token"],
             )
 
-            # Load audio with torchaudio instead of letting pyannote use
-            # torchcodec (which may fail if FFmpeg shared libs are missing).
-            import torchaudio  # noqa: PLC0415
-            waveform, sample_rate = torchaudio.load(file_path)
-            diarization = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+            diarization = pipeline(file_path)
 
             for seg in segments_list:
                 seg["speaker"] = _assign_speaker(seg["start"], seg["end"], diarization)
