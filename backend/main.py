@@ -30,7 +30,10 @@ else:
     UPLOAD_DIR = BASE_DIR / "uploads"
 
 UPLOAD_DIR.mkdir(exist_ok=True)
-FRONTEND_DIR = BASE_DIR / "frontend"
+if (BASE_DIR / "frontend").exists():
+    FRONTEND_DIR = BASE_DIR / "frontend"
+else:
+    FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 
@@ -246,7 +249,7 @@ def _worker(job_id: str) -> None:
             from pyannote.audio import Pipeline  # noqa: PLC0415
             pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=opts["hf_token"],
+                token=opts["hf_token"],
             )
             diarization = pipeline(file_path)
 
@@ -331,7 +334,7 @@ async def transcribe(
             "model": model,
             "language": language,
             "diarize": diarize.lower() == "true",
-            "hf_token": hf_token,
+            "hf_token": hf_token or os.environ.get("HF_TOKEN", ""),
             "num_speakers": int(num_speakers) if num_speakers.isdigit() else None,
         },
         "result": None,

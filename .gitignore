@@ -27,3 +27,8 @@ Thumbs.db
 build/
 dist/
 *.spec
+
+# Downloaded Binaries
+backend/ffmpeg
+backend/ffmpeg.exe
+backend/ffmpeg.zip

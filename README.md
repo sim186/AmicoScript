@@ -28,12 +28,11 @@ On first use, the selected Whisper model is downloaded automatically and cached 
 
 ```bash
 # Python 3.10+
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
+pip install -r backend/requirements.txt
+python run.py
 ```
 
-The app runs at `http://localhost:8002`. The frontend is served directly by FastAPI from `frontend/index.html`.
+`run.py` will automatically download the required `ffmpeg` executable for your operating system on first launch. The app runs at `http://localhost:8002`, and the browser will open automatically. The frontend is served directly by FastAPI from `frontend/index.html`.
 
 ---
 
@@ -54,7 +53,7 @@ python package.py
 
 This will create a `dist/AmicoScript` directory containing the compiled application. On macOS, it will also generate an `.app` bundle.
 
-> **Note:** The standalone executable bundles the Python environment and its dependencies, but you may still need to ensure system libraries (like `ffmpeg`) are available on the target machine, or bundle them manually.
+> **Note:** The standalone executable bundles the Python environment and its dependencies. On first launch, the app will automatically download the correct `ffmpeg` executable for the user's operating system (Windows, macOS, or Linux) directly next to the standalone executable, keeping the initial bundle size small and avoiding manual user installations.
 
 ---
 

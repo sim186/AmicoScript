@@ -12,6 +12,7 @@ services:
       - whisper_models:/root/.cache/huggingface
     environment:
       - PYTHONUNBUFFERED=1
+      - HF_TOKEN=${HF_TOKEN:-}
     restart: unless-stopped
 
 volumes:

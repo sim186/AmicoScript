@@ -10,9 +10,26 @@ from pathlib import Path
 if hasattr(sys, '_MEIPASS'):
     # Running in a bundle
     BASE_DIR = Path(sys._MEIPASS)
+    FFMPEG_DIR = Path(sys.executable).parent
 else:
     # Running in normal Python
     BASE_DIR = Path(__file__).parent / "backend"
+    FFMPEG_DIR = BASE_DIR
+
+# Ensure we can import backend packages if not in bundle
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+# Download FFmpeg on start if missing
+try:
+    from ffmpeg_helper import get_ffmpeg_path
+    get_ffmpeg_path(FFMPEG_DIR)
+except Exception as e:
+    print(f"Failed to setup FFmpeg: {e}")
+
+# Ensure ffmpeg and other bundled binaries are found in PATH
+os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "") + os.pathsep + str(BASE_DIR)
+
 
 def open_browser(url):
     # Wait a bit for the server to start
