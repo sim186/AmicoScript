@@ -52,4 +52,6 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
-          files: build/artifacts/*.zip
+          artifacts: build/artifacts/*.zip
+          allowUpdates: true
+          skipIfReleaseExists: false
