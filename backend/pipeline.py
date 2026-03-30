@@ -29,6 +29,66 @@ from shims import inject_torchcodec_shim
 
 
 # ---------------------------------------------------------------------------
+# DB sync helper
+# ---------------------------------------------------------------------------
+
+def _sync_job_to_db(job_id: str) -> None:
+    """Write terminal job state to the SQLite DB (called from the worker thread)."""
+    job = state.jobs.get(job_id)
+    if not job:
+        return
+    recording_id = job.get("recording_id")
+    if not recording_id:
+        return  # pre-v2 job or DB unavailable
+
+    try:
+        import json as _json
+        import time as _time
+        from db import new_session
+        from models import Recording, Transcript
+        from sqlmodel import select
+
+        with new_session() as session:
+            rec = session.get(Recording, recording_id)
+            if not rec:
+                return
+
+            rec.status = job.get("status", rec.status)
+            result = job.get("result")
+            if result:
+                rec.duration = result.get("duration")
+
+                # Create or replace the Transcript row.
+                existing = session.exec(
+                    select(Transcript).where(Transcript.recording_id == recording_id)
+                ).first()
+
+                full_text = " ".join(
+                    s.get("text", "") for s in result.get("segments", [])
+                )
+                json_data = _json.dumps(result)
+                now = _time.time()
+
+                if existing:
+                    existing.full_text = full_text
+                    existing.json_data = json_data
+                    existing.updated_at = now
+                    session.add(existing)
+                else:
+                    session.add(Transcript(
+                        recording_id=recording_id,
+                        full_text=full_text,
+                        json_data=json_data,
+                    ))
+
+            session.add(rec)
+            session.commit()
+
+    except Exception:
+        pass  # DB failure must never crash the transcription worker
+
+
+# ---------------------------------------------------------------------------
 # SSE / logging helpers
 # ---------------------------------------------------------------------------
 
@@ -418,6 +478,7 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
                     stop_first_segment_watchdog.set()
                 if job["cancel_flag"].is_set():
                     _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+                    _sync_job_to_db(job_id)
                     return
 
                 progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
@@ -534,6 +595,7 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
         }
         job["result"] = result
         _push_event(job_id, "done", 1.0, "Transcription complete.", data=result)
+        _sync_job_to_db(job_id)
         _append_job_log(job_id, "INFO", "Worker finished successfully.")
 
     except Exception as exc:  # noqa: BLE001
@@ -541,6 +603,7 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
         _append_job_log(job_id, "ERROR", f"Worker failed: {exc}")
         _append_job_log(job_id, "ERROR", traceback.format_exc())
         _push_event(job_id, "error", -1, str(exc))
+        _sync_job_to_db(job_id)
     finally:
         if stop_first_segment_watchdog is not None:
             stop_first_segment_watchdog.set()

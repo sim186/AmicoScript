@@ -50,17 +50,21 @@ def _ensure_standard_streams() -> None:
 _ensure_standard_streams()
 
 import aiofiles
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import Session, select
 from sse_starlette.sse import EventSourceResponse
 
 import state
+from db import get_session, init_db, new_session
 from exports import _format_json, _format_srt, _format_txt, _format_md
+from models import Folder, Recording, RecordingTag, Tag, Transcript
 from pipeline import _append_job_log, _cleanup_job_temp_files, _push_event, _worker_loop
 from releases import _fetch_latest_release, _is_version_newer
 from settings import _get_saved_hf_token, _load_settings, _save_settings
+from storage import get_recording_audio_path, ingest_file
 
 # ---------------------------------------------------------------------------
 # Path setup
@@ -117,9 +121,33 @@ threading.Thread(target=_worker_loop, daemon=True).start()
 @app.on_event("startup")
 async def _startup() -> None:
     state.event_loop = asyncio.get_event_loop()
+    init_db()
+    _recover_interrupted_jobs()
     asyncio.create_task(_cleanup_loop())
     try:
         asyncio.create_task(_release_poller_loop())
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Job recovery
+# ---------------------------------------------------------------------------
+
+def _recover_interrupted_jobs() -> None:
+    """Mark any DB recordings that were in-flight as error (interrupted by restart)."""
+    from sqlalchemy import text as _text
+    try:
+        with new_session() as session:
+            interrupted = session.exec(
+                select(Recording).where(
+                    Recording.status.in_(["queued", "transcribing", "diarizing"])
+                )
+            ).all()
+            for rec in interrupted:
+                rec.status = "error"
+                session.add(rec)
+            session.commit()
     except Exception:
         pass
 
@@ -173,6 +201,7 @@ async def _release_poller_loop() -> None:
 # ---------------------------------------------------------------------------
 
 async def _cleanup_loop() -> None:
+    from config import STORAGE_ROOT
     while True:
         await asyncio.sleep(3600)
         cutoff = time.time() - 3600
@@ -181,8 +210,10 @@ async def _cleanup_loop() -> None:
             if job.get("created_at", 0) < cutoff:
                 fp = job.get("file_path", "")
                 if fp and os.path.exists(fp):
+                    # Don't delete files that have been moved to managed storage.
                     try:
-                        os.remove(fp)
+                        if not Path(fp).is_relative_to(STORAGE_ROOT):
+                            os.remove(fp)
                     except OSError:
                         pass
                 _cleanup_job_temp_files(job)
@@ -264,6 +295,7 @@ async def transcribe(
     num_speakers: str = Form(""),
     min_speakers: str = Form(""),
     max_speakers: str = Form(""),
+    folder_id: str = Form(""),
 ) -> dict:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -273,26 +305,50 @@ async def transcribe(
         )
 
     job_id = str(uuid.uuid4())
-    dest = UPLOAD_DIR / f"{job_id}{ext}"
+    staging = UPLOAD_DIR / f"{job_id}{ext}"
 
-    async with aiofiles.open(dest, "wb") as f:
+    async with aiofiles.open(staging, "wb") as f:
         await f.write(await file.read())
+
+    # Create a Recording row and move the file to permanent managed storage.
+    recording_id = str(uuid.uuid4())
+    permanent_path = ingest_file(staging, recording_id)
+
+    opts_dict = {
+        "model": model,
+        "language": language,
+        "diarize": diarize.lower() == "true",
+        "num_speakers": int(num_speakers) if num_speakers.isdigit() else None,
+        "min_speakers": int(min_speakers) if min_speakers.isdigit() else None,
+        "max_speakers": int(max_speakers) if max_speakers.isdigit() else None,
+    }
+
+    try:
+        with new_session() as session:
+            recording = Recording(
+                id=recording_id,
+                filename=file.filename or "audio",
+                file_path=str(permanent_path),
+                folder_id=folder_id or None,
+                status="queued",
+                transcription_options=json.dumps(opts_dict),
+            )
+            session.add(recording)
+            session.commit()
+    except Exception:
+        pass  # DB failure must not block transcription
 
     job: dict = {
         "id": job_id,
+        "recording_id": recording_id,
         "status": "queued",
         "progress": 0.0,
         "message": "Queued",
-        "file_path": str(dest),
+        "file_path": str(permanent_path),
         "original_filename": file.filename or "audio",
         "options": {
-            "model": model,
-            "language": language,
-            "diarize": diarize.lower() == "true",
+            **opts_dict,
             "hf_token": hf_token or _get_saved_hf_token(),
-            "num_speakers": int(num_speakers) if num_speakers.isdigit() else None,
-            "min_speakers": int(min_speakers) if min_speakers.isdigit() else None,
-            "max_speakers": int(max_speakers) if max_speakers.isdigit() else None,
         },
         "result": None,
         "error": None,
@@ -305,7 +361,7 @@ async def transcribe(
     state.jobs[job_id] = job
     _append_job_log(job_id, "INFO", f"Job created for file '{job['original_filename']}'")
     state.JOB_QUEUE.put(job_id)
-    return {"job_id": job_id}
+    return {"job_id": job_id, "recording_id": recording_id}
 
 
 @app.get("/api/jobs/{job_id}/stream")
@@ -420,6 +476,519 @@ def export_job(job_id: str, fmt: str):
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# API: library — recordings
+# ---------------------------------------------------------------------------
+
+AUDIO_MEDIA_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+}
+
+
+def _recording_with_tags(recording: Recording, session: Session) -> dict:
+    """Build a serialisable dict for a Recording including its tags."""
+    links = session.exec(
+        select(RecordingTag).where(RecordingTag.recording_id == recording.id)
+    ).all()
+    tag_ids = [lnk.tag_id for lnk in links]
+    tags = []
+    if tag_ids:
+        tags = [
+            {"id": t.id, "name": t.name, "color_code": t.color_code}
+            for t in session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()
+        ]
+    return {
+        "id": recording.id,
+        "filename": recording.filename,
+        "file_path": recording.file_path,
+        "duration": recording.duration,
+        "folder_id": recording.folder_id,
+        "status": recording.status,
+        "created_at": recording.created_at,
+        "transcription_options": json.loads(recording.transcription_options or "{}"),
+        "tags": tags,
+    }
+
+
+@app.get("/api/library")
+def get_library(
+    folder_id: str = "",
+    tag_id: str = "",
+    status: str = "",
+    sort: str = "created_at",
+    order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+) -> list:
+    stmt = select(Recording)
+    if folder_id:
+        stmt = stmt.where(Recording.folder_id == folder_id)
+    if status:
+        stmt = stmt.where(Recording.status == status)
+    if tag_id:
+        linked_ids = [
+            r.recording_id
+            for r in session.exec(
+                select(RecordingTag).where(RecordingTag.tag_id == tag_id)
+            ).all()
+        ]
+        stmt = stmt.where(Recording.id.in_(linked_ids))
+
+    sort_col = {
+        "filename": Recording.filename,
+        "duration": Recording.duration,
+    }.get(sort, Recording.created_at)
+
+    stmt = stmt.order_by(
+        sort_col.asc() if order == "asc" else sort_col.desc()
+    ).offset(offset).limit(min(limit, 200))
+
+    recordings = session.exec(stmt).all()
+    return [_recording_with_tags(r, session) for r in recordings]
+
+
+@app.get("/api/recordings/{recording_id}")
+def get_recording(recording_id: str, session: Session = Depends(get_session)) -> dict:
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    return _recording_with_tags(rec, session)
+
+
+@app.patch("/api/recordings/{recording_id}")
+async def update_recording(
+    recording_id: str,
+    filename: str = Form(""),
+    folder_id: str = Form("__unset__"),
+    session: Session = Depends(get_session),
+) -> dict:
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    if filename:
+        rec.filename = filename
+    if folder_id != "__unset__":
+        rec.folder_id = folder_id or None
+    session.add(rec)
+    session.commit()
+    session.refresh(rec)
+    return _recording_with_tags(rec, session)
+
+
+@app.delete("/api/recordings/{recording_id}")
+def delete_recording(recording_id: str, session: Session = Depends(get_session)) -> dict:
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+
+    # Remove physical file.
+    try:
+        fp = Path(rec.file_path)
+        if fp.exists():
+            fp.unlink()
+        # Remove the per-recording directory if now empty.
+        if fp.parent.exists() and not any(fp.parent.iterdir()):
+            fp.parent.rmdir()
+    except OSError:
+        pass
+
+    # Cascade: delete RecordingTag links and Transcript rows.
+    for link in session.exec(
+        select(RecordingTag).where(RecordingTag.recording_id == recording_id)
+    ).all():
+        session.delete(link)
+    for tr in session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).all():
+        session.delete(tr)
+
+    session.delete(rec)
+    session.commit()
+    return {"ok": True}
+
+
+@app.get("/api/recordings/{recording_id}/audio")
+def get_recording_audio(recording_id: str, session: Session = Depends(get_session)):
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    audio_path = get_recording_audio_path(recording_id, rec.file_path)
+    if not audio_path.exists():
+        raise HTTPException(404, "Audio file not found on disk")
+    ext = audio_path.suffix.lower()
+    return FileResponse(str(audio_path), media_type=AUDIO_MEDIA_TYPES.get(ext, "audio/mpeg"))
+
+
+@app.get("/api/recordings/{recording_id}/transcript")
+def get_recording_transcript(
+    recording_id: str, session: Session = Depends(get_session)
+) -> dict:
+    tr = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found")
+    return {
+        "id": tr.id,
+        "recording_id": tr.recording_id,
+        "full_text": tr.full_text,
+        "json_data": json.loads(tr.json_data),
+        "created_at": tr.created_at,
+        "updated_at": tr.updated_at,
+    }
+
+
+@app.get("/api/recordings/{recording_id}/export/{fmt}")
+def export_recording(
+    recording_id: str, fmt: str, session: Session = Depends(get_session)
+):
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    tr = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found")
+
+    result = json.loads(tr.json_data)
+    filename = Path(rec.filename).stem
+
+    formatters = {
+        "json": (_format_json, "application/json", "json"),
+        "srt":  (_format_srt,  "text/plain",       "srt"),
+        "txt":  (_format_txt,  "text/plain",       "txt"),
+        "md":   (_format_md,   "text/markdown",    "md"),
+    }
+    if fmt not in formatters:
+        raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
+
+    fn, media_type, ext = formatters[fmt]
+    content = fn(result)
+    return StreamingResponse(
+        iter([content.encode("utf-8")]),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# API: segment editing
+# ---------------------------------------------------------------------------
+
+@app.patch("/api/recordings/{recording_id}/transcript/segments/{segment_index}")
+async def edit_segment(
+    recording_id: str,
+    segment_index: int,
+    text: str = Form(...),
+    session: Session = Depends(get_session),
+) -> dict:
+    tr = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found")
+
+    data = json.loads(tr.json_data)
+    segments = data.get("segments", [])
+    if segment_index < 0 or segment_index >= len(segments):
+        raise HTTPException(400, f"Segment index {segment_index} out of range")
+
+    segments[segment_index]["text"] = text
+    segments[segment_index]["edited"] = True
+
+    data["segments"] = segments
+    tr.json_data = json.dumps(data)
+    tr.full_text = " ".join(s.get("text", "") for s in segments)
+    tr.updated_at = time.time()
+
+    session.add(tr)
+    session.commit()
+    return {"ok": True, "segment_index": segment_index}
+
+
+@app.post("/api/recordings/{recording_id}/transcript/rename-speaker")
+async def rename_recording_speaker(
+    recording_id: str,
+    old_name: str = Form(...),
+    new_name: str = Form(...),
+    session: Session = Depends(get_session),
+) -> dict:
+    tr = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found")
+
+    data = json.loads(tr.json_data)
+    if old_name in data.get("speakers", []):
+        idx = data["speakers"].index(old_name)
+        data["speakers"][idx] = new_name
+        data["speakers"] = sorted(list(set(data["speakers"])))
+    for seg in data.get("segments", []):
+        if seg.get("speaker") == old_name:
+            seg["speaker"] = new_name
+
+    tr.json_data = json.dumps(data)
+    tr.updated_at = time.time()
+    session.add(tr)
+    session.commit()
+    return {"ok": True, "new_name": new_name}
+
+
+# ---------------------------------------------------------------------------
+# API: folders
+# ---------------------------------------------------------------------------
+
+@app.get("/api/folders")
+def list_folders(session: Session = Depends(get_session)) -> list:
+    folders = session.exec(select(Folder)).all()
+    return [
+        {
+            "id": f.id,
+            "name": f.name,
+            "parent_id": f.parent_id,
+            "created_at": f.created_at,
+        }
+        for f in folders
+    ]
+
+
+@app.post("/api/folders")
+async def create_folder(
+    name: str = Form(...),
+    parent_id: str = Form(""),
+    session: Session = Depends(get_session),
+) -> dict:
+    folder = Folder(name=name, parent_id=parent_id or None)
+    session.add(folder)
+    session.commit()
+    session.refresh(folder)
+    return {
+        "id": folder.id,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+        "created_at": folder.created_at,
+    }
+
+
+@app.patch("/api/folders/{folder_id}")
+async def update_folder(
+    folder_id: str,
+    name: str = Form(""),
+    parent_id: str = Form("__unset__"),
+    session: Session = Depends(get_session),
+) -> dict:
+    folder = session.get(Folder, folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+    if name:
+        folder.name = name
+    if parent_id != "__unset__":
+        folder.parent_id = parent_id or None
+    session.add(folder)
+    session.commit()
+    session.refresh(folder)
+    return {
+        "id": folder.id,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+        "created_at": folder.created_at,
+    }
+
+
+@app.delete("/api/folders/{folder_id}")
+def delete_folder(
+    folder_id: str,
+    delete_recordings: bool = False,
+    session: Session = Depends(get_session),
+) -> dict:
+    folder = session.get(Folder, folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+
+    recordings_in_folder = session.exec(
+        select(Recording).where(Recording.folder_id == folder_id)
+    ).all()
+
+    if delete_recordings:
+        for rec in recordings_in_folder:
+            # Reuse delete logic inline.
+            try:
+                fp = Path(rec.file_path)
+                if fp.exists():
+                    fp.unlink()
+                if fp.parent.exists() and not any(fp.parent.iterdir()):
+                    fp.parent.rmdir()
+            except OSError:
+                pass
+            for link in session.exec(
+                select(RecordingTag).where(RecordingTag.recording_id == rec.id)
+            ).all():
+                session.delete(link)
+            for tr in session.exec(
+                select(Transcript).where(Transcript.recording_id == rec.id)
+            ).all():
+                session.delete(tr)
+            session.delete(rec)
+    else:
+        for rec in recordings_in_folder:
+            rec.folder_id = None
+            session.add(rec)
+
+    session.delete(folder)
+    session.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# API: tags
+# ---------------------------------------------------------------------------
+
+@app.get("/api/tags")
+def list_tags(session: Session = Depends(get_session)) -> list:
+    return [
+        {"id": t.id, "name": t.name, "color_code": t.color_code}
+        for t in session.exec(select(Tag)).all()
+    ]
+
+
+@app.post("/api/tags")
+async def create_tag(
+    name: str = Form(...),
+    color_code: str = Form("#6c63ff"),
+    session: Session = Depends(get_session),
+) -> dict:
+    tag = Tag(name=name, color_code=color_code)
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
+
+
+@app.patch("/api/tags/{tag_id}")
+async def update_tag(
+    tag_id: str,
+    name: str = Form(""),
+    color_code: str = Form(""),
+    session: Session = Depends(get_session),
+) -> dict:
+    tag = session.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag not found")
+    if name:
+        tag.name = name
+    if color_code:
+        tag.color_code = color_code
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+    return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
+
+
+@app.delete("/api/tags/{tag_id}")
+def delete_tag(tag_id: str, session: Session = Depends(get_session)) -> dict:
+    tag = session.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag not found")
+    for link in session.exec(
+        select(RecordingTag).where(RecordingTag.tag_id == tag_id)
+    ).all():
+        session.delete(link)
+    session.delete(tag)
+    session.commit()
+    return {"ok": True}
+
+
+@app.post("/api/recordings/{recording_id}/tags/{tag_id}")
+def add_recording_tag(
+    recording_id: str, tag_id: str, session: Session = Depends(get_session)
+) -> dict:
+    if not session.get(Recording, recording_id):
+        raise HTTPException(404, "Recording not found")
+    if not session.get(Tag, tag_id):
+        raise HTTPException(404, "Tag not found")
+    existing = session.get(RecordingTag, (recording_id, tag_id))
+    if not existing:
+        session.add(RecordingTag(recording_id=recording_id, tag_id=tag_id))
+        session.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/recordings/{recording_id}/tags/{tag_id}")
+def remove_recording_tag(
+    recording_id: str, tag_id: str, session: Session = Depends(get_session)
+) -> dict:
+    link = session.get(RecordingTag, (recording_id, tag_id))
+    if link:
+        session.delete(link)
+        session.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# API: search
+# ---------------------------------------------------------------------------
+
+@app.get("/api/search")
+def search_library(
+    q: str = "",
+    limit: int = 20,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+) -> list:
+    if not q.strip():
+        return []
+
+    from sqlalchemy import text as _text
+    from sqlalchemy.exc import OperationalError
+
+    safe_limit = min(limit, 100)
+
+    try:
+        rows = session.exec(
+            _text("""
+                SELECT t.recording_id,
+                       snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
+                FROM transcript_fts
+                JOIN transcript t ON transcript_fts.rowid = t.rowid
+                WHERE transcript_fts MATCH :q
+                ORDER BY rank
+                LIMIT :lim OFFSET :off
+            """),
+            {"q": q, "lim": safe_limit, "off": offset},
+        ).all()
+    except OperationalError:
+        # Malformed FTS query — fall back to plain LIKE.
+        rows = session.exec(
+            _text("""
+                SELECT id AS recording_id,
+                       substr(full_text, 1, 200) AS snippet
+                FROM transcript
+                WHERE full_text LIKE :q
+                LIMIT :lim OFFSET :off
+            """),
+            {"q": f"%{q}%", "lim": safe_limit, "off": offset},
+        ).all()
+
+    results = []
+    for row in rows:
+        rec = session.get(Recording, row.recording_id)
+        if rec:
+            results.append({
+                "recording_id": row.recording_id,
+                "filename": rec.filename,
+                "duration": rec.duration,
+                "snippet": row.snippet,
+            })
+    return results
 
 
 # ---------------------------------------------------------------------------

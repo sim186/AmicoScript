@@ -10,7 +10,7 @@ services:
       - ./frontend:/app/frontend:ro
       # Persist downloaded Whisper/pyannote model weights across restarts
       - whisper_models:/root/.cache/huggingface
-      # Persist settings (HF token etc.) across restarts
+      # Persist settings (HF token), SQLite library DB, and recordings across restarts
       - amicoscript_settings:/root/.amicoscript
     environment:
       - PYTHONUNBUFFERED=1

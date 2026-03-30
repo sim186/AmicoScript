@@ -44,6 +44,28 @@
     ::-webkit-scrollbar{width:5px}
     ::-webkit-scrollbar-track{background:#f1f5f9}
     ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+    /* edited segment indicator */
+    .segment.edited { border-left-color: #f59e0b; }
+    .segment-edited-badge { display:inline-block; font-size:10px; padding:0 4px; border-radius:3px; background:#fef3c7; color:#92400e; font-weight:600; margin-left:4px; vertical-align:middle; }
+    /* segment inline edit */
+    .segment-edit-area { width:100%; border:1px solid #6c63ff; border-radius:6px; padding:6px 8px; font-size:0.875rem; resize:vertical; min-height:56px; outline:none; font-family:inherit; }
+    /* folder tree */
+    .folder-item { display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:6px; cursor:pointer; font-size:0.875rem; color:#475569; user-select:none; }
+    .folder-item:hover { background:#f1f5f9; }
+    .folder-item.active { background:#ede9ff; color:#6c63ff; font-weight:600; }
+    .folder-item .folder-arrow { width:12px; height:12px; flex-shrink:0; transition:transform .15s; }
+    .folder-item .folder-arrow.open { transform:rotate(90deg); }
+    .folder-children { padding-left:14px; }
+    /* tag pills */
+    .tag-pill { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:600; color:#fff; cursor:pointer; }
+    /* recording card */
+    .rec-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; cursor:pointer; transition:border-color .12s, box-shadow .12s; }
+    .rec-card:hover { border-color:#a5b4fc; box-shadow:0 2px 8px 0 rgba(108,99,255,.08); }
+    /* global search dropdown */
+    .search-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.10); z-index:100; max-height:320px; overflow-y:auto; }
+    .search-dropdown-item { padding:10px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .search-dropdown-item:last-child { border-bottom:none; }
+    .search-dropdown-item:hover { background:#f8f7ff; }
   </style>
 </head>
 <body class="h-full bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
@@ -201,6 +223,42 @@
 
       </div><!-- /sidebar-transcript -->
 
+      <!-- SIDEBAR: Library tab -->
+      <div id="sidebar-library" class="sidebar-panel">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Folders</h2>
+            <button id="new-folder-btn" title="New folder"
+                    class="text-slate-400 hover:text-brand transition focus:outline-none p-0.5 rounded">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+          </div>
+          <!-- "All recordings" root item -->
+          <div id="folder-all" class="folder-item active" onclick="selectFolder(null)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
+            <span class="flex-1">All recordings</span>
+          </div>
+          <div id="folder-tree" class="mt-0.5 space-y-0.5"></div>
+        </div>
+        <!-- Tags -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tags</h2>
+            <button id="new-tag-btn" title="New tag"
+                    class="text-slate-400 hover:text-brand transition focus:outline-none p-0.5 rounded">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+          </div>
+          <div id="tag-list" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div><!-- /sidebar-library -->
+
     </div><!-- /sidebar scroll -->
 
     <!-- Sidebar footer: app version -->
@@ -227,8 +285,24 @@
               aria-selected="false" role="tab" aria-controls="tab-transcript" disabled>
         Transcript
       </button>
+      <button id="tab-btn-library"
+              class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px transition focus:outline-none"
+              aria-selected="false" role="tab" aria-controls="tab-library">
+        Library
+      </button>
+      <!-- Global search (always visible) -->
+      <div class="ml-auto flex items-center pb-2 pr-1 relative">
+        <div class="relative">
+          <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+          </svg>
+          <input id="global-search-input" type="search" placeholder="Search library…"
+                 class="w-44 pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
+          <div id="global-search-dropdown" class="search-dropdown hidden"></div>
+        </div>
+      </div>
       <!-- Export buttons (only visible on transcript tab) -->
-      <div id="export-bar" class="hidden ml-auto flex items-center gap-1.5 pb-2">
+      <div id="export-bar" class="hidden flex items-center gap-1.5 pb-2">
         <span class="text-xs text-slate-400 mr-1">Export</span>
         <button data-fmt="json" class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">JSON</button>
         <button data-fmt="srt"  class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">SRT</button>
@@ -358,6 +432,53 @@
         </div>
       </div><!-- /tab-transcript -->
 
+      <!-- ---------------------------------------------------------------
+           TAB: LIBRARY
+      --------------------------------------------------------------- -->
+      <div id="tab-library" class="tab-panel overflow-hidden" role="tabpanel">
+        <div class="flex flex-col h-full">
+          <!-- Library toolbar -->
+          <div class="px-6 py-3 bg-white border-b border-slate-100 shrink-0 flex items-center gap-3">
+            <span id="library-folder-label" class="text-sm font-semibold text-slate-700 flex-1">All recordings</span>
+            <div class="flex items-center gap-1.5 text-xs text-slate-500">
+              <label for="lib-sort-select">Sort</label>
+              <select id="lib-sort-select" class="rounded border border-slate-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand">
+                <option value="created_at">Date added</option>
+                <option value="filename">Name</option>
+                <option value="duration">Duration</option>
+              </select>
+              <button id="lib-sort-order" title="Toggle order"
+                      class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition focus:outline-none">
+                <svg id="lib-sort-asc-icon" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9M3 12h5m10 4V4m0 0l-3 3m3-3l3 3"/>
+                </svg>
+                <svg id="lib-sort-desc-icon" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9M3 12h5m10-4V20m0 0l-3-3m3 3l3-3"/>
+                </svg>
+              </button>
+            </div>
+            <!-- Active tag filter chip -->
+            <div id="lib-tag-filter" class="hidden flex items-center gap-1.5 text-xs">
+              <span class="text-slate-400">Tag:</span>
+              <span id="lib-tag-filter-name" class="font-semibold text-slate-700"></span>
+              <button onclick="clearTagFilter()" class="text-slate-300 hover:text-red-400 transition">×</button>
+            </div>
+          </div>
+
+          <!-- Recording cards -->
+          <div class="flex-1 overflow-y-auto px-6 py-5">
+            <div id="library-empty" class="hidden text-center py-16 text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+              </svg>
+              <p class="text-sm font-medium">No recordings yet</p>
+              <p class="text-xs mt-1">Transcribed files will appear here</p>
+            </div>
+            <div id="library-list" class="space-y-2.5"></div>
+          </div>
+        </div>
+      </div><!-- /tab-library -->
+
     </div><!-- /tab panels -->
   </div><!-- /main panel -->
 
@@ -380,6 +501,7 @@ const state = {
   maxSpeakers: '',
 
   jobId: null,
+  recordingId: null,       // recording_id returned by /api/transcribe
   jobStatus: null,
   jobProgress: 0,
   jobMessage: '',
@@ -393,6 +515,20 @@ const state = {
   searchQuery: '',
   filteredSegments: [],
   activeSpeakerFilter: null,
+
+  // Library mode — set when opening a recording from the library
+  activeRecordingId: null,
+
+  // Library data
+  library: {
+    recordings: [],
+    folders: [],
+    tags: [],
+    selectedFolderId: null,
+    selectedTagId: null,
+    sort: 'created_at',
+    order: 'desc',
+  },
 };
 
 
@@ -436,12 +572,14 @@ function switchTab(name) {
   });
 
   document.getElementById('export-bar').classList.toggle('hidden', name !== 'transcript');
+  if (name === 'library') fetchLibrary();
 }
 
 document.getElementById('tab-btn-transcribe').addEventListener('click', () => switchTab('transcribe'));
 document.getElementById('tab-btn-transcript').addEventListener('click', () => {
   if (!document.getElementById('tab-btn-transcript').disabled) switchTab('transcript');
 });
+document.getElementById('tab-btn-library').addEventListener('click', () => switchTab('library'));
 
 // =========================================================================
 // Model cards
@@ -621,8 +759,10 @@ async function startTranscription() {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || 'Upload failed');
     }
-    const { job_id } = await res.json();
+    const { job_id, recording_id } = await res.json();
     state.jobId = job_id;
+    state.recordingId = recording_id || null;
+    state.activeRecordingId = null;
     document.getElementById('proc-filename').textContent = state.selectedFile.name;
     connectSSE(job_id);
   } catch (err) {
@@ -878,10 +1018,14 @@ async function promptRenameSpeaker(oldName) {
     fd.append('old_name', oldName);
     fd.append('new_name', newName);
 
-    const res = await fetch(`/api/jobs/${state.jobId}/rename-speaker`, {
-      method: 'POST',
-      body: fd,
-    });
+    let endpoint;
+    if (state.activeRecordingId) {
+      endpoint = `/api/recordings/${state.activeRecordingId}/transcript/rename-speaker`;
+    } else {
+      endpoint = `/api/jobs/${state.jobId}/rename-speaker`;
+    }
+
+    const res = await fetch(endpoint, { method: 'POST', body: fd });
     if (!res.ok) throw new Error('Failed to rename speaker');
 
     // Update local state
@@ -956,16 +1100,37 @@ function renderSegments(segments, query) {
       div.setAttribute('aria-current', 'true');
     }
 
+    if (seg.edited) {
+      div.classList.add('edited');
+    }
+
     const spkBadge = hasSpeakers && seg.speaker
       ? `<span class="text-xs font-semibold spk-text-${spkIdx} mr-2 cursor-pointer hover:underline" title="Rename speaker" onclick="event.stopPropagation(); promptRenameSpeaker('${escHtml(seg.speaker)}')">${escHtml(seg.speaker)}</span>`
       : '';
 
+    const editedBadge = seg.edited
+      ? `<span class="segment-edited-badge" title="This segment has been manually edited">edited</span>`
+      : '';
+
+    const editBtn = (state.activeRecordingId || state.recordingId)
+      ? `<button class="seg-edit-btn opacity-0 group-hover:opacity-100 ml-auto p-1 rounded text-slate-300 hover:text-brand transition focus:outline-none shrink-0"
+                 title="Edit segment text"
+                 onclick="event.stopPropagation(); openSegmentEdit(this, ${seg.id})">
+           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+             <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+           </svg>
+         </button>`
+      : '';
+
+    div.className += ' group';
     div.innerHTML = `
       <div class="flex items-baseline gap-1 mb-0.5">
         ${spkBadge}
         <span class="text-xs text-slate-400 font-mono">${fmtDur(seg.start)}</span>
+        ${editedBadge}
+        ${editBtn}
       </div>
-      <p class="text-sm text-slate-700 leading-relaxed">${highlightText(seg.text, q)}</p>
+      <p class="text-sm text-slate-700 leading-relaxed seg-text">${highlightText(seg.text, q)}</p>
     `;
     frag.appendChild(div);
   });
@@ -1015,16 +1180,25 @@ function initAudioPlayer() {
 function initExportButtons() {
   document.querySelectorAll('.export-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!state.jobId) return;
       const fmt = btn.dataset.fmt;
+      let exportUrl, baseName;
+      if (state.activeRecordingId) {
+        exportUrl = `/api/recordings/${state.activeRecordingId}/export/${fmt}`;
+        baseName = (state.result?.filename || 'transcript').replace(/\.[^.]+$/, '');
+      } else if (state.jobId) {
+        exportUrl = `/api/jobs/${state.jobId}/export/${fmt}`;
+        baseName = (state.selectedFile?.name || 'transcript').replace(/\.[^.]+$/, '');
+      } else {
+        return;
+      }
       try {
-        const res = await fetch(`/api/jobs/${state.jobId}/export/${fmt}`);
+        const res = await fetch(exportUrl);
         if (!res.ok) throw new Error(await res.text());
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${(state.selectedFile?.name||'transcript').replace(/\.[^.]+$/,'')}.${fmt}`;
+        a.download = `${baseName}.${fmt}`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {
@@ -1100,6 +1274,597 @@ async function restoreSettings() {
 }
 
 // =========================================================================
+// === FOLDER TREE ===
+// =========================================================================
+async function fetchFolders() {
+  try {
+    const res = await fetch('/api/folders');
+    if (!res.ok) return;
+    state.library.folders = await res.json();
+    renderFolderTree();
+  } catch (_) {}
+}
+
+function renderFolderTree() {
+  const tree = document.getElementById('folder-tree');
+  const folders = state.library.folders;
+  // Build a tree from flat list
+  const roots = folders.filter(f => !f.parent_id);
+  tree.innerHTML = '';
+  roots.forEach(f => tree.appendChild(buildFolderNode(f, folders)));
+}
+
+function buildFolderNode(folder, all) {
+  const children = all.filter(f => f.parent_id === folder.id);
+  const hasChildren = children.length > 0;
+  const wrapper = document.createElement('div');
+
+  const item = document.createElement('div');
+  item.className = 'folder-item' + (state.library.selectedFolderId === folder.id ? ' active' : '');
+  item.onclick = () => selectFolder(folder.id);
+  item.ondblclick = (e) => { e.stopPropagation(); renameFolderPrompt(folder); };
+  item.title = 'Double-click to rename · Right-click for options';
+  item.oncontextmenu = (e) => { e.preventDefault(); showFolderMenu(e, folder); };
+
+  const arrow = hasChildren
+    ? `<svg class="folder-arrow w-3 h-3 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`
+    : `<span class="w-3 shrink-0"></span>`;
+
+  item.innerHTML = `
+    ${arrow}
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+    </svg>
+    <span class="flex-1 truncate">${escHtml(folder.name)}</span>
+  `;
+  wrapper.appendChild(item);
+
+  if (hasChildren) {
+    const childContainer = document.createElement('div');
+    childContainer.className = 'folder-children';
+    children.forEach(c => childContainer.appendChild(buildFolderNode(c, all)));
+    wrapper.appendChild(childContainer);
+
+    item.querySelector('.folder-arrow')?.addEventListener('click', e => {
+      e.stopPropagation();
+      childContainer.classList.toggle('hidden');
+      item.querySelector('.folder-arrow')?.classList.toggle('open');
+    });
+  }
+
+  return wrapper;
+}
+
+function selectFolder(folderId) {
+  state.library.selectedFolderId = folderId;
+  state.library.selectedTagId = null;
+  // Update active state on folder items
+  document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('folder-all').classList.toggle('active', !folderId);
+  if (folderId) {
+    // find and mark active
+    document.querySelectorAll('.folder-item').forEach(el => {
+      if (el.onclick && el.onclick.toString().includes(folderId)) el.classList.add('active');
+    });
+  }
+  document.getElementById('library-folder-label').textContent =
+    folderId ? (state.library.folders.find(f => f.id === folderId)?.name || 'Folder') : 'All recordings';
+  fetchLibrary();
+  if (state.activeTab !== 'library') switchTab('library');
+}
+
+function showFolderMenu(e, folder) {
+  // Remove any existing menu
+  document.getElementById('folder-ctx-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'folder-ctx-menu';
+  menu.className = 'absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  menu.innerHTML = `
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50" onclick="renameFolderPrompt(${JSON.stringify(folder).replace(/"/g,'&quot;')}); document.getElementById('folder-ctx-menu')?.remove()">Rename</button>
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50 text-red-500" onclick="deleteFolderConfirm('${folder.id}'); document.getElementById('folder-ctx-menu')?.remove()">Delete</button>
+  `;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+async function createFolder(name, parentId) {
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  if (parentId) fd.append('parent_id', parentId);
+  try {
+    const res = await fetch('/api/folders', { method: 'POST', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    await fetchFolders();
+  } catch (err) { alert(`Create folder failed: ${err.message}`); }
+}
+
+async function renameFolderPrompt(folder) {
+  const newName = prompt('Rename folder:', folder.name);
+  if (!newName || newName === folder.name) return;
+  const fd = new FormData();
+  fd.append('name', newName);
+  try {
+    const res = await fetch(`/api/folders/${folder.id}`, { method: 'PATCH', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    await fetchFolders();
+  } catch (err) { alert(`Rename failed: ${err.message}`); }
+}
+
+async function deleteFolderConfirm(folderId) {
+  if (!confirm('Delete folder? Recordings inside will be moved to All Recordings.')) return;
+  try {
+    const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.library.selectedFolderId === folderId) selectFolder(null);
+    await fetchFolders();
+    fetchLibrary();
+  } catch (err) { alert(`Delete folder failed: ${err.message}`); }
+}
+
+// =========================================================================
+// === TAGS ===
+// =========================================================================
+async function fetchTags() {
+  try {
+    const res = await fetch('/api/tags');
+    if (!res.ok) return;
+    state.library.tags = await res.json();
+    renderTagSidebar();
+  } catch (_) {}
+}
+
+function renderTagSidebar() {
+  const list = document.getElementById('tag-list');
+  list.innerHTML = '';
+  state.library.tags.forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill cursor-pointer' + (state.library.selectedTagId === tag.id ? ' ring-2 ring-offset-1 ring-slate-400' : '');
+    pill.style.background = tag.color_code;
+    pill.textContent = tag.name;
+    pill.title = 'Click to filter · Right-click to delete';
+    pill.onclick = () => filterByTag(tag.id, tag.name);
+    pill.oncontextmenu = (e) => { e.preventDefault(); deleteTagConfirm(tag); };
+    list.appendChild(pill);
+  });
+}
+
+function filterByTag(tagId, tagName) {
+  state.library.selectedTagId = tagId;
+  state.library.selectedFolderId = null;
+  renderTagSidebar();
+  const filterEl = document.getElementById('lib-tag-filter');
+  const filterName = document.getElementById('lib-tag-filter-name');
+  filterEl.classList.remove('hidden');
+  filterName.textContent = tagName;
+  fetchLibrary();
+  if (state.activeTab !== 'library') switchTab('library');
+}
+
+function clearTagFilter() {
+  state.library.selectedTagId = null;
+  renderTagSidebar();
+  document.getElementById('lib-tag-filter').classList.add('hidden');
+  fetchLibrary();
+}
+
+async function deleteTagConfirm(tag) {
+  if (!confirm(`Delete tag "${tag.name}"?`)) return;
+  try {
+    const res = await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.library.selectedTagId === tag.id) clearTagFilter();
+    await fetchTags();
+    fetchLibrary();
+  } catch (err) { alert(`Delete tag failed: ${err.message}`); }
+}
+
+async function createTagPrompt() {
+  const name = prompt('New tag name:');
+  if (!name) return;
+  const color = prompt('Color (hex, e.g. #6c63ff):', '#6c63ff') || '#6c63ff';
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('color_code', color);
+  try {
+    const res = await fetch('/api/tags', { method: 'POST', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    await fetchTags();
+  } catch (err) { alert(`Create tag failed: ${err.message}`); }
+}
+
+// =========================================================================
+// === LIBRARY VIEW ===
+// =========================================================================
+async function fetchLibrary() {
+  const params = new URLSearchParams({ sort: state.library.sort, order: state.library.order, limit: '100' });
+  if (state.library.selectedFolderId) params.set('folder_id', state.library.selectedFolderId);
+  if (state.library.selectedTagId) params.set('tag_id', state.library.selectedTagId);
+  try {
+    const res = await fetch('/api/library?' + params);
+    if (!res.ok) return;
+    state.library.recordings = await res.json();
+    renderLibrary();
+  } catch (_) {}
+}
+
+function renderLibrary() {
+  const list = document.getElementById('library-list');
+  const empty = document.getElementById('library-empty');
+  const recs = state.library.recordings;
+  if (!recs.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = '';
+  recs.forEach(rec => {
+    const card = document.createElement('div');
+    card.className = 'rec-card';
+    card.onclick = () => openRecording(rec);
+
+    const statusColors = {
+      done: 'bg-emerald-100 text-emerald-700',
+      error: 'bg-red-100 text-red-600',
+      pending: 'bg-slate-100 text-slate-500',
+      queued: 'bg-amber-100 text-amber-700',
+      transcribing: 'bg-blue-100 text-blue-700',
+      diarizing: 'bg-purple-100 text-purple-700',
+      cancelled: 'bg-slate-100 text-slate-500',
+    };
+    const statusCls = statusColors[rec.status] || 'bg-slate-100 text-slate-500';
+
+    const assignedTagIds = new Set((rec.tags || []).map(t => t.id));
+    const tagPills = (rec.tags || []).map(t =>
+      `<span class="tag-pill" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>`
+    ).join('');
+
+    // Folder selector options
+    const folderOptions = [
+      `<option value="">— No folder —</option>`,
+      ...state.library.folders.map(f =>
+        `<option value="${escHtml(f.id)}" ${rec.folder_id === f.id ? 'selected' : ''}>${escHtml(f.name)}</option>`
+      ),
+    ].join('');
+
+    // Tag checkboxes for the dropdown
+    const tagCheckboxes = state.library.tags.length
+      ? state.library.tags.map(t => `
+          <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs rounded">
+            <input type="checkbox" ${assignedTagIds.has(t.id) ? 'checked' : ''}
+                   onchange="event.stopPropagation(); toggleRecordingTag('${rec.id}', '${t.id}', this.checked)"
+                   class="rounded border-slate-300 text-brand focus:ring-brand" />
+            <span class="tag-pill" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>
+          </label>`).join('')
+      : `<p class="px-3 py-2 text-xs text-slate-400">No tags yet — create one in the sidebar</p>`;
+
+    const dur = rec.duration ? fmtDur(rec.duration) : '—';
+    const date = new Date(rec.created_at * 1000).toLocaleDateString();
+
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-800 truncate">${escHtml(rec.filename)}</p>
+          <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}</p>
+          ${tagPills ? `<div class="flex flex-wrap gap-1 mt-2">${tagPills}</div>` : ''}
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
+
+          <!-- Move to folder -->
+          <div class="relative">
+            <button class="p-1.5 rounded-lg text-slate-300 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                    title="Move to folder"
+                    onclick="togglePopover(this)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+              </svg>
+            </button>
+            <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
+              <p class="text-xs text-slate-400 px-1 mb-1">Move to folder</p>
+              <select class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+                      onchange="moveRecordingToFolder('${rec.id}', this.value)">
+                ${folderOptions}
+              </select>
+            </div>
+          </div>
+
+          <!-- Assign tags -->
+          <div class="relative">
+            <button class="p-1.5 rounded-lg text-slate-300 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                    title="Assign tags"
+                    onclick="togglePopover(this)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 014-4z"/>
+              </svg>
+            </button>
+            <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+              <p class="text-xs text-slate-400 px-3 py-1">Assign tags</p>
+              ${tagCheckboxes}
+            </div>
+          </div>
+
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusCls}">${rec.status}</span>
+          <button class="p-1.5 rounded-lg text-slate-300 hover:text-red-400 transition focus:outline-none"
+                  title="Delete recording"
+                  onclick="deleteRecordingConfirm('${rec.id}')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function togglePopover(btn) {
+  const popover = btn.nextElementSibling;
+  const isOpen = !popover.classList.contains('hidden');
+  // Close all other open popovers
+  document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+  if (!isOpen) {
+    popover.classList.remove('hidden');
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!popover.contains(e.target) && e.target !== btn) {
+          popover.classList.add('hidden');
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 0);
+  }
+}
+
+async function moveRecordingToFolder(recordingId, folderId) {
+  const fd = new FormData();
+  fd.append('folder_id', folderId);
+  try {
+    const res = await fetch(`/api/recordings/${recordingId}`, { method: 'PATCH', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+    // Update local state without full refetch
+    const rec = state.library.recordings.find(r => r.id === recordingId);
+    if (rec) rec.folder_id = folderId || null;
+    // If we're viewing a specific folder, remove the card from the current view
+    if (state.library.selectedFolderId && state.library.selectedFolderId !== folderId) {
+      state.library.recordings = state.library.recordings.filter(r => r.id !== recordingId);
+    }
+    renderLibrary();
+    // Close any open popovers
+    document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+  } catch (err) { alert(`Move failed: ${err.message}`); }
+}
+
+async function toggleRecordingTag(recordingId, tagId, add) {
+  try {
+    const method = add ? 'POST' : 'DELETE';
+    const res = await fetch(`/api/recordings/${recordingId}/tags/${tagId}`, { method });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+    // Update local state
+    const rec = state.library.recordings.find(r => r.id === recordingId);
+    if (rec) {
+      if (add) {
+        const tag = state.library.tags.find(t => t.id === tagId);
+        if (tag && !rec.tags.find(t => t.id === tagId)) rec.tags.push(tag);
+      } else {
+        rec.tags = rec.tags.filter(t => t.id !== tagId);
+      }
+    }
+    // Re-render only the tag pills on this card without rebuilding everything
+    fetchLibrary();
+  } catch (err) { alert(`Tag update failed: ${err.message}`); }
+}
+
+async function openRecording(rec) {
+  if (rec.status !== 'done') {
+    alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
+    return;
+  }
+  try {
+    const [trRes, audioRes] = await Promise.all([
+      fetch(`/api/recordings/${rec.id}/transcript`),
+      fetch(`/api/recordings/${rec.id}/audio`),
+    ]);
+    if (!trRes.ok) throw new Error('Transcript not found');
+
+    const trData = await trRes.json();
+    const audioBlob = await audioRes.blob();
+
+    state.activeRecordingId = rec.id;
+    state.jobId = null;
+    state.recordingId = rec.id;
+    const result = trData.json_data;
+    result.filename = rec.filename;
+    state.result = result;
+    state.audioUrl = URL.createObjectURL(audioBlob);
+    state.filteredSegments = result.segments;
+    state.activeSpeakerFilter = null;
+    state.currentSegmentId = null;
+    state.searchQuery = '';
+
+    renderResults();
+
+    const transcriptBtn = document.getElementById('tab-btn-transcript');
+    transcriptBtn.disabled = false;
+    switchTab('transcript');
+  } catch (err) {
+    alert(`Failed to open recording: ${err.message}`);
+  }
+}
+
+async function deleteRecordingConfirm(recordingId) {
+  if (!confirm('Permanently delete this recording and its transcript?')) return;
+  try {
+    const res = await fetch(`/api/recordings/${recordingId}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.activeRecordingId === recordingId) {
+      state.activeRecordingId = null;
+      state.result = null;
+    }
+    fetchLibrary();
+  } catch (err) { alert(`Delete failed: ${err.message}`); }
+}
+
+// =========================================================================
+// === SEGMENT EDITING ===
+// =========================================================================
+function openSegmentEdit(btn, segmentIndex) {
+  const segDiv = btn.closest('.segment');
+  if (!segDiv) return;
+  const textEl = segDiv.querySelector('.seg-text');
+  if (!textEl) return;
+
+  // Already in edit mode?
+  if (segDiv.querySelector('.segment-edit-area')) return;
+
+  const currentText = state.result?.segments[segmentIndex]?.text || textEl.textContent;
+  const recordingId = state.activeRecordingId || state.recordingId;
+
+  const area = document.createElement('textarea');
+  area.className = 'segment-edit-area mt-2';
+  area.value = currentText;
+  area.rows = 3;
+  area.onclick = e => e.stopPropagation();
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'mt-1.5 px-3 py-1 text-xs font-semibold bg-brand text-white rounded-lg hover:bg-brand-hover transition focus:outline-none';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = async (e) => {
+    e.stopPropagation();
+    const newText = area.value.trim();
+    if (!newText || !recordingId) { area.remove(); saveBtn.remove(); cancelBtn.remove(); return; }
+    try {
+      const fd = new FormData();
+      fd.append('text', newText);
+      const res = await fetch(`/api/recordings/${recordingId}/transcript/segments/${segmentIndex}`, {
+        method: 'PATCH',
+        body: fd,
+      });
+      if (!res.ok) throw new Error('Save failed');
+      // Update local state
+      if (state.result?.segments[segmentIndex]) {
+        state.result.segments[segmentIndex].text = newText;
+        state.result.segments[segmentIndex].edited = true;
+      }
+      area.remove(); saveBtn.remove(); cancelBtn.remove();
+      textEl.innerHTML = escHtml(newText);
+      segDiv.classList.add('edited');
+      // Add edited badge if not already present
+      if (!segDiv.querySelector('.segment-edited-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'segment-edited-badge';
+        badge.title = 'This segment has been manually edited';
+        badge.textContent = 'edited';
+        segDiv.querySelector('.flex.items-baseline')?.appendChild(badge);
+      }
+    } catch (err) { alert(`Save failed: ${err.message}`); }
+  };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'mt-1.5 ml-1.5 px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition focus:outline-none';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = (e) => { e.stopPropagation(); area.remove(); saveBtn.remove(); cancelBtn.remove(); };
+
+  segDiv.appendChild(area);
+  segDiv.appendChild(saveBtn);
+  segDiv.appendChild(cancelBtn);
+  area.focus();
+  area.select();
+}
+
+// =========================================================================
+// === GLOBAL SEARCH ===
+// =========================================================================
+let _globalSearchTimer = null;
+
+function initGlobalSearch() {
+  const input = document.getElementById('global-search-input');
+  const dropdown = document.getElementById('global-search-dropdown');
+
+  input.addEventListener('input', () => {
+    clearTimeout(_globalSearchTimer);
+    const q = input.value.trim();
+    if (!q) { dropdown.classList.add('hidden'); dropdown.innerHTML = ''; return; }
+    _globalSearchTimer = setTimeout(() => runGlobalSearch(q), 300);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { dropdown.classList.add('hidden'); input.blur(); }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+async function runGlobalSearch(q) {
+  const dropdown = document.getElementById('global-search-dropdown');
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
+    if (!res.ok) return;
+    const results = await res.json();
+    if (!results.length) {
+      dropdown.innerHTML = '<div class="search-dropdown-item text-xs text-slate-400">No results found</div>';
+      dropdown.classList.remove('hidden');
+      return;
+    }
+    dropdown.innerHTML = '';
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'search-dropdown-item';
+      const dur = r.duration ? fmtDur(r.duration) : '';
+      item.innerHTML = `
+        <p class="text-xs font-semibold text-slate-700 truncate">${escHtml(r.filename)}</p>
+        <p class="text-xs text-slate-400 mt-0.5">${dur ? dur + ' · ' : ''}${r.snippet}</p>
+      `;
+      item.onclick = () => {
+        dropdown.classList.add('hidden');
+        document.getElementById('global-search-input').value = '';
+        const rec = { id: r.recording_id, filename: r.filename, status: 'done', duration: r.duration, tags: [] };
+        openRecording(rec);
+      };
+      dropdown.appendChild(item);
+    });
+    dropdown.classList.remove('hidden');
+  } catch (_) {}
+}
+
+// =========================================================================
+// === LIBRARY INIT ===
+// =========================================================================
+function initLibrary() {
+  fetchFolders();
+  fetchTags();
+
+  document.getElementById('new-folder-btn').addEventListener('click', () => {
+    const name = prompt('New folder name:');
+    if (name) createFolder(name, state.library.selectedFolderId);
+  });
+
+  document.getElementById('new-tag-btn').addEventListener('click', createTagPrompt);
+
+  document.getElementById('lib-sort-select').addEventListener('change', e => {
+    state.library.sort = e.target.value;
+    fetchLibrary();
+  });
+
+  document.getElementById('lib-sort-order').addEventListener('click', () => {
+    state.library.order = state.library.order === 'desc' ? 'asc' : 'desc';
+    document.getElementById('lib-sort-asc-icon').classList.toggle('hidden', state.library.order !== 'asc');
+    document.getElementById('lib-sort-desc-icon').classList.toggle('hidden', state.library.order !== 'desc');
+    fetchLibrary();
+  });
+
+  initGlobalSearch();
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 function init() {
@@ -1123,6 +1888,8 @@ function init() {
   document.getElementById('new-btn').addEventListener('click', () => {
     state.result = null;
     state.jobId = null;
+    state.recordingId = null;
+    state.activeRecordingId = null;
     state.jobStatus = null;
     state.audioUrl = null;
     state.currentSegmentId = null;
@@ -1138,6 +1905,7 @@ function init() {
     state.searchQuery = e.target.value;
     applyFilters();
   });
+  initLibrary();
   // fetch and display application version
   fetchVersion();
 }

@@ -9,3 +9,4 @@ sse-starlette>=2.1.0
 aiofiles>=23.2.1
 pydantic>=2.7.1
 requests>=2.31.0
+sqlmodel>=0.0.18
