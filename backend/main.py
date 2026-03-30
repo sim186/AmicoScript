@@ -262,6 +262,8 @@ async def transcribe(
     diarize: str = Form("false"),
     hf_token: str = Form(""),
     num_speakers: str = Form(""),
+    min_speakers: str = Form(""),
+    max_speakers: str = Form(""),
 ) -> dict:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -289,6 +291,8 @@ async def transcribe(
             "diarize": diarize.lower() == "true",
             "hf_token": hf_token or _get_saved_hf_token(),
             "num_speakers": int(num_speakers) if num_speakers.isdigit() else None,
+            "min_speakers": int(min_speakers) if min_speakers.isdigit() else None,
+            "max_speakers": int(max_speakers) if max_speakers.isdigit() else None,
         },
         "result": None,
         "error": None,

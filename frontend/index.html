@@ -141,10 +141,25 @@
                 <span id="hf-saved-indicator" class="hidden ml-2 text-emerald-500 font-medium">Saved ✓</span>
               </p>
             </div>
-            <div>
-              <label for="num-speakers-input" class="block text-xs text-slate-500 mb-1">Number of speakers <span class="text-slate-400">(optional)</span></label>
-              <input type="number" id="num-speakers-input" min="1" max="20" placeholder="Auto"
-                     class="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+            <div class="space-y-2">
+              <label class="block text-xs text-slate-500">Speakers <span class="text-slate-400">(optional)</span></label>
+              <div class="flex items-center gap-2">
+                <div class="flex flex-col gap-0.5">
+                  <span class="text-xs text-slate-400">Exact</span>
+                  <input type="number" id="num-speakers-input" min="1" max="20" placeholder="Auto"
+                         class="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <span class="text-xs text-slate-400">Min</span>
+                  <input type="number" id="min-speakers-input" min="1" max="20" placeholder="—"
+                         class="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <span class="text-xs text-slate-400">Max</span>
+                  <input type="number" id="max-speakers-input" min="1" max="20" placeholder="—"
+                         class="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -361,6 +376,8 @@ const state = {
   diarize: false,
   hfToken: '',
   numSpeakers: '',
+  minSpeakers: '',
+  maxSpeakers: '',
 
   jobId: null,
   jobStatus: null,
@@ -569,6 +586,14 @@ function initDiarizeToggle() {
   document.getElementById('num-speakers-input').addEventListener('input', e => {
     state.numSpeakers = e.target.value;
   });
+
+  document.getElementById('min-speakers-input').addEventListener('input', e => {
+    state.minSpeakers = e.target.value;
+  });
+
+  document.getElementById('max-speakers-input').addEventListener('input', e => {
+    state.maxSpeakers = e.target.value;
+  });
 }
 
 // =========================================================================
@@ -585,6 +610,8 @@ async function startTranscription() {
   fd.append('diarize', state.diarize ? 'true' : 'false');
   fd.append('hf_token', state.hfToken);
   fd.append('num_speakers', state.numSpeakers);
+  fd.append('min_speakers', state.minSpeakers);
+  fd.append('max_speakers', state.maxSpeakers);
 
   setProcessing(true);
 

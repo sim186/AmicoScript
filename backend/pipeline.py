@@ -201,15 +201,27 @@ def _is_missing_vad_asset_error(exc: Exception) -> bool:
 # ---------------------------------------------------------------------------
 
 def _assign_speaker(seg_start: float, seg_end: float, diarization) -> str:
-    """Return the speaker label whose diarization track maximally overlaps the segment."""
-    best_speaker = "SPEAKER_00"
+    """Return the speaker label whose diarization track maximally overlaps the segment.
+
+    When no turn overlaps (e.g. the segment falls in a gap between turns),
+    fall back to the nearest turn by time distance rather than always
+    returning SPEAKER_00.
+    """
+    best_speaker = None
     best_overlap = 0.0
+    best_dist = float("inf")
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         overlap = max(0.0, min(seg_end, turn.end) - max(seg_start, turn.start))
         if overlap > best_overlap:
             best_overlap = overlap
             best_speaker = speaker
-    return best_speaker
+        elif best_overlap == 0.0:
+            # nearest-neighbour fallback: pick the closest turn boundary
+            dist = min(abs(seg_start - turn.end), abs(seg_end - turn.start))
+            if dist < best_dist:
+                best_dist = dist
+                best_speaker = speaker
+    return best_speaker or "SPEAKER_00"
 
 
 # ---------------------------------------------------------------------------
@@ -456,9 +468,16 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
             # so both decode paths (Whisper + diarization) are identical.
             diarization_input = _convert_audio_for_diarization(job_id, file_path)
 
-            # Fix 2: forward the user's speaker-count hint to pyannote.
+            # Fix 2: forward the user's speaker-count hints to pyannote.
             num_speakers = opts.get("num_speakers")
-            diarization = pipeline(diarization_input, num_speakers=num_speakers)
+            min_speakers = opts.get("min_speakers")
+            max_speakers = opts.get("max_speakers")
+            diarization = pipeline(
+                diarization_input,
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers,
+            )
 
             # pyannote >= 3.3 may return a wrapper object (DiarizeOutput,
             # Output, etc.) instead of a bare Annotation.  Rather than
