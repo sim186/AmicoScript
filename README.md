@@ -1,5 +1,7 @@
 # AmicoScript
 
+[![Build and Release](https://github.com/sim186/amico-script/actions/workflows/release.yml/badge.svg)](https://github.com/sim186/amico-script/actions/workflows/release.yml)
+
 Local-first audio transcription with speaker identification. Upload a recording, get a time-stamped, searchable transcript — all processed on your machine, nothing sent to the cloud.
 
 **Supports:** MP3, WAV, M4A, OGG, FLAC
