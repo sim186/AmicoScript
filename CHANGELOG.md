@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
+## [Unreleased]
+
+### Added
+- AAC (`.aac`) audio file support.
+
 ## [1.0.0] - 2026-03-30
 
 - Fixed PyInstaller packaging for speaker diarization by bundling `pyannote.audio` data files (including `telemetry/config.yaml`) in standalone builds.

@@ -4,7 +4,7 @@
 
 Local-first audio transcription with speaker identification. Upload a recording, get a time-stamped, searchable transcript — all processed on your machine, nothing sent to the cloud.
 
-**Supports:** MP3, WAV, M4A, OGG, FLAC
+**Supports:** MP3, WAV, M4A, OGG, FLAC, AAC
 **Models:** Whisper tiny → large-v3
 **Export:** JSON, SRT, TXT, Markdown
 

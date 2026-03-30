@@ -240,13 +240,13 @@
           <div id="drop-zone"
                role="button" tabindex="0" aria-label="Upload audio file"
                class="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-8 py-14 text-center cursor-pointer transition hover:border-brand hover:bg-brand-muted/20 focus:outline-none focus:ring-2 focus:ring-brand">
-            <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4" class="hidden" aria-hidden="true" />
+            <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4" class="hidden" aria-hidden="true" />
             <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
             </svg>
             <div>
               <p class="font-medium text-slate-700">Drop audio here or <span class="text-brand">browse</span></p>
-              <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC</p>
+              <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC · AAC</p>
             </div>
           </div>
 
@@ -512,7 +512,7 @@ function initDropZone() {
 
 function handleFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
-  if (!['mp3','wav','m4a','ogg','flac','mp4'].includes(ext)) {
+  if (!['mp3','wav','m4a','ogg','flac','aac','mp4'].includes(ext)) {
     showError(`Unsupported file type: .${ext}`);
     return;
   }
