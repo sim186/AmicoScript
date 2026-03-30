@@ -187,6 +187,12 @@
       </div><!-- /sidebar-transcript -->
 
     </div><!-- /sidebar scroll -->
+
+    <!-- Sidebar footer: app version -->
+    <div class="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
+      Version <span id="app-version" class="font-medium text-slate-700">—</span>
+      <a href="/CHANGELOG.md" target="_blank" rel="noopener" class="ml-2 text-brand hover:underline">Changelog</a>
+    </div>
   </aside>
 
   <!-- ===================================================================
@@ -291,6 +297,21 @@
                     aria-label="Cancel transcription">
               Cancel
             </button>
+
+            <div class="mt-5 text-left">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Live log</span>
+                <button id="refresh-log-btn" type="button"
+                        class="text-xs text-slate-500 hover:text-slate-700 transition focus:outline-none focus:ring-1 focus:ring-brand rounded px-1.5 py-0.5">
+                  Refresh
+                </button>
+                <button id="copy-log-btn" type="button"
+                        class="text-xs text-slate-500 hover:text-slate-700 transition focus:outline-none focus:ring-1 focus:ring-brand rounded px-1.5 py-0.5">
+                  Copy
+                </button>
+              </div>
+              <pre id="proc-log" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap">No logs yet.</pre>
+            </div>
           </div>
         </div>
 
@@ -346,6 +367,8 @@ const state = {
   jobProgress: 0,
   jobMessage: '',
   eventSource: null,
+  jobLogs: [],
+  logPollTimer: null,
 
   result: null,
   audioUrl: null,
@@ -354,6 +377,23 @@ const state = {
   filteredSegments: [],
   activeSpeakerFilter: null,
 };
+
+
+// =========================================================================
+// Version fetch
+// =========================================================================
+async function fetchVersion() {
+  try {
+    const res = await fetch('/api/version');
+    if (!res.ok) return;
+    const j = await res.json();
+    const v = j.version || '';
+    const el = document.getElementById('app-version');
+    if (el) el.textContent = v || 'n/a';
+  } catch (e) {
+    // ignore
+  }
+}
 
 // =========================================================================
 // Tabs
@@ -567,6 +607,80 @@ async function startTranscription() {
 function setProcessing(active) {
   document.getElementById('upload-state').classList.toggle('hidden', active);
   document.getElementById('processing-state').classList.toggle('hidden', !active);
+
+  if (active) {
+    resetJobLogs();
+    startLogPolling();
+  } else {
+    stopLogPolling();
+  }
+}
+
+function formatJobLogEntry(entry) {
+  const ts = entry?.ts ? new Date(entry.ts * 1000).toLocaleTimeString() : '--:--:--';
+  const level = entry?.level || 'INFO';
+  const message = entry?.message || '';
+  return `[${ts}] ${level} ${message}`;
+}
+
+function renderJobLogs() {
+  const pre = document.getElementById('proc-log');
+  if (!pre) return;
+  if (!state.jobLogs.length) {
+    pre.textContent = 'No logs yet.';
+    return;
+  }
+  pre.textContent = state.jobLogs.join('\n');
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function resetJobLogs() {
+  state.jobLogs = [];
+  renderJobLogs();
+}
+
+function appendJobLogLine(line) {
+  if (!line) return;
+  state.jobLogs.push(line);
+  if (state.jobLogs.length > 500) state.jobLogs = state.jobLogs.slice(-500);
+  renderJobLogs();
+}
+
+async function refreshJobLogs() {
+  if (!state.jobId) return;
+  try {
+    const res = await fetch(`/api/jobs/${state.jobId}/logs?limit=500`);
+    if (!res.ok) return;
+    const payload = await res.json();
+    const lines = (payload.logs || []).map(formatJobLogEntry);
+    state.jobLogs = lines;
+    renderJobLogs();
+  } catch (_) {
+    // best-effort diagnostics only
+  }
+}
+
+function startLogPolling() {
+  stopLogPolling();
+  refreshJobLogs();
+  state.logPollTimer = setInterval(refreshJobLogs, 2000);
+}
+
+function stopLogPolling() {
+  if (state.logPollTimer) {
+    clearInterval(state.logPollTimer);
+    state.logPollTimer = null;
+  }
+}
+
+async function copyLogsToClipboard() {
+  const content = state.jobLogs.join('\n');
+  if (!content) return;
+  try {
+    await navigator.clipboard.writeText(content);
+  } catch (_) {
+    // clipboard may be blocked by browser policy
+  }
 }
 
 // =========================================================================
@@ -587,17 +701,21 @@ function connectSSE(jobId) {
     state.jobStatus = data.status;
     state.jobProgress = data.progress;
     state.jobMessage = data.message || '';
+    appendJobLogLine(`[${new Date().toLocaleTimeString()}] EVENT ${data.status}: ${state.jobMessage}`);
     updateProcessingUI();
 
     if (data.status === 'done') {
       es.close();
+      refreshJobLogs();
       loadResult(jobId);
     } else if (data.status === 'error') {
       es.close();
+      refreshJobLogs();
       setProcessing(false);
       showError(`Transcription error: ${data.message}`);
     } else if (data.status === 'cancelled') {
       es.close();
+      refreshJobLogs();
       setProcessing(false);
     }
   };
@@ -972,6 +1090,8 @@ function init() {
 
   document.getElementById('start-btn').addEventListener('click', startTranscription);
   document.getElementById('cancel-btn').addEventListener('click', cancelJob);
+  document.getElementById('refresh-log-btn').addEventListener('click', refreshJobLogs);
+  document.getElementById('copy-log-btn').addEventListener('click', copyLogsToClipboard);
 
   document.getElementById('new-btn').addEventListener('click', () => {
     state.result = null;
@@ -980,6 +1100,7 @@ function init() {
     state.audioUrl = null;
     state.currentSegmentId = null;
     state.selectedFile = null;
+    resetJobLogs();
     clearFile();
     const transcriptBtn = document.getElementById('tab-btn-transcript');
     transcriptBtn.disabled = true;
@@ -990,7 +1111,21 @@ function init() {
     state.searchQuery = e.target.value;
     applyFilters();
   });
+  // fetch and display application version
+  fetchVersion();
 }
+
+// Notify the backend when the user closes the browser window/tab so the
+// packaged application can exit.
+window.addEventListener('beforeunload', () => {
+  try {
+    // navigator.sendBeacon performs a lightweight POST that doesn't block
+    // the unload sequence.
+    navigator.sendBeacon('/api/exit');
+  } catch (e) {
+    // best-effort only
+  }
+});
 
 document.addEventListener('DOMContentLoaded', init);
 </script>

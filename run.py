@@ -1,10 +1,30 @@
 import os
 import sys
 import threading
-import uvicorn
 import webbrowser
 import time
 from pathlib import Path
+
+_STDIO_FALLBACK_HANDLES = []
+
+
+def _ensure_standard_streams() -> None:
+    """Provide file-like stdio streams in windowed/noconsole builds."""
+    if sys.stdin is None:
+        stdin_fallback = open(os.devnull, "r", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stdin_fallback)
+        sys.stdin = stdin_fallback
+    if sys.stdout is None:
+        stdout_fallback = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stdout_fallback)
+        sys.stdout = stdout_fallback
+    if sys.stderr is None:
+        stderr_fallback = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stderr_fallback)
+        sys.stderr = stderr_fallback
+
+
+_ensure_standard_streams()
 
 # Fix for PyInstaller paths
 if hasattr(sys, '_MEIPASS'):
@@ -55,4 +75,7 @@ if __name__ == "__main__":
     
     # Run uvicorn
     import main
-    uvicorn.run(main.app, host=host, port=port, log_level="info")
+    import uvicorn
+    # In windowed/"noconsole" builds, stderr can be missing; avoid uvicorn's
+    # default formatter setup that expects a TTY-backed stream.
+    uvicorn.run(main.app, host=host, port=port, log_level="info", log_config=None)

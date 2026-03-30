@@ -1,24 +1,54 @@
 import asyncio
+import gc
 import json
 import os
+import re
+# Prevent OpenMP deadlocks when transcribing completely on CPU or with multiple sequential tasks
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+import shutil
+import subprocess
 import threading
 import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Optional
+
+import sys
+
+# In PyInstaller windowed mode, stdio can be None; some libs call stream.write().
+_STDIO_FALLBACK_HANDLES = []
+
+
+def _ensure_standard_streams() -> None:
+    if sys.stdin is None:
+        stdin_fallback = open(os.devnull, "r", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stdin_fallback)
+        sys.stdin = stdin_fallback
+    if sys.stdout is None:
+        stdout_fallback = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stdout_fallback)
+        sys.stdout = stdout_fallback
+    if sys.stderr is None:
+        stderr_fallback = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        _STDIO_FALLBACK_HANDLES.append(stderr_fallback)
+        sys.stderr = stderr_fallback
+
+
+_ensure_standard_streams()
 
 # Settings directory for persistent config (survives app reinstalls)
 SETTINGS_DIR = Path.home() / ".amicoscript"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 import aiofiles
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
-
-import sys
 
 # Fix for PyInstaller paths
 if hasattr(sys, '_MEIPASS'):
@@ -63,6 +93,31 @@ app.add_middleware(
 )
 
 
+@app.post("/api/exit")
+async def _api_exit(request: Request):
+    """Shutdown the application when called from localhost.
+
+    This endpoint is intentionally permissive for local UX (frontend will POST
+    here when the browser window is closed). We only act on requests from
+    loopback addresses to reduce accidental remote shutdowns.
+    """
+    try:
+        client_host = request.client.host if request.client else ""
+    except Exception:
+        client_host = ""
+
+    if client_host not in ("127.0.0.1", "::1", "localhost"):
+        return {"status": "ignored"}
+
+    def _delayed_exit():
+        # Give the request/response cycle a moment to finish, then exit.
+        time.sleep(0.1)
+        os._exit(0)
+
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {"status": "ok"}
+
+
 # ---------------------------------------------------------------------------
 # Settings persistence
 # ---------------------------------------------------------------------------
@@ -93,6 +148,11 @@ def _get_saved_hf_token() -> str:
 async def startup() -> None:
     app.state.loop = asyncio.get_event_loop()
     asyncio.create_task(_cleanup_loop())
+    # Start release poller if configured via env vars
+    try:
+        asyncio.create_task(_release_poller_loop())
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +177,27 @@ def _push_event(job_id: str, status: str, progress: float, message: str, data: O
     event = {"status": status, "progress": progress, "message": message}
     if data:
         event["data"] = data
+    level = "ERROR" if status == "error" else "INFO"
+    _append_job_log(job_id, level, f"{status}: {message}")
     asyncio.run_coroutine_threadsafe(
         job["sse_queue"].put(event),
         app.state.loop,
     )
+
+
+def _append_job_log(job_id: str, level: str, message: str) -> None:
+    job = jobs.get(job_id)
+    if not job:
+        return
+    logs = job.setdefault("logs", [])
+    logs.append({
+        "ts": round(time.time(), 3),
+        "level": level,
+        "message": message,
+    })
+    # Keep memory bounded for very long jobs.
+    if len(logs) > 1000:
+        del logs[:-1000]
 
 
 def _ms(seconds: float) -> str:
@@ -152,6 +229,86 @@ def _assign_speaker(seg_start: float, seg_end: float, diarization) -> str:
             best_overlap = overlap
             best_speaker = speaker
     return best_speaker
+
+
+def _is_missing_cuda_runtime_error(exc: Exception) -> bool:
+    """Detect common errors caused by missing CUDA runtime DLLs/libraries."""
+    message = str(exc).lower()
+    markers = (
+        "cublas",
+        "cudnn",
+        "cudart",
+        "cuda",
+        "nvcuda",
+        "libcublas",
+    )
+    return any(marker in message for marker in markers)
+
+
+def _is_missing_vad_asset_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "silero_vad_v6.onnx" in message or (
+        "onnxruntimeerror" in message and "file doesn't exist" in message
+    )
+
+
+def _cleanup_job_temp_files(job: dict) -> None:
+    for temp_fp in job.get("temp_files", []):
+        if temp_fp and os.path.exists(temp_fp):
+            try:
+                os.remove(temp_fp)
+            except OSError:
+                pass
+    job["temp_files"] = []
+
+
+def _convert_audio_for_transcription(job_id: str, input_path: str) -> str:
+    """Normalize input audio via ffmpeg to improve decoder reliability."""
+    ext = Path(input_path).suffix.lower()
+    # WAV/FLAC are usually decoder-friendly already.
+    if ext in {".wav", ".flac"}:
+        return input_path
+
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        _append_job_log(job_id, "WARN", "ffmpeg not found in PATH; using original file")
+        return input_path
+
+    normalized_path = str(Path(input_path).with_name(f"{Path(input_path).stem}_norm.wav"))
+    cmd = [
+        ffmpeg_bin,
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        input_path,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-sample_fmt",
+        "s16",
+        normalized_path,
+    ]
+
+    try:
+        _append_job_log(job_id, "INFO", "Normalizing audio with ffmpeg (mono/16k PCM)")
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180, check=False)
+        if proc.returncode != 0:
+            stderr = (proc.stderr or "").strip()
+            _append_job_log(job_id, "WARN", f"ffmpeg normalization failed: {stderr or f'code {proc.returncode}'}")
+            return input_path
+
+        job = jobs.get(job_id)
+        if job is not None:
+            temp_files = job.setdefault("temp_files", [])
+            temp_files.append(normalized_path)
+        _append_job_log(job_id, "INFO", f"Using normalized audio: {Path(normalized_path).name}")
+        return normalized_path
+    except Exception as exc:  # noqa: BLE001
+        _append_job_log(job_id, "WARN", f"ffmpeg normalization exception: {exc}")
+        return input_path
 
 
 # ---------------------------------------------------------------------------
@@ -217,59 +374,253 @@ def _format_md(result: dict) -> str:
 # Background worker
 # ---------------------------------------------------------------------------
 
-def _worker(job_id: str) -> None:
+_cached_model = None
+_cached_model_name = None
+_cached_model_device = None
+
+import queue
+import threading
+
+JOB_QUEUE = queue.Queue()
+
+def _worker_loop():
+    """Background thread that sequentially processes transcription jobs."""
+    while True:
+        job_id = JOB_QUEUE.get()
+        if job_id is None:
+            break
+        try:
+            _process_job(job_id)
+        except Exception:
+            pass
+        finally:
+            JOB_QUEUE.task_done()
+
+# Start the single background worker thread
+threading.Thread(target=_worker_loop, daemon=True).start()
+
+def _get_whisper_model(model_name: str) -> tuple:
+    """Return an instantiated WhisperModel and the device it's loaded on.
+    Caches the model to prevent reloading penalties and GPU memory fragmentation.
+    """
+    global _cached_model, _cached_model_name, _cached_model_device
+    from faster_whisper import WhisperModel
+
+    if _cached_model is not None and _cached_model_name == model_name:
+        return _cached_model, _cached_model_device
+
+    # Evict old model properly
+    if _cached_model is not None:
+        del _cached_model
+        _cached_model = None
+        gc.collect()
+        try:
+            import torch
+            if hasattr(torch, "cuda") and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+    model_device = "auto"
+    try:
+        model = WhisperModel(model_name, device=model_device, compute_type="int8")
+    except Exception as exc:
+        if not _is_missing_cuda_runtime_error(exc):
+            raise
+        model_device = "cpu"
+        model = WhisperModel(model_name, device=model_device, compute_type="int8")
+        
+    _cached_model = model
+    _cached_model_name = model_name
+    _cached_model_device = model_device
+    return _cached_model, _cached_model_device
+
+def _process_job(job_id: str) -> None:
+    global _cached_model, _cached_model_device
+
     job = jobs[job_id]
     opts = job["options"]
     file_path: str = job["file_path"]
+    model = None
+    segments_gen = None
+    info = None
+    pipeline = None
+    diarization = None
+    stop_first_segment_watchdog = None
 
+    # Job loop prevents concurrent transcribes simply by being a single thread
     try:
+        _append_job_log(
+            job_id,
+            "INFO",
+            f"Worker started. model={opts['model']}, language={opts['language'] or 'auto'}, diarize={opts['diarize']}",
+        )
         # Phase 1: load model
         _push_event(job_id, "loading_model", 0.03, f"Loading model '{opts['model']}'…")
 
-        from faster_whisper import WhisperModel  # noqa: PLC0415
-        model = WhisperModel(opts["model"], device="auto", compute_type="int8")
+        try:
+            model, model_device = _get_whisper_model(opts["model"])
+        except Exception as exc:
+            _append_job_log(job_id, "WARN", f"Model init failed: {exc}")
+            raise
 
         # Phase 2: transcribe
-        _push_event(job_id, "transcribing", 0.05, "Starting transcription…")
+        _push_event(
+            job_id,
+            "transcribing",
+            0.05,
+            "Starting transcription (first progress update may take time on long files/CPU)…",
+        )
 
         lang = opts["language"] or None
-        segments_gen, info = model.transcribe(
-            file_path,
-            language=lang,
-            word_timestamps=True,
+        use_word_timestamps = os.environ.get("AMICO_WORD_TIMESTAMPS", "0") == "1"
+        use_vad_filter = True
+        _append_job_log(
+            job_id,
+            "INFO",
+            f"Transcribe options: word_timestamps={use_word_timestamps}, vad_filter={use_vad_filter}",
         )
-        duration = info.duration or 1.0  # avoid division by zero
+        whisper_input = _convert_audio_for_transcription(job_id, file_path)
 
-        segments_list = []
-        for seg in segments_gen:
-            if job["cancel_flag"].is_set():
-                _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+        first_segment_event = threading.Event()
+        stop_first_segment_watchdog = threading.Event()
+        max_first_segment_wait_seconds = 600
+
+        def _first_segment_watchdog() -> None:
+            waited_seconds = 0
+            while not stop_first_segment_watchdog.wait(10):
+                if first_segment_event.is_set():
+                    return
+                waited_seconds += 10
+                _push_event(
+                    job_id,
+                    "transcribing",
+                    0.05,
+                    f"Still transcribing… waiting for first segment ({waited_seconds}s)",
+                )
+                if waited_seconds >= max_first_segment_wait_seconds:
+                    _append_job_log(
+                        job_id,
+                        "ERROR",
+                        f"First segment timeout after {waited_seconds}s. Aborting job.",
+                    )
+                    _push_event(
+                        job_id,
+                        "error",
+                        -1,
+                        "Transcription timed out before first segment. Try a smaller model or split the audio.",
+                    )
+                    job["cancel_flag"].set()
+                    stop_first_segment_watchdog.set()
+                    return
+
+        watchdog_thread = threading.Thread(target=_first_segment_watchdog, daemon=True)
+        watchdog_thread.start()
+        try:
+            try:
+                segments_gen, info = model.transcribe(
+                    whisper_input,
+                    language=lang,
+                    word_timestamps=use_word_timestamps,
+                    vad_filter=use_vad_filter,
+                )
+            except Exception as exc:
+                if use_vad_filter and _is_missing_vad_asset_error(exc):
+                    use_vad_filter = False
+                    _append_job_log(
+                        job_id,
+                        "WARN",
+                        "VAD model asset missing in package; retrying with vad_filter=False",
+                    )
+                    segments_gen, info = model.transcribe(
+                        whisper_input,
+                        language=lang,
+                        word_timestamps=use_word_timestamps,
+                        vad_filter=use_vad_filter,
+                    )
+                    duration = info.duration or 1.0  # avoid division by zero
+                elif model_device == "cpu" or not _is_missing_cuda_runtime_error(exc):
+                    raise
+                else:
+                    _append_job_log(job_id, "WARN", f"GPU transcription failed: {exc}")
+                    _push_event(
+                        job_id,
+                        "transcribing",
+                        0.05,
+                        "GPU runtime unavailable. Retrying on CPU…",
+                    )
+                    model_device = "cpu"
+                    from faster_whisper import WhisperModel
+                    model = WhisperModel(opts["model"], device=model_device, compute_type="int8")
+                    
+                    _cached_model = model
+                    _cached_model_device = model_device
+                    try:
+                        segments_gen, info = model.transcribe(
+                            whisper_input,
+                            language=lang,
+                            word_timestamps=use_word_timestamps,
+                            vad_filter=use_vad_filter,
+                        )
+                    except Exception as cpu_exc:
+                        if use_vad_filter and _is_missing_vad_asset_error(cpu_exc):
+                            use_vad_filter = False
+                            _append_job_log(
+                                job_id,
+                                "WARN",
+                                "VAD model asset missing after CPU fallback; retrying with vad_filter=False",
+                            )
+                            segments_gen, info = model.transcribe(
+                                whisper_input,
+                                language=lang,
+                                word_timestamps=use_word_timestamps,
+                                vad_filter=use_vad_filter,
+                            )
+                        else:
+                            raise
+                    duration = info.duration or 1.0  # avoid division by zero
+            else:
+                duration = info.duration or 1.0  # avoid division by zero
+
+            # If watchdog already marked this job as failed, stop here.
+            if job.get("status") == "error":
                 return
 
-            progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
-            _push_event(
-                job_id,
-                "transcribing",
-                progress,
-                f"Transcribing… {_ts(seg.end)} / {_ts(duration)}",
-            )
+            segments_list = []
+            for seg in segments_gen:
+                if not first_segment_event.is_set():
+                    first_segment_event.set()
+                    stop_first_segment_watchdog.set()
+                if job["cancel_flag"].is_set():
+                    _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+                    return
 
-            segments_list.append({
-                "id": len(segments_list),
-                "start": round(seg.start, 3),
-                "end": round(seg.end, 3),
-                "text": seg.text.strip(),
-                "speaker": "",
-                "words": [
-                    {
-                        "word": w.word,
-                        "start": round(w.start, 3),
-                        "end": round(w.end, 3),
-                        "probability": round(w.probability, 4),
-                    }
-                    for w in (seg.words or [])
-                ],
-            })
+                progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
+                _push_event(
+                    job_id,
+                    "transcribing",
+                    progress,
+                    f"Transcribing… {_ts(seg.end)} / {_ts(duration)}",
+                )
+
+                segments_list.append({
+                    "id": len(segments_list),
+                    "start": round(seg.start, 3),
+                    "end": round(seg.end, 3),
+                    "text": seg.text.strip(),
+                    "speaker": "",
+                    "words": [
+                        {
+                            "word": w.word,
+                            "start": round(w.start, 3),
+                            "end": round(w.end, 3),
+                            "probability": round(w.probability, 4),
+                        }
+                        for w in (seg.words or [])
+                    ],
+                })
+        finally:
+            stop_first_segment_watchdog.set()
 
         # Phase 3: diarization (optional)
         speakers: list[str] = []
@@ -359,9 +710,145 @@ def _worker(job_id: str) -> None:
         job["result"] = result
 
         _push_event(job_id, "done", 1.0, "Transcription complete.", data=result)
+        _append_job_log(job_id, "INFO", "Worker finished successfully.")
 
     except Exception as exc:  # noqa: BLE001
+        job["error"] = str(exc)
+        _append_job_log(job_id, "ERROR", f"Worker failed: {exc}")
+        _append_job_log(job_id, "ERROR", traceback.format_exc())
         _push_event(job_id, "error", -1, str(exc))
+    finally:
+        if stop_first_segment_watchdog is not None:
+            stop_first_segment_watchdog.set()
+
+        if segments_gen is not None:
+            close_fn = getattr(segments_gen, "close", None)
+            if callable(close_fn):
+                try:
+                    close_fn()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        _cleanup_job_temp_files(job)
+
+        # Release local heavy references as soon as a job exits.
+        # We do NOT deliberately set global model cache to None so it can be reused.
+        segments_gen = None
+        model = None
+        info = None
+        pipeline = None
+        diarization = None
+
+        try:
+            import torch as _torch  # noqa: PLC0415
+            if hasattr(_torch, "cuda") and _torch.cuda.is_available():
+                _torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001
+            pass
+
+        import gc
+        gc.collect()
+        _append_job_log(job_id, "INFO", "Worker cleanup complete.")
+
+
+# ---------------------------------------------------------------------------
+# GitHub release poller
+#
+# Configure with environment variables:
+# - GITHUB_OWNER: owner/org of the repo
+# - GITHUB_REPO: repository name
+# - GITHUB_TOKEN: optional token for higher rate limits
+# Polls GitHub `releases/latest` and stores `app.state.latest_release`.
+# ---------------------------------------------------------------------------
+
+import urllib.request as _urlreq
+import urllib.error as _urlerr
+
+
+def _get_local_version() -> str:
+    try:
+        v = get_version().get("version", "")
+        return v or ""
+    except Exception:
+        return ""
+
+
+def _fetch_latest_release(owner: str, repo: str, token: Optional[str] = None) -> dict:
+    url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
+    req = _urlreq.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+    if token:
+        req.add_header("Authorization", f"token {token}")
+    try:
+        with _urlreq.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+            return json.loads(raw.decode("utf-8"))
+    except _urlerr.HTTPError as e:
+        try:
+            # Try to parse error body
+            body = e.read().decode("utf-8")
+            return {"error": f"HTTP {e.code}", "body": body}
+        except Exception:
+            return {"error": f"HTTP {e.code}"}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _is_version_newer(local: str, remote_tag: str) -> bool:
+    def parse(v: str):
+        s = re.sub(r"[^0-9.]", "", v or "").strip(".")
+        return tuple(int(p) for p in s.split(".") if p.isdigit()) if s else ()
+
+    return parse(remote_tag) > parse(local)
+
+
+async def _release_poller_loop() -> None:
+    owner = os.environ.get("GITHUB_OWNER", "")
+    repo = os.environ.get("GITHUB_REPO", "")
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not owner or not repo:
+        # Not configured; skip poller
+        return
+
+    # initial state
+    app.state.latest_release = {"tag_name": "", "html_url": "", "name": "", "body": ""}
+
+    while True:
+        try:
+            info = _fetch_latest_release(owner, repo, token or None)
+            if info and not info.get("error"):
+                tag = info.get("tag_name", "")
+                html = info.get("html_url", "")
+                name = info.get("name", "")
+                body = info.get("body", "")
+                app.state.latest_release = {
+                    "tag_name": tag,
+                    "html_url": html,
+                    "name": name,
+                    "body": body,
+                }
+                local = _get_local_version()
+                try:
+                    app.state.update_available = _is_version_newer(local, tag)
+                    app.state.local_version = local
+                except Exception:
+                    app.state.update_available = False
+            else:
+                # Store last error for diagnostics
+                app.state.latest_release = {"error": info.get("error", "unknown")}
+        except Exception:
+            pass
+
+        # Poll every 4 hours
+        await asyncio.sleep(60 * 60 * 4)
+
+
+@app.get("/api/latest-release")
+def api_latest_release() -> dict:
+    """Return last-seen GitHub release info and whether an update is available."""
+    info = getattr(app.state, "latest_release", {}) or {}
+    update = getattr(app.state, "update_available", False)
+    local = getattr(app.state, "local_version", _get_local_version())
+    return {"latest": info, "update_available": bool(update), "local_version": local}
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +868,7 @@ async def _cleanup_loop() -> None:
                         os.remove(fp)
                     except OSError:
                         pass
+                _cleanup_job_temp_files(job)
                 jobs.pop(job_id, None)
 
 
@@ -393,6 +881,27 @@ def get_settings() -> dict:
     """Return saved settings (HF token, etc.)."""
     settings = _load_settings()
     return {"hf_token": settings.get("hf_token", "")}
+
+
+@app.get("/api/version")
+def get_version() -> dict:
+    """Return current project version from VERSION file if available."""
+    try:
+        # Prefer a top-level VERSION file near the repo root or BASE_DIR parent
+        candidate = BASE_DIR / ".." / "VERSION"
+        candidate = candidate.resolve()
+        if not candidate.exists():
+            candidate = BASE_DIR / "VERSION"
+        if not candidate.exists():
+            # fallback to repository root
+            candidate = Path(__file__).resolve().parents[2] / "VERSION"
+        if candidate.exists():
+            ver = candidate.read_text(encoding="utf-8").strip()
+        else:
+            ver = ""
+    except Exception:
+        ver = ""
+    return {"version": ver}
 
 
 @app.post("/api/settings")
@@ -448,11 +957,13 @@ async def transcribe(
         "created_at": time.time(),
         "sse_queue": asyncio.Queue(),
         "cancel_flag": threading.Event(),
+        "logs": [],
+        "temp_files": [],
     }
     jobs[job_id] = job
+    _append_job_log(job_id, "INFO", f"Job created for file '{job['original_filename']}'")
 
-    t = threading.Thread(target=_worker, args=(job_id,), daemon=True)
-    t.start()
+    JOB_QUEUE.put(job_id)
 
     return {"job_id": job_id}
 
@@ -505,6 +1016,19 @@ def get_result(job_id: str) -> dict:
     if job["status"] != "done":
         raise HTTPException(409, f"Job not complete (status: {job['status']})")
     return job["result"]
+
+
+@app.get("/api/jobs/{job_id}/logs")
+def get_job_logs(job_id: str, limit: int = 300) -> dict:
+    job = _get_job(job_id)
+    safe_limit = max(1, min(limit, 1000))
+    logs = job.get("logs", [])
+    return {
+        "status": job.get("status"),
+        "progress": job.get("progress"),
+        "message": job.get("message"),
+        "logs": logs[-safe_limit:],
+    }
 
 
 @app.post("/api/jobs/{job_id}/rename-speaker")
@@ -570,4 +1094,12 @@ def export_job(job_id: str, fmt: str):
 # ---------------------------------------------------------------------------
 
 if FRONTEND_DIR.exists():
+    # Serve the frontend directory (static files)
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
+    # If a changelog was bundled into the application root, serve it at /CHANGELOG.md
+    changelog_path = BASE_DIR / "CHANGELOG.md"
+    if changelog_path.exists():
+        @app.get("/CHANGELOG.md")
+        async def _serve_changelog():
+            return FileResponse(str(changelog_path))
