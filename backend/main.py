@@ -794,8 +794,11 @@ async def translate_segment_api(
     )
     
     seg["translation"] = translated_text
+    # Ensure the modified segments list is reflected in the stored JSON
+    data["segments"] = segments
     
     tr.json_data = json.dumps(data)
+    tr.updated_at = time.time()
     session.add(tr)
     session.commit()
     
