@@ -44,6 +44,44 @@
     ::-webkit-scrollbar{width:5px}
     ::-webkit-scrollbar-track{background:#f1f5f9}
     ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+    /* edited segment indicator */
+    .segment.edited { border-left-color: #f59e0b; }
+    .segment-edited-badge { display:inline-block; font-size:10px; padding:0 4px; border-radius:3px; background:#fef3c7; color:#92400e; font-weight:600; margin-left:4px; vertical-align:middle; }
+    /* segment inline edit */
+    .segment-edit-area { width:100%; border:1px solid #6c63ff; border-radius:6px; padding:6px 8px; font-size:0.875rem; resize:vertical; min-height:56px; outline:none; font-family:inherit; }
+    /* folder tree */
+    .folder-item { display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:6px; cursor:pointer; font-size:0.875rem; color:#475569; user-select:none; }
+    .folder-item:hover { background:#f1f5f9; }
+    .folder-item.active { background:#ede9ff; color:#6c63ff; font-weight:600; }
+    .folder-item.drag-over { background:#eef2ff; }
+    .folder-item .folder-arrow { width:12px; height:12px; flex-shrink:0; transition:transform .15s; }
+    .folder-item .folder-arrow.open { transform:rotate(90deg); }
+    .folder-children { padding-left:14px; }
+    /* tag pills */
+    .tag-pill { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:600; color:#fff; cursor:pointer; }
+    /* recording card */
+    .rec-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; cursor:pointer; transition:border-color .12s, box-shadow .12s; }
+    .rec-card:hover { border-color:#a5b4fc; box-shadow:0 2px 8px 0 rgba(108,99,255,.08); }
+    /* global search dropdown */
+    .search-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.10); z-index:100; max-height:320px; overflow-y:auto; }
+    .search-dropdown-item { padding:10px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .search-dropdown-item:last-child { border-bottom:none; }
+    .search-dropdown-item:hover { background:#f8f7ff; }
+    /* Entity edit modal styles */
+    #entity-edit-modal .modal-card { width:100%; max-width:520px; border-radius:20px; overflow:hidden; }
+    #entity-edit-modal .modal-body { padding:28px; background: #fff; }
+    #entity-edit-title { font-size:22px; font-weight:800; color:#0f172a; }
+    #entity-edit-sub { margin-top:6px; color:#64748b; font-size:13px; }
+    .entity-label { display:block; font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+    .entity-input { width:100%; border-radius:999px; background:#f8fafc; padding:14px 20px; font-size:16px; font-weight:700; color:#0f172a; border: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+    .entity-palette-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-top:6px; }
+    .ent-palette-btn { height:44px; width:44px; border-radius:999px; border: none; position:relative; cursor:pointer; box-shadow:0 6px 18px rgba(2,6,23,0.06); }
+    .ent-palette-btn .ent-dot { width:12px; height:12px; border-radius:999px; background:white; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; box-shadow: 0 4px 12px rgba(108,99,255,0.14); }
+    .ent-palette-btn.selected { box-shadow: 0 0 0 6px rgba(108,99,255,0.12); border:2px solid rgba(255,255,255,0.6); }
+    .ent-palette-btn.selected .ent-dot { display:block; }
+    .entity-actions { display:flex; align-items:center; justify-content:space-between; margin-top:20px; }
+    .entity-cancel { background: transparent; border: none; color: #475569; font-weight: 700; font-size:14px; }
+    .entity-save { background:#6c63ff; color:white; padding:12px 26px; border-radius:999px; box-shadow:0 14px 30px rgba(108,99,255,0.22); border:none; font-weight:800; }
   </style>
 </head>
 <body class="h-full bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
@@ -206,7 +244,9 @@
     <!-- Sidebar footer: app version -->
     <div class="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
       Version <span id="app-version" class="font-medium text-slate-700">—</span>
-      <a href="/CHANGELOG.md" target="_blank" rel="noopener" class="ml-2 text-brand hover:underline">Changelog</a>
+      <a id="github-link" href="https://github.com/sim186/amico-script" target="_blank" rel="noopener" class="ml-2 text-slate-500 hover:text-slate-700 hover:underline">GitHub</a>
+      <button id="changelog-view-btn" type="button" class="ml-2 text-brand hover:underline bg-transparent border-0 p-0">Changelog</button>
+      <a id="changelog-remote-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md" target="_blank" rel="noopener" class="ml-1 text-slate-400 hover:underline">Open ↗</a>
     </div>
   </aside>
 
@@ -400,15 +440,52 @@ const state = {
 // Version fetch
 // =========================================================================
 async function fetchVersion() {
+  const repoBase = 'https://github.com/sim186/amico-script';
+  const rawVersionUrl = 'https://raw.githubusercontent.com/sim186/amico-script/main/VERSION';
+  const remoteChangelog = `${repoBase}/blob/main/CHANGELOG.md`;
+  const el = document.getElementById('app-version');
+  const githubLinkEl = document.getElementById('github-link');
+  const changelogRemoteEl = document.getElementById('changelog-remote-link');
+
+  async function applyVersion(v) {
+    const ver = (v || '').trim();
+    if (el) el.textContent = ver || 'n/a';
+    if (githubLinkEl) githubLinkEl.href = ver ? `${repoBase}/releases/tag/${ver.startsWith('v') ? ver : 'v' + ver}` : repoBase;
+    if (changelogRemoteEl) changelogRemoteEl.href = remoteChangelog;
+  }
+
   try {
-    const res = await fetch('/api/version');
-    if (!res.ok) return;
-    const j = await res.json();
-    const v = j.version || '';
-    const el = document.getElementById('app-version');
-    if (el) el.textContent = v || 'n/a';
+    let v = '';
+    // primary: API
+    try {
+      const res = await fetch('/api/version');
+      if (res.ok) {
+        const j = await res.json();
+        v = (j.version || '').trim();
+      }
+    } catch (e) {
+      // ignore api error, try fallbacks
+    }
+
+    // fallback: local static /VERSION
+    if (!v) {
+      try {
+        const r2 = await fetch('/VERSION');
+        if (r2.ok) v = (await r2.text()).trim();
+      } catch (e) {}
+    }
+
+    // fallback: raw GitHub VERSION
+    if (!v) {
+      try {
+        const r3 = await fetch(rawVersionUrl);
+        if (r3.ok) v = (await r3.text()).trim();
+      } catch (e) {}
+    }
+
+    await applyVersion(v);
   } catch (e) {
-    // ignore
+    await applyVersion('');
   }
 }
 
@@ -1100,6 +1177,1064 @@ async function restoreSettings() {
 }
 
 // =========================================================================
+// === FOLDER TREE ===
+// =========================================================================
+async function fetchFolders() {
+  try {
+    const res = await fetch('/api/folders');
+    if (!res.ok) return;
+    state.library.folders = await res.json();
+    renderFolderTree();
+  } catch (_) {}
+}
+
+function renderFolderTree() {
+  const tree = document.getElementById('folder-tree');
+  const folders = state.library.folders;
+  // Build a tree from flat list
+  const roots = folders.filter(f => !f.parent_id);
+  tree.innerHTML = '';
+  roots.forEach(f => tree.appendChild(buildFolderNode(f, folders)));
+}
+
+function buildFolderNode(folder, all) {
+  const children = all.filter(f => f.parent_id === folder.id);
+  const hasChildren = children.length > 0;
+  const wrapper = document.createElement('div');
+
+  const item = document.createElement('div');
+  item.className = 'folder-item' + (state.library.selectedFolderId === folder.id ? ' active' : '');
+  // store folder id on the DOM node for reliable matching
+  item.dataset.folderId = String(folder.id);
+  item.setAttribute('role','treeitem');
+  // click selects folder (ignore clicks on interactive subelements)
+  item.addEventListener('click', (e) => {
+    if (e.target.closest('.folder-arrow') || e.target.closest('.folder-rename') || e.target.closest('.popover') || e.target.closest('input') || e.target.closest('button')) return;
+    selectFolder(folder.id);
+  });
+  item.addEventListener('dblclick', (e) => { e.stopPropagation(); window.showEntityDialog('folder', folder); });
+  item.title = 'Double-click to rename · Right-click for options';
+  item.addEventListener('contextmenu', (e) => { e.preventDefault(); showFolderMenu(e, folder); });
+
+  // Drag & drop support: allow dropping recordings onto a folder
+  item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); });
+  item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+  item.addEventListener('drop', (e) => {
+    e.preventDefault(); item.classList.remove('drag-over');
+    const recId = e.dataTransfer.getData('text/plain');
+    if (recId) moveRecordingToFolder(recId, folder.id);
+  });
+
+  const arrow = hasChildren
+    ? `<svg class="folder-arrow w-3 h-3 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`
+    : `<span class="w-3 shrink-0"></span>`;
+
+  // use server-provided color_code
+  const useColor = folder && folder.color_code;
+  const colorDot = useColor ? `<span class="w-2.5 h-2.5 rounded-full shrink-0 mr-2" style="background:${escHtml(folder.color_code)}"></span>` : '';
+  const countBadge = typeof folder.count !== 'undefined' ? `<span class="text-xs text-slate-400 ml-2">(${escHtml(String(folder.count))})</span>` : '';
+  item.innerHTML = `
+    ${arrow}
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+    </svg>
+    ${colorDot}
+    <span class="flex-1 truncate">${escHtml(folder.name)}</span>
+    ${countBadge}
+  `;
+  wrapper.appendChild(item);
+
+  if (hasChildren) {
+    const childContainer = document.createElement('div');
+    childContainer.className = 'folder-children';
+    children.forEach(c => childContainer.appendChild(buildFolderNode(c, all)));
+    wrapper.appendChild(childContainer);
+
+    item.querySelector('.folder-arrow')?.addEventListener('click', e => {
+      e.stopPropagation();
+      childContainer.classList.toggle('hidden');
+      item.querySelector('.folder-arrow')?.classList.toggle('open');
+    });
+  }
+
+  return wrapper;
+}
+
+function selectFolder(folderId) {
+  state.library.selectedFolderId = folderId;
+  state.library.selectedTagId = null;
+  // Update active state on folder items using the data attribute
+  document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('folder-all').classList.toggle('active', !folderId);
+  if (folderId) {
+    document.querySelectorAll('.folder-item').forEach(el => {
+      if (el.dataset && String(el.dataset.folderId) === String(folderId)) el.classList.add('active');
+    });
+  }
+  const labelEl = document.getElementById('library-folder-label');
+  const folder = folderId ? state.library.folders.find(f => String(f.id) === String(folderId)) : null;
+  labelEl.textContent = folderId ? (folder?.name || 'Folder') : 'All recordings';
+  // Apply subtle background accent to the library panel and header
+  if (folder && folder.color_code) setLibraryAccent(folder.color_code);
+  else setLibraryAccent(null);
+
+  fetchLibrary();
+  // Refresh tag list counts when folder changes
+  fetchTags();
+  if (state.activeTab !== 'library') switchTab('library');
+}
+
+function showFolderMenu(e, folder) {
+  // Remove any existing menu
+  document.getElementById('folder-ctx-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'folder-ctx-menu';
+  menu.className = 'absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  menu.innerHTML = `
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50" onclick="(function(){ document.getElementById('folder-ctx-menu')?.remove(); window.showEntityDialog('folder', ${JSON.stringify(folder).replace(/"/g,'&quot;')}); })()">Rename / Color</button>
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50 text-red-500" onclick="(function(){ deleteFolderConfirm('${folder.id}'); document.getElementById('folder-ctx-menu')?.remove(); })()">Delete</button>
+  `;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+async function createFolder(name, parentId, color) {
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  if (parentId) fd.append('parent_id', parentId);
+  if (color) fd.append('color_code', color);
+  try {
+    const res = await fetch('/api/folders', { method: 'POST', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    const newFolder = await res.json().catch(() => null);
+    await fetchFolders();
+    // ensure library view reflects new folder immediately
+    try { await fetchLibrary(); } catch (_) {}
+  } catch (err) { alert(`Create folder failed: ${err.message}`); }
+}
+
+function showInlineRenameFolder(folder) {
+  const item = document.querySelector(`[data-folder-id="${folder.id}"]`);
+  if (!item) {
+    // fallback to prompt
+    (async () => {
+      const newName = prompt('Rename folder:', folder.name);
+      if (!newName || newName === folder.name) return;
+      const fd = new FormData(); fd.append('name', newName);
+      try { const res = await fetch(`/api/folders/${folder.id}`, { method: 'PATCH', body: fd }); if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); } await fetchFolders(); } catch (err) { alert(`Rename failed: ${err.message}`); }
+    })();
+    return;
+  }
+
+  // avoid duplicate popovers
+  const popId = `folder-rename-pop-${folder.id}`;
+  if (document.getElementById(popId)) return;
+
+  const rect = item.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = popId;
+  pop.className = 'absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-3';
+  pop.style.left = Math.max(8 + window.scrollX, rect.left + window.scrollX) + 'px';
+  pop.style.top = (rect.bottom + 6 + window.scrollY) + 'px';
+  pop.style.minWidth = '220px';
+  pop.style.boxSizing = 'border-box';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.value = folder.name || '';
+  nameInput.className = 'w-full rounded border border-slate-200 px-2 py-1 text-sm focus:outline-none mb-2';
+
+  const inlineId = `inline-folder-color-${folder.id}`;
+  const tmpInput = document.createElement('input');
+  tmpInput.type = 'hidden';
+  tmpInput.id = inlineId;
+  tmpInput.value = folder.color_code || '#6c63ff';
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'flex items-center gap-2 justify-end mt-2';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'px-3 py-1 text-sm rounded bg-brand text-white'; saveBtn.textContent = 'Save';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'px-3 py-1 text-sm rounded bg-slate-100 text-slate-600'; cancelBtn.textContent = 'Cancel';
+
+  pop.appendChild(nameInput);
+  pop.appendChild(tmpInput);
+  pop.appendChild(btnRow);
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(saveBtn);
+
+  document.body.appendChild(pop);
+
+  // attach palette to hidden input now that it's in the document
+  attachPaletteToInput(inlineId, 20);
+
+  // live preview: update library accent as the user picks colors
+  const hiddenInputEl = document.getElementById(inlineId);
+  let _colorPreviewHandler = null;
+  if (hiddenInputEl) {
+    _colorPreviewHandler = (e) => { try { if (String(state.library.selectedFolderId) === String(folder.id)) setLibraryAccent(e.target.value); } catch (_) {} };
+    hiddenInputEl.addEventListener('input', _colorPreviewHandler);
+  }
+
+  // focus
+  nameInput.focus(); nameInput.select();
+
+  async function doSave() {
+    const newName = nameInput.value.trim();
+    const newColor = (document.getElementById(inlineId) && document.getElementById(inlineId).value) || '#6c63ff';
+    if (!newName) return;
+    try {
+      const fd = new FormData(); fd.append('name', newName); fd.append('color_code', newColor || '#6c63ff');
+      const res = await fetch(`/api/folders/${folder.id}`, { method: 'PATCH', body: fd });
+      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+      // optimistic UI: apply accent immediately if we're editing the currently selected folder
+      try { if (String(state.library.selectedFolderId) === String(folder.id)) setLibraryAccent(newColor); } catch (_) {}
+      await fetchFolders();
+      fetchTags();
+    } catch (err) { alert(`Rename failed: ${err.message}`); }
+    if (hiddenInputEl && _colorPreviewHandler) hiddenInputEl.removeEventListener('input', _colorPreviewHandler);
+    pop.remove();
+  }
+
+  saveBtn.addEventListener('click', async (e) => { e.stopPropagation(); await doSave(); });
+  cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); if (hiddenInputEl && _colorPreviewHandler) hiddenInputEl.removeEventListener('input', _colorPreviewHandler); pop.remove(); });
+
+  // keyboard handlers
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+    if (e.key === 'Escape') { pop.remove(); }
+  });
+
+  // close on outside click
+  setTimeout(() => {
+    function closeHandler(ev) {
+      if (!pop.contains(ev.target) && !item.contains(ev.target)) pop.remove();
+    }
+    document.addEventListener('click', closeHandler, { once: true });
+  }, 0);
+}
+
+async function deleteFolderConfirm(folderId) {
+  if (!confirm('Delete folder? Recordings inside will be moved to All Recordings.')) return;
+  try {
+    const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.library.selectedFolderId === folderId) selectFolder(null);
+    await fetchFolders();
+    fetchLibrary();
+  } catch (err) { alert(`Delete folder failed: ${err.message}`); }
+}
+
+// =========================================================================
+// === TAGS ===
+// =========================================================================
+async function fetchTags() {
+  try {
+    const params = new URLSearchParams();
+    if (state.library.selectedFolderId) params.set('folder_id', state.library.selectedFolderId);
+    const res = await fetch('/api/tags' + (params.toString() ? ('?' + params.toString()) : ''));
+    if (!res.ok) return;
+    state.library.tags = await res.json();
+    renderTagSidebar();
+  } catch (_) {}
+}
+
+function renderTagSidebar() {
+  const list = document.getElementById('tag-list');
+  list.innerHTML = '';
+  state.library.tags.forEach(tag => {
+    const container = document.createElement('span');
+    container.className = 'inline-flex items-center gap-2';
+
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill' + (state.library.selectedTagId === tag.id ? ' ring-2 ring-offset-1 ring-slate-400' : '');
+    pill.dataset.tagId = tag.id;
+    pill.dataset.tagName = tag.name;
+    pill.style.background = tag.color_code;
+    pill.textContent = tag.name;
+    pill.title = 'Click to filter · Double-click to edit · Right-click for options';
+
+    const count = typeof tag.count !== 'undefined' ? Number(tag.count) : null;
+    const disabled = state.library.selectedFolderId && (count === 0 || count === null);
+    if (disabled) {
+      pill.classList.add('opacity-40', 'cursor-not-allowed');
+      pill.onclick = (e) => { e.stopPropagation(); /* disabled */ };
+    } else {
+      pill.classList.add('cursor-pointer');
+      pill.onclick = () => filterByTag(tag.id, tag.name);
+    }
+    // double-click will open the modal editor
+    pill.ondblclick = (e) => { e.stopPropagation(); window.showEntityDialog('tag', tag); };
+    pill.oncontextmenu = (e) => { e.preventDefault(); showTagMenu(e, tag); };
+
+    container.appendChild(pill);
+    if (count !== null) {
+      const badge = document.createElement('span');
+      badge.className = 'text-xs text-slate-400';
+      badge.textContent = count;
+      container.appendChild(badge);
+    }
+    list.appendChild(container);
+  });
+}
+
+function filterByTag(tagId, tagName) {
+  // Toggle behavior: clicking the active tag clears the filter
+  if (state.library.selectedTagId === tagId) {
+    clearTagFilter();
+    return;
+  }
+  state.library.selectedTagId = tagId;
+  renderTagSidebar();
+  const filterEl = document.getElementById('lib-tag-filter');
+  const filterName = document.getElementById('lib-tag-filter-name');
+  filterEl.classList.remove('hidden');
+  filterName.textContent = tagName;
+  fetchLibrary();
+  if (state.activeTab !== 'library') switchTab('library');
+}
+
+function clearTagFilter() {
+  state.library.selectedTagId = null;
+  renderTagSidebar();
+  document.getElementById('lib-tag-filter').classList.add('hidden');
+  fetchLibrary();
+}
+
+async function deleteTagConfirm(tag) {
+  if (!confirm(`Delete tag "${tag.name}"?`)) return;
+  try {
+    const res = await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.library.selectedTagId === tag.id) clearTagFilter();
+    await fetchTags();
+    fetchLibrary();
+  } catch (err) { alert(`Delete tag failed: ${err.message}`); }
+}
+
+// Create a tag via API and refresh tags + library immediately
+async function createTag(name, color) {
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('color_code', color || '#6c63ff');
+  try {
+    const res = await fetch('/api/tags', { method: 'POST', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    await fetchTags();
+    // ensure library cards (popovers) get updated with the new tag list
+    try { await fetchLibrary(); } catch (_) {}
+  } catch (err) { alert(`Create tag failed: ${err.message}`); }
+}
+
+let _editingTagId = null;
+function showTagEditForm(tag) {
+  _editingTagId = tag.id;
+  try { document.getElementById('edit-tag-form').classList.add('hidden'); } catch (_) {}
+  window.showEntityDialog('tag', tag);
+}
+
+function hideTagEditForm() {
+  _editingTagId = null;
+  document.getElementById('edit-tag-form').classList.add('hidden');
+  document.getElementById('edit-tag-name').value = '';
+  if (document.getElementById('edit-tag-color')) document.getElementById('edit-tag-color').value = '#6c63ff';
+  setPaletteValue('edit-tag-color', '#6c63ff');
+}
+
+async function updateTag() {
+  if (!_editingTagId) return;
+  const name = document.getElementById('edit-tag-name').value.trim();
+  const color = document.getElementById('edit-tag-color').value;
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('color_code', color);
+  try {
+    const res = await fetch(`/api/tags/${_editingTagId}`, { method: 'PATCH', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+    await fetchTags();
+    await fetchLibrary();
+    hideTagEditForm();
+  } catch (err) { alert(`Update tag failed: ${err.message}`); }
+}
+
+function showTagMenu(e, tag) {
+  document.getElementById('tag-ctx-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'tag-ctx-menu';
+  menu.className = 'absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  menu.innerHTML = `
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50" onclick="(function(){ document.getElementById('tag-ctx-menu')?.remove(); window.showEntityDialog('tag', ${JSON.stringify(tag).replace(/"/g,'&quot;')}); })()">Rename / Color</button>
+    <button class="block w-full text-left px-4 py-1.5 hover:bg-slate-50 text-red-500" onclick="(function(){ document.getElementById('tag-ctx-menu')?.remove(); deleteTagConfirm(${JSON.stringify(tag).replace(/"/g,'&quot;')}); })()">Delete</button>
+  `;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+// Generic modal-based editor for tags and folders
+window._entityEditContext = null;
+window.showEntityDialog = function(type, obj) {
+  try {
+    if (typeof obj === 'string') obj = JSON.parse(obj);
+  } catch (_) {}
+  const modal = document.getElementById('entity-edit-modal');
+  if (!modal) return;
+  window._entityEditContext = { type: type, id: obj && obj.id ? obj.id : null };
+  const title = document.getElementById('entity-edit-title');
+  const sub = document.getElementById('entity-edit-sub');
+  title.textContent = type === 'folder' ? 'Folder Settings' : 'Tag Settings';
+  sub.textContent = type === 'folder' ? 'Change the appearance of your folder.' : 'Change the appearance of your tag.';
+  const nameEl = document.getElementById('entity-edit-name');
+  nameEl.value = (obj && obj.name) ? obj.name : '';
+
+  // palette: render inline circular buttons
+  const selectedColor = (obj && (obj.color_code || obj.color)) ? (obj.color_code || obj.color) : (PALETTE[0] || '#6c63ff');
+  const hiddenColor = document.getElementById('entity-edit-color');
+  if (hiddenColor) hiddenColor.value = selectedColor;
+  const sw = document.getElementById('entity-edit-color-swatch');
+  if (sw) sw.style.background = selectedColor;
+
+  const pal = document.getElementById('entity-edit-palette');
+  if (pal) {
+    pal.innerHTML = '';
+    PALETTE.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ent-palette-btn';
+      b.style.background = c;
+      b.dataset.color = c;
+      b.title = c;
+      const dot = document.createElement('span'); dot.className = 'ent-dot';
+      b.appendChild(dot);
+      if (c.toLowerCase() === (selectedColor || '').toLowerCase()) b.classList.add('selected');
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pal.querySelectorAll('.ent-palette-btn').forEach(x => x.classList.remove('selected'));
+        b.classList.add('selected');
+        if (hiddenColor) hiddenColor.value = c;
+        if (sw) sw.style.background = c;
+      });
+      pal.appendChild(b);
+    });
+  }
+
+  modal.classList.remove('hidden');
+  // trap focus minimally
+  document.body.style.overflow = 'hidden';
+  nameEl.focus(); nameEl.select();
+};
+
+window.hideEntityDialog = function() {
+  const modal = document.getElementById('entity-edit-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+  window._entityEditContext = null;
+};
+
+window.saveEntityDialog = async function() {
+  const ctx = window._entityEditContext;
+  if (!ctx) return;
+  const name = (document.getElementById('entity-edit-name').value || '').trim();
+  const color = (document.getElementById('entity-edit-color') && document.getElementById('entity-edit-color').value) || '#6c63ff';
+  if (!name) return alert('Name required');
+  try {
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('color_code', color);
+    if (ctx.type === 'folder') {
+      if (!ctx.id) return;
+      const res = await fetch(`/api/folders/${ctx.id}`, { method: 'PATCH', body: fd });
+      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(t || 'HTTP ' + res.status); }
+      // Refresh UI
+      await fetchFolders();
+      fetchTags();
+      fetchLibrary();
+      // apply accent if editing current folder
+      if (String(state.library.selectedFolderId) === String(ctx.id)) setLibraryAccent(color);
+    } else if (ctx.type === 'tag') {
+      if (!ctx.id) return;
+      const res = await fetch(`/api/tags/${ctx.id}`, { method: 'PATCH', body: fd });
+      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(t || 'HTTP ' + res.status); }
+      await fetchTags();
+      await fetchLibrary();
+    }
+    hideEntityDialog();
+  } catch (err) { alert('Save failed: ' + (err.message || err)); }
+};
+
+function showNewFolderForm() {
+  const form = document.getElementById('new-folder-form');
+  const parentLabel = document.getElementById('new-folder-parent');
+  const parentId = state.library.selectedFolderId;
+  parentLabel.textContent = 'Parent: ' + (parentId ? (state.library.folders.find(f => f.id === parentId)?.name || 'Folder') : 'All recordings');
+  form.classList.remove('hidden');
+  const input = document.getElementById('new-folder-name');
+  input.focus();
+  input.select();
+}
+
+function hideNewFolderForm() {
+  const form = document.getElementById('new-folder-form');
+  form.classList.add('hidden');
+  const input = document.getElementById('new-folder-name');
+  input.value = '';
+  if (document.getElementById('new-folder-color')) {
+    document.getElementById('new-folder-color').value = '#6c63ff';
+    setPaletteValue('new-folder-color', '#6c63ff');
+  }
+}
+
+function showNewTagForm() {
+  const form = document.getElementById('new-tag-form');
+  form.classList.remove('hidden');
+  const input = document.getElementById('new-tag-name');
+  input.focus();
+  input.select();
+}
+
+function hideNewTagForm() {
+  const form = document.getElementById('new-tag-form');
+  form.classList.add('hidden');
+  document.getElementById('new-tag-name').value = '';
+  if (document.getElementById('new-tag-color')) {
+    document.getElementById('new-tag-color').value = '#6c63ff';
+    setPaletteValue('new-tag-color', '#6c63ff');
+  }
+}
+
+// =========================================================================
+// === LIBRARY VIEW ===
+// =========================================================================
+async function fetchLibrary() {
+  const params = new URLSearchParams({ sort: state.library.sort, order: state.library.order, limit: '100' });
+  if (state.library.selectedFolderId) params.set('folder_id', state.library.selectedFolderId);
+  if (state.library.selectedTagId) params.set('tag_id', state.library.selectedTagId);
+  try {
+    const res = await fetch('/api/library?' + params);
+    if (!res.ok) return;
+    state.library.recordings = await res.json();
+    renderLibrary();
+  } catch (_) {}
+}
+
+function renderLibrary() {
+  const list = document.getElementById('library-list');
+  const empty = document.getElementById('library-empty');
+  const recs = state.library.recordings;
+  if (!recs.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = '';
+  recs.forEach(rec => {
+    const card = document.createElement('div');
+    card.className = 'rec-card';
+    card.onclick = () => openRecording(rec);
+    // enable drag of recordings to folders
+    card.draggable = true;
+    card.addEventListener('dragstart', (e) => {
+      try { e.dataTransfer.setData('text/plain', rec.id); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+    });
+
+    const statusColors = {
+      done: 'bg-emerald-100 text-emerald-700',
+      error: 'bg-red-100 text-red-600',
+      pending: 'bg-slate-100 text-slate-500',
+      queued: 'bg-amber-100 text-amber-700',
+      transcribing: 'bg-blue-100 text-blue-700',
+      diarizing: 'bg-purple-100 text-purple-700',
+      cancelled: 'bg-slate-100 text-slate-500',
+    };
+    const statusCls = statusColors[rec.status] || 'bg-slate-100 text-slate-500';
+
+    const assignedTagIds = new Set((rec.tags || []).map(t => t.id));
+    // include data attributes so tag clicks can be delegated reliably
+    const tagPills = (rec.tags || []).map(t =>
+      `<span class="tag-pill" data-tag-id="${escHtml(String(t.id))}" data-tag-name="${escHtml(t.name)}" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>`
+    ).join('');
+
+    // Folder selector options
+    const folderOptions = [
+      `<option value="">— No folder —</option>`,
+      ...state.library.folders.map(f =>
+        `<option value="${escHtml(f.id)}" ${rec.folder_id === f.id ? 'selected' : ''}>${escHtml(f.name)}</option>`
+      ),
+    ].join('');
+
+    // Tag checkboxes for the dropdown
+    const tagCheckboxes = state.library.tags.length
+      ? state.library.tags.map(t => `
+          <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs rounded">
+            <input type="checkbox" ${assignedTagIds.has(t.id) ? 'checked' : ''}
+                   onchange="event.stopPropagation(); toggleRecordingTag('${rec.id}', '${t.id}', this.checked)"
+                   class="rounded border-slate-300 text-brand focus:ring-brand" />
+            <span class="tag-pill" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>
+          </label>`).join('')
+      : `<p class="px-3 py-2 text-xs text-slate-400">No tags yet — create one in the sidebar</p>`;
+
+    const dur = rec.duration ? fmtDur(rec.duration) : '—';
+    const date = new Date(rec.created_at * 1000).toLocaleDateString();
+    const folderName = rec.folder_id ? (state.library.folders.find(f => f.id === rec.folder_id)?.name || '') : '';
+
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-800 truncate">${escHtml(rec.filename)}</p>
+          <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}${folderName ? ' · ' + escHtml(folderName) : ''}</p>
+          ${tagPills ? `<div class="flex flex-wrap gap-1 mt-2">${tagPills}</div>` : ''}
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
+
+          <!-- Move to folder -->
+          <div class="relative">
+                <button class="p-1.5 rounded-lg text-slate-300 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                  title="Move to folder"
+                  onclick="window.togglePopover(this)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+              </svg>
+            </button>
+            <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
+              <p class="text-xs text-slate-400 px-1 mb-1">Move to folder</p>
+              <select class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+                      onchange="moveRecordingToFolder('${rec.id}', this.value)">
+                ${folderOptions}
+              </select>
+            </div>
+          </div>
+
+          <!-- Assign tags -->
+          <div class="relative">
+                <button class="p-1.5 rounded-lg text-slate-300 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                  title="Assign tags"
+                  onclick="window.togglePopover(this)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 014-4z"/>
+              </svg>
+            </button>
+            <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+              <p class="text-xs text-slate-400 px-3 py-1">Assign tags</p>
+              ${tagCheckboxes}
+            </div>
+          </div>
+
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusCls}">${rec.status}</span>
+          <button class="p-1.5 rounded-lg text-slate-300 hover:text-red-400 transition focus:outline-none"
+                  title="Delete recording"
+                  onclick="deleteRecordingConfirm('${rec.id}')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function togglePopover(btn) {
+  const popover = btn.nextElementSibling;
+  const isOpen = !popover.classList.contains('hidden');
+  // Close all other open popovers
+  document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+  if (!isOpen) {
+    popover.classList.remove('hidden');
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function close(e) {
+        if (!popover.contains(e.target) && e.target !== btn) {
+          popover.classList.add('hidden');
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 0);
+  }
+}
+
+async function moveRecordingToFolder(recordingId, folderId) {
+  const fd = new FormData();
+  fd.append('folder_id', folderId);
+  try {
+    const res = await fetch(`/api/recordings/${recordingId}`, { method: 'PATCH', body: fd });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+    // Update local state without full refetch
+    const rec = state.library.recordings.find(r => r.id === recordingId);
+    if (rec) rec.folder_id = folderId || null;
+    // If we're viewing a specific folder, remove the card from the current view
+    if (state.library.selectedFolderId && state.library.selectedFolderId !== folderId) {
+      state.library.recordings = state.library.recordings.filter(r => r.id !== recordingId);
+    }
+    renderLibrary();
+    // Refresh folder/tag counts so badges/pills reflect the move
+    try { fetchFolders(); fetchTags(); } catch (_) {}
+    // Close any open popovers
+    document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+  } catch (err) { alert(`Move failed: ${err.message}`); }
+}
+
+async function toggleRecordingTag(recordingId, tagId, add) {
+  try {
+    const method = add ? 'POST' : 'DELETE';
+    const res = await fetch(`/api/recordings/${recordingId}/tags/${tagId}`, { method });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': '+t.slice(0,200) : ''}`); }
+    // Update local state
+    const rec = state.library.recordings.find(r => r.id === recordingId);
+    if (rec) {
+      if (add) {
+        const tag = state.library.tags.find(t => t.id === tagId);
+        if (tag && !rec.tags.find(t => t.id === tagId)) rec.tags.push(tag);
+      } else {
+        rec.tags = rec.tags.filter(t => t.id !== tagId);
+      }
+    }
+    // Re-render only the tag pills on this card without rebuilding everything
+    fetchLibrary();
+    // Update tag counts (scoped counts) so sidebar badges stay accurate
+    try { fetchTags(); } catch (_) {}
+  } catch (err) { alert(`Tag update failed: ${err.message}`); }
+}
+
+async function openRecording(rec) {
+  if (rec.status !== 'done') {
+    alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
+    return;
+  }
+  try {
+    const [trRes, audioRes] = await Promise.all([
+      fetch(`/api/recordings/${rec.id}/transcript`),
+      fetch(`/api/recordings/${rec.id}/audio`),
+    ]);
+    if (!trRes.ok) throw new Error('Transcript not found');
+
+    const trData = await trRes.json();
+    const audioBlob = await audioRes.blob();
+
+    state.activeRecordingId = rec.id;
+    state.jobId = null;
+    state.recordingId = rec.id;
+    const result = trData.json_data;
+    result.filename = rec.filename;
+    state.result = result;
+    state.audioUrl = URL.createObjectURL(audioBlob);
+    state.filteredSegments = result.segments;
+    state.activeSpeakerFilter = null;
+    state.currentSegmentId = null;
+    state.searchQuery = '';
+
+    renderResults();
+
+    const transcriptBtn = document.getElementById('tab-btn-transcript');
+    transcriptBtn.disabled = false;
+    switchTab('transcript');
+  } catch (err) {
+    alert(`Failed to open recording: ${err.message}`);
+  }
+}
+
+async function deleteRecordingConfirm(recordingId) {
+  if (!confirm('Permanently delete this recording and its transcript?')) return;
+  try {
+    const res = await fetch(`/api/recordings/${recordingId}`, { method: 'DELETE' });
+    if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0,200) : ''}`); }
+    if (state.activeRecordingId === recordingId) {
+      state.activeRecordingId = null;
+      state.result = null;
+    }
+    fetchLibrary();
+  } catch (err) { alert(`Delete failed: ${err.message}`); }
+}
+
+// =========================================================================
+// === SEGMENT EDITING ===
+// =========================================================================
+function openSegmentEdit(btn, segmentIndex) {
+  const segDiv = btn.closest('.segment');
+  if (!segDiv) return;
+  const textEl = segDiv.querySelector('.seg-text');
+  if (!textEl) return;
+
+  // Already in edit mode?
+  if (segDiv.querySelector('.segment-edit-area')) return;
+
+  const currentText = state.result?.segments[segmentIndex]?.text || textEl.textContent;
+  const recordingId = state.activeRecordingId || state.recordingId;
+
+  const area = document.createElement('textarea');
+  area.className = 'segment-edit-area mt-2';
+  area.value = currentText;
+  area.rows = 3;
+  area.onclick = e => e.stopPropagation();
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'mt-1.5 px-3 py-1 text-xs font-semibold bg-brand text-white rounded-lg hover:bg-brand-hover transition focus:outline-none';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = async (e) => {
+    e.stopPropagation();
+    const newText = area.value.trim();
+    if (!newText || !recordingId) { area.remove(); saveBtn.remove(); cancelBtn.remove(); return; }
+    try {
+      const fd = new FormData();
+      fd.append('text', newText);
+      const res = await fetch(`/api/recordings/${recordingId}/transcript/segments/${segmentIndex}`, {
+        method: 'PATCH',
+        body: fd,
+      });
+      if (!res.ok) throw new Error('Save failed');
+      // Update local state
+      if (state.result?.segments[segmentIndex]) {
+        state.result.segments[segmentIndex].text = newText;
+        state.result.segments[segmentIndex].edited = true;
+      }
+      area.remove(); saveBtn.remove(); cancelBtn.remove();
+      textEl.innerHTML = escHtml(newText);
+      segDiv.classList.add('edited');
+      // Add edited badge if not already present
+      if (!segDiv.querySelector('.segment-edited-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'segment-edited-badge';
+        badge.title = 'This segment has been manually edited';
+        badge.textContent = 'edited';
+        segDiv.querySelector('.flex.items-baseline')?.appendChild(badge);
+      }
+    } catch (err) { alert(`Save failed: ${err.message}`); }
+  };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'mt-1.5 ml-1.5 px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition focus:outline-none';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = (e) => { e.stopPropagation(); area.remove(); saveBtn.remove(); cancelBtn.remove(); };
+
+  segDiv.appendChild(area);
+  segDiv.appendChild(saveBtn);
+  segDiv.appendChild(cancelBtn);
+  area.focus();
+  area.select();
+}
+
+// =========================================================================
+// === GLOBAL SEARCH ===
+// =========================================================================
+let _globalSearchTimer = null;
+
+function initGlobalSearch() {
+  const input = document.getElementById('global-search-input');
+  const dropdown = document.getElementById('global-search-dropdown');
+
+  input.addEventListener('input', () => {
+    clearTimeout(_globalSearchTimer);
+    const q = input.value.trim();
+    if (!q) { dropdown.classList.add('hidden'); dropdown.innerHTML = ''; return; }
+    _globalSearchTimer = setTimeout(() => runGlobalSearch(q), 300);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { dropdown.classList.add('hidden'); input.blur(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (q) {
+        doSearchToLibrary(q);
+        dropdown.classList.add('hidden');
+        input.blur();
+      }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+async function runGlobalSearch(q) {
+  const dropdown = document.getElementById('global-search-dropdown');
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
+    if (!res.ok) return;
+    const results = await res.json();
+    if (!results.length) {
+      dropdown.innerHTML = '<div class="search-dropdown-item text-xs text-slate-400">No results found</div>';
+      dropdown.classList.remove('hidden');
+      return;
+    }
+    dropdown.innerHTML = '';
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'search-dropdown-item';
+      const dur = r.duration ? fmtDur(r.duration) : '';
+      item.innerHTML = `
+        <p class="text-xs font-semibold text-slate-700 truncate">${escHtml(r.filename)}</p>
+        <p class="text-xs text-slate-400 mt-0.5">${dur ? dur + ' · ' : ''}${r.snippet}</p>
+      `;
+      item.onclick = () => {
+        dropdown.classList.add('hidden');
+        document.getElementById('global-search-input').value = '';
+        const rec = { id: r.recording_id, filename: r.filename, status: 'done', duration: r.duration, tags: [] };
+        openRecording(rec);
+      };
+      dropdown.appendChild(item);
+    });
+    dropdown.classList.remove('hidden');
+  } catch (_) {}
+}
+
+// Perform a search and populate the library view with matching recordings
+async function doSearchToLibrary(q) {
+  if (!q) return;
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=100`);
+    if (!res.ok) return;
+    const rows = await res.json();
+    // Fetch recording details in parallel
+    const recPromises = rows.map(r => fetch(`/api/recordings/${r.recording_id}`).then(rp => rp.ok ? rp.json() : null).catch(() => null));
+    const recs = (await Promise.all(recPromises)).filter(Boolean);
+    state.library.recordings = recs;
+    // clear folder/tag selection when doing a free-text search
+    state.library.selectedFolderId = null;
+    state.library.selectedTagId = null;
+    // refresh counts so sidebar badges update
+    try { fetchFolders(); fetchTags(); } catch (_) {}
+    renderLibrary();
+    if (state.activeTab !== 'library') switchTab('library');
+  } catch (err) {
+    console.error('Search to library failed', err);
+  }
+}
+
+// =========================================================================
+// === LIBRARY INIT ===
+// =========================================================================
+function initLibrary() {
+  fetchFolders();
+  fetchTags();
+
+  // Replace native color inputs with the fixed PALETTE UI (hidden input + palette buttons)
+  try {
+    attachPaletteToInput('new-folder-color', 28);
+    attachPaletteToInput('new-tag-color', 28);
+    attachPaletteToInput('edit-tag-color', 28);
+  } catch (e) { /* best-effort; continue if DOM differs */ }
+
+  // Modal controls: save/cancel/close
+  const modalCloseBtn = document.getElementById('entity-edit-close');
+  const modalCancelBtn = document.getElementById('entity-edit-cancel');
+  const modalSaveBtn = document.getElementById('entity-edit-save');
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); window.hideEntityDialog(); });
+  if (modalCancelBtn) modalCancelBtn.addEventListener('click', (e) => { e.stopPropagation(); window.hideEntityDialog(); });
+  if (modalSaveBtn) modalSaveBtn.addEventListener('click', async (e) => { e.stopPropagation(); await window.saveEntityDialog(); });
+
+  // keyboard: close modal with Escape, save with Enter when name input focused
+  document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('entity-edit-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') { e.preventDefault(); window.hideEntityDialog(); }
+    if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'entity-edit-name') { e.preventDefault(); window.saveEntityDialog(); }
+  });
+
+  // New-folder inline form handlers
+  document.getElementById('new-folder-btn').addEventListener('click', (e) => { e.stopPropagation(); showNewFolderForm(); });
+  document.getElementById('new-folder-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideNewFolderForm(); });
+  document.getElementById('new-folder-save').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const name = document.getElementById('new-folder-name').value.trim();
+    if (!name) return;
+    const color = document.getElementById('new-folder-color')?.value;
+    await createFolder(name, state.library.selectedFolderId, color);
+    hideNewFolderForm();
+  });
+  document.getElementById('new-folder-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('new-folder-save').click(); }
+    if (e.key === 'Escape') hideNewFolderForm();
+  });
+
+  // New-tag inline form handlers
+  document.getElementById('new-tag-btn').addEventListener('click', (e) => { e.stopPropagation(); showNewTagForm(); });
+  document.getElementById('new-tag-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideNewTagForm(); });
+  document.getElementById('new-tag-save').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const name = document.getElementById('new-tag-name').value.trim();
+    const color = document.getElementById('new-tag-color').value;
+    if (!name) return;
+    await createTag(name, color);
+    hideNewTagForm();
+  });
+  document.getElementById('new-tag-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('new-tag-save').click(); }
+    if (e.key === 'Escape') hideNewTagForm();
+  });
+
+  // Edit-tag form handlers
+  document.getElementById('edit-tag-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideTagEditForm(); });
+  document.getElementById('edit-tag-save').addEventListener('click', async (e) => { e.stopPropagation(); await updateTag(); });
+  document.getElementById('edit-tag-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('edit-tag-save').click(); } if (e.key === 'Escape') hideTagEditForm(); });
+
+  document.getElementById('lib-sort-select').addEventListener('change', e => {
+    state.library.sort = e.target.value;
+    fetchLibrary();
+  });
+
+  document.getElementById('lib-sort-order').addEventListener('click', () => {
+    state.library.order = state.library.order === 'desc' ? 'asc' : 'desc';
+    document.getElementById('lib-sort-asc-icon').classList.toggle('hidden', state.library.order !== 'asc');
+    document.getElementById('lib-sort-desc-icon').classList.toggle('hidden', state.library.order !== 'desc');
+    fetchLibrary();
+  });
+
+  // Delegated folder clicks (ignore clicks on arrow, inputs, popovers)
+  const sidebarLib = document.getElementById('sidebar-library');
+  if (sidebarLib) {
+    sidebarLib.addEventListener('click', (e) => {
+      // if click is on the expand arrow or on interactive elements, ignore here
+      if (e.target.closest('.folder-arrow') || e.target.closest('.popover') || e.target.closest('input') || e.target.closest('button')) return;
+      const item = e.target.closest('.folder-item');
+      if (!item) return;
+      if (item.id === 'folder-all') selectFolder(null);
+      else if (item.dataset && item.dataset.folderId) selectFolder(item.dataset.folderId);
+    });
+
+    // allow dropping recordings on the root "All recordings"
+    const folderAll = document.getElementById('folder-all');
+    if (folderAll) {
+      folderAll.addEventListener('dragover', (e) => { e.preventDefault(); folderAll.classList.add('drag-over'); });
+      folderAll.addEventListener('dragleave', () => folderAll.classList.remove('drag-over'));
+      folderAll.addEventListener('drop', (e) => {
+        e.preventDefault(); folderAll.classList.remove('drag-over');
+        const recId = e.dataTransfer.getData('text/plain');
+        if (recId) moveRecordingToFolder(recId, '');
+      });
+    }
+  }
+
+  // Delegated tag clicks inside recording cards (capture phase to intercept before card click)
+  const libraryListEl = document.getElementById('library-list');
+  if (libraryListEl) {
+    libraryListEl.addEventListener('click', (e) => {
+      const pill = e.target.closest('.tag-pill');
+      if (!pill) return;
+      // ignore tag clicks coming from popover dropdowns (assign-tags UI)
+      if (pill.closest('.popover')) return;
+      e.stopPropagation();
+      const tagId = pill.dataset.tagId;
+      const tagName = pill.dataset.tagName || pill.textContent;
+      filterByTag(tagId, tagName);
+    }, true);
+  }
+
+  initGlobalSearch();
+}
+
+// =========================================================================
 // Init
 // =========================================================================
 function init() {
@@ -1140,6 +2275,18 @@ function init() {
   });
   // fetch and display application version
   fetchVersion();
+
+  // attach changelog handlers (modal-based viewer)
+  (function attachChangelogHandlers() {
+    const btn = document.getElementById('changelog-view-btn');
+    if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); fetchAndShowChangelog(); });
+
+    const closeBtn = document.getElementById('changelog-close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); const modal = document.getElementById('changelog-modal'); if (modal) modal.classList.add('hidden'); });
+
+    const overlay = document.getElementById('changelog-modal-overlay');
+    if (overlay) overlay.addEventListener('click', () => { const modal = document.getElementById('changelog-modal'); if (modal) modal.classList.add('hidden'); });
+  })();
 }
 
 // Notify the backend when the user closes the browser window/tab so the
@@ -1154,7 +2301,91 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+// =========================================================================
+// Changelog viewer (fetch raw markdown from GitHub or local fallback)
+// =========================================================================
+async function fetchAndShowChangelog() {
+  const repoBlob = 'https://github.com/sim186/amico-script/blob/main/CHANGELOG.md';
+  const rawUrl = 'https://raw.githubusercontent.com/sim186/amico-script/main/CHANGELOG.md';
+  const localUrl = '/CHANGELOG.md';
+  const contentEl = document.getElementById('changelog-content');
+  const modal = document.getElementById('changelog-modal');
+  if (contentEl) contentEl.textContent = 'Loading changelog…';
+  try {
+    // Prefer raw GitHub content (fast and guaranteed when online)
+    let res = await fetch(rawUrl);
+    if (!res.ok) {
+      // try local copy served by backend
+      res = await fetch(localUrl);
+    }
+    if (res.ok) {
+      const md = await res.text();
+      if (contentEl) contentEl.textContent = md || 'No changelog available.';
+    } else {
+      // Fallback: open GitHub page in new tab
+      window.open(repoBlob, '_blank', 'noopener');
+      return;
+    }
+  } catch (e) {
+    if (contentEl) contentEl.textContent = 'Unable to load changelog.';
+    try { window.open(repoBlob, '_blank', 'noopener'); } catch (_) {}
+  } finally {
+    if (modal) modal.classList.remove('hidden');
+    const gh = document.getElementById('changelog-github-link');
+    if (gh) gh.href = repoBlob;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', init);
 </script>
+
+<!-- Changelog modal -->
+<div id="changelog-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center px-4 py-8">
+  <div id="changelog-modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+  <div class="relative bg-white rounded-xl p-5 w-full max-w-3xl mx-auto shadow-lg max-h-[80vh] overflow-auto z-10">
+    <div class="flex items-start justify-between mb-3">
+      <h3 class="text-sm font-semibold text-slate-800">Changelog</h3>
+      <div class="flex items-center gap-2">
+        <a id="changelog-github-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md" target="_blank" rel="noopener" class="text-xs text-slate-500 hover:underline">Open on GitHub ↗</a>
+        <button id="changelog-close-btn" class="text-sm text-slate-400 hover:text-slate-700">Close</button>
+      </div>
+    </div>
+    <pre id="changelog-content" class="whitespace-pre-wrap text-sm text-slate-700">Loading…</pre>
+  </div>
+</div>
+
+<!-- Entity edit modal -->
+<div id="entity-edit-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center px-4 py-8">
+  <div class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+  <div class="relative bg-white rounded-xl p-5 w-full max-w-md mx-auto shadow-lg">
+    <div class="flex items-center justify-between mb-3">
+        <h3 id="entity-edit-title" class="text-sm font-semibold text-slate-800">Folder Settings</h3>
+      <button id="entity-edit-close" class="text-slate-400 hover:text-slate-600 p-1 rounded focus:outline-none" aria-label="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+      <div class="space-y-3 modal-body">
+        <p id="entity-edit-sub" class="text-sm text-slate-400">Change the appearance of your folder.</p>
+      <div>
+        <label for="entity-edit-name" class="block text-xs text-slate-500 mb-1">Folder Name</label>
+        <input id="entity-edit-name" type="text" class="w-full entity-input rounded-full border-0 px-6 py-4 text-lg focus:outline-none" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Color</label>
+          <input id="entity-edit-color" type="hidden" value="#6c63ff" />
+          <div id="entity-edit-palette" class="entity-palette-grid" aria-label="Theme color palette"></div>
+          <div class="flex items-center gap-3 mt-3">
+            <div id="entity-edit-color-swatch" class="w-10 h-10 rounded-full border" style="background:#6c63ff"></div>
+            <div class="text-xs text-slate-400">Choose a color for this item</div>
+          </div>
+      </div>
+    </div>
+    <div class="mt-4 entity-actions">
+      <button id="entity-edit-cancel" class="entity-cancel" type="button">Cancel</button>
+      <button id="entity-edit-save" class="entity-save" type="button">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
