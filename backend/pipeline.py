@@ -750,47 +750,6 @@ def _process_translation_job(job_id: str) -> None:
         _push_event(job_id, "error", -1, f"Translation failed: {str(exc)}")
 
 
-def _translate_audio_chunk(audio_path: str, start: float, end: float, model_name: str, job_id: str = "internal") -> str:
-    """Extract an audio chunk and translate it to English using Whisper."""
-    import subprocess
-    import shutil
-    from faster_whisper import WhisperModel
-    from pathlib import Path
-
-    ffmpeg_bin = shutil.which("ffmpeg")
-    if not ffmpeg_bin:
-        return "Error: ffmpeg not found"
-
-    chunk_path = str(Path(audio_path).with_name(f"chunk_{int(time.time())}_{round(start, 2)}.wav"))
-    
-    # Extract segment (mono, 16k)
-    duration = end - start
-    cmd = [
-        ffmpeg_bin, "-y", "-v", "error",
-        "-ss", str(start), "-t", str(duration),
-        "-i", audio_path,
-        "-vn", "-ac", "1", "-ar", "16000", "-sample_fmt", "s16",
-        chunk_path,
-    ]
-    
-    try:
-        subprocess.run(cmd, check=True, timeout=30)
-        
-        model, _ = _get_whisper_model(model_name)
-        segments, _ = model.transcribe(chunk_path, task="translate")
-        
-        translated_text = " ".join(s.text.strip() for s in segments).strip()
-        
-        if os.path.exists(chunk_path):
-            os.remove(chunk_path)
-            
-        return translated_text
-    except Exception as exc:
-        if os.path.exists(chunk_path):
-            os.remove(chunk_path)
-        return f"Translation error: {exc}"
-
-
 # ---------------------------------------------------------------------------
 # Background worker loop
 # ---------------------------------------------------------------------------

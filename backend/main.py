@@ -54,6 +54,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, Req
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from sqlmodel import Session, select
 from sqlalchemy import func
 from sse_starlette.sse import EventSourceResponse
@@ -789,7 +790,8 @@ async def translate_segment_api(
     opts = json.loads(rec.transcription_options or "{}")
     model_name = opts.get("model", "small")
     
-    translated_text = _translate_audio_chunk(
+    translated_text = await run_in_threadpool(
+        _translate_audio_chunk,
         rec.file_path, seg["start"], seg["end"], model_name
     )
     
@@ -1156,9 +1158,10 @@ def search_library(
                 FROM transcript_fts
                 JOIN transcript t ON transcript_fts.rowid = t.rowid
                 WHERE transcript_fts MATCH :q
-                LIMIT :lim
+                ORDER BY rank
+                LIMIT :lim OFFSET :off
             """),
-            params={"q": q, "lim": safe_limit},
+            params={"q": q, "lim": safe_limit, "off": offset},
         ).all()
         
         # Metadata search for filenames, tags, and folders
@@ -1177,18 +1180,20 @@ def search_library(
                 WHERE r.filename LIKE :ql
                    OR f.name LIKE :ql
                    OR t.name LIKE :ql
-                LIMIT :lim
+                ORDER BY r.filename
+                LIMIT :lim OFFSET :off
             """),
-            params={"ql": f"%{q}%", "lim": safe_limit},
+            params={"ql": f"%{q}%", "lim": safe_limit, "off": offset},
         ).all()
         
-        # Combine results: FTS matches take precedence if both match same recording
-        merged = {}
-        for r in meta_rows: merged[r.recording_id] = r.snippet
-        for r in fts_rows: merged[r.recording_id] = r.snippet
+        # Combine results: FTS (relevance-ranked) first, then metadata-only matches.
+        fts_ids = {r.recording_id: r.snippet for r in fts_rows}
+        ordered = list(fts_rows)
+        for r in meta_rows:
+            if r.recording_id not in fts_ids:
+                ordered.append(r)
         
-        rows = [type('Row', (), {"recording_id": rid, "snippet": snip}) for rid, snip in merged.items()]
-        rows = rows[:safe_limit]
+        rows = ordered[:safe_limit]
 
     except OperationalError:
         # Fallback to plain LIKE if FTS query is malformed or missing
@@ -1210,9 +1215,10 @@ def search_library(
                    OR tr.full_text LIKE :ql
                    OR f.name LIKE :ql
                    OR t.name LIKE :ql
-                LIMIT :lim
+                ORDER BY r.filename
+                LIMIT :lim OFFSET :off
             """),
-            params={"ql": f"%{q}%", "lim": safe_limit},
+            params={"ql": f"%{q}%", "lim": safe_limit, "off": offset},
         ).all()
 
     results = []
