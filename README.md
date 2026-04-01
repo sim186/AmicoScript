@@ -8,7 +8,13 @@ Local-first audio transcription with optional speaker identification. Upload a r
 - Models: Whisper (tiny → large-v3)
 - Export: JSON, SRT, TXT, Markdown
 
-Screenshots: `docs/amicoscript.png`, `docs/amicoscript-diarization.png`, `docs/amicoscript-library.png`
+Screenshots
+
+![AmicoScript UI](docs/images/amicoscript.png)
+
+![AmicoScript diarization](docs/images/amicoscript-diarization.png)
+
+![AmicoScript library](docs/images/amicoscript-library.png)
 
 Quick start — Docker (recommended)
 
