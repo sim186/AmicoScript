@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
+
+## [1.1.1] - 2026-04-01
+- Improve library color dropbox
+
 ## [1.1.0] - 2026-03-31
 
 - UI: Introduced a fixed 10-color palette for tags and folders and server-side
@@ -25,3 +29,4 @@ Keep a Changelog format.
 - Fixed windowed (`--noconsole`) runtime crash during diarization (`'NoneType' object has no attribute 'write'`) by providing safe stdio fallbacks for libraries that write to `stdout`/`stderr`.
 - Fixed GitHub Actions release workflow: corrected `artifacts` parameter and added `allowUpdates` to support multi-OS parallel builds.
 - Initial stable release.
+
