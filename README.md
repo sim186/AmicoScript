@@ -2,10 +2,9 @@
 
 ![Demo](docs/images/demo.gif)
 
-Turn audio recordings into searchable transcripts — fully local, no cloud, no data leaks.
+## 📋 Description
 
-AmicoScript is a local-first transcription tool built on Whisper.  
-Upload an audio file and get a time-stamped transcript with optional speaker identification — all processed on your machine.
+**AmicoScript** is a privacy-focused, local-first transcription tool built on OpenAI's Whisper models. It allows you to transform audio recordings into structured, searchable transcripts without your data ever leaving your repository or machine. Whether you need speaker identification (diarization), translation, or simple subtitles, AmicoScript provides a fast, free, and secure alternative to cloud services.
 
 ---
 
@@ -112,3 +111,9 @@ Feedback, issues, and contributions are welcome.
 ## ⭐ If you find this useful
 
 Give it a star — it helps a lot!
+
+---
+
+## ⚖️ License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for more details.
