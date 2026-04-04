@@ -4,20 +4,75 @@ import platform
 import urllib.request
 import zipfile
 import json
+import shutil
+import threading
 from pathlib import Path
+import config
 
-def get_ffmpeg_path(base_dir: Path) -> Path:
+_download_thread = None
+_download_lock = threading.Lock()
+
+
+def _exe_name() -> str:
+    system = platform.system().lower()
+    return "ffmpeg.exe" if system == "windows" else "ffmpeg"
+
+
+def is_ffmpeg_available(base_dir: Path | None = None) -> bool:
+    """Return True if ffmpeg is available in PATH or bundled in base_dir."""
+    if shutil.which("ffmpeg"):
+        return True
+    if base_dir is None:
+        base_dir = config.STORAGE_ROOT / "bin"
+    exe = base_dir / _exe_name()
+    return exe.exists()
+
+
+def start_background_download(base_dir: Path | None = None) -> None:
+    """Start a background thread to download ffmpeg if it's missing.
+
+    Returns immediately; the worker will attempt to download and extract
+    ffmpeg into `base_dir`.
+    """
+    global _download_thread
+    if is_ffmpeg_available(base_dir):
+        return
+    if base_dir is None:
+        base_dir = config.STORAGE_ROOT / "bin"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    with _download_lock:
+        if _download_thread is not None and _download_thread.is_alive():
+            return
+        _download_thread = threading.Thread(
+            target=_download_worker, args=(base_dir,), daemon=True
+        )
+        _download_thread.start()
+
+
+def _download_worker(base_dir: Path) -> None:
+    try:
+        get_ffmpeg_path(base_dir)
+    except Exception as e:
+        print(f"Background ffmpeg download failed: {e}")
+
+
+def get_ffmpeg_path(base_dir: Path | None = None) -> Path:
     """Returns the path to the ffmpeg executable, downloading it if necessary."""
     # Determine OS and Arch
     system = platform.system().lower()
     machine = platform.machine().lower()
-    
-    exe_name = "ffmpeg.exe" if system == "windows" else "ffmpeg"
-    
-    # 1. Check if it's already in the base directory
+
+    exe_name = _exe_name()
+
+    if base_dir is None:
+        base_dir = config.STORAGE_ROOT / "bin"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Check if it's already in the base directory or on PATH
     local_ffmpeg = base_dir / exe_name
-    if local_ffmpeg.exists():
-        return local_ffmpeg
+    if local_ffmpeg.exists() or shutil.which("ffmpeg"):
+        return local_ffmpeg if local_ffmpeg.exists() else Path(shutil.which("ffmpeg"))
         
     # 2. Need to download it
     print(f"FFmpeg not found. Downloading for {system} {machine}...")
@@ -26,7 +81,7 @@ def get_ffmpeg_path(base_dir: Path) -> Path:
     api_url = "https://ffbinaries.com/api/v1/version/latest"
     try:
         import requests
-        
+
         response = requests.get(api_url, timeout=10)
         response.raise_for_status()
         data = response.json()
@@ -73,7 +128,7 @@ def get_ffmpeg_path(base_dir: Path) -> Path:
             os.remove(zip_path)
             
         # Make executable on Unix
-        if system != "windows":
+        if system != "windows" and local_ffmpeg.exists():
             os.chmod(local_ffmpeg, 0o755)
             
         print("FFmpeg downloaded and extracted successfully!")

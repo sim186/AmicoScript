@@ -27,6 +27,7 @@ from sqlmodel import select
 import state
 from exports import _ts
 from shims import inject_torchcodec_shim
+import ffmpeg_helper
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +373,14 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
             job_id, "transcribing", 0.05,
             "Starting transcription (first progress update may take time on long files/CPU)…",
         )
+
+        # Kick off a background download of ffmpeg (won't block). This ensures
+        # the UI starts immediately while the binary downloads in the background
+        # and will be available for subsequent jobs.
+        try:
+            ffmpeg_helper.start_background_download()
+        except Exception:
+            pass
 
         lang = opts["language"] or None
         use_word_timestamps = os.environ.get("AMICO_WORD_TIMESTAMPS", "0") == "1"
