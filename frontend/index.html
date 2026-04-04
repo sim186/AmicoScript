@@ -752,20 +752,6 @@
                 </svg>
               </button>
             </div>
-            <!-- Inline new-folder form -->
-            <div id="new-folder-form" class="hidden mt-2">
-              <div id="new-folder-parent" class="text-xs text-slate-400 mb-1">Parent: All recordings</div>
-              <div class="flex items-center gap-2">
-                <input id="new-folder-name" type="text" placeholder="New folder name"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
-                <input id="new-folder-color" type="color" value="#6c63ff" title="Folder color"
-                  class="w-7 h-7 p-0 border-0 bg-transparent" />
-                <button id="new-folder-save"
-                  class="px-3 py-1 rounded-md bg-brand text-white text-sm font-semibold hover:bg-brand-hover focus:outline-none">Save</button>
-                <button id="new-folder-cancel"
-                  class="px-3 py-1 rounded-md bg-slate-100 text-slate-600 text-sm hover:bg-slate-200 focus:outline-none">Cancel</button>
-              </div>
-            </div>
             <!-- "All recordings" root item -->
             <div id="folder-all" class="folder-item active" onclick="selectFolder(null)">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-slate-400" fill="none"
@@ -788,32 +774,6 @@
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
-            </div>
-            <!-- Inline new-tag form -->
-            <div id="new-tag-form" class="hidden mt-2">
-              <div class="flex items-center gap-2">
-                <input id="new-tag-name" type="text" placeholder="Tag name"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
-                <input id="new-tag-color" type="color" value="#6c63ff" title="Pick a color"
-                  class="w-7 h-7 p-0 border-0 bg-transparent" />
-                <button id="new-tag-save"
-                  class="px-3 py-1 rounded-md bg-brand text-white text-sm font-semibold hover:bg-brand-hover focus:outline-none">Save</button>
-                <button id="new-tag-cancel"
-                  class="px-3 py-1 rounded-md bg-slate-100 text-slate-600 text-sm hover:bg-slate-200 focus:outline-none">Cancel</button>
-              </div>
-            </div>
-            <!-- Inline tag edit form -->
-            <div id="edit-tag-form" class="hidden mt-2">
-              <div class="flex items-center gap-2">
-                <input id="edit-tag-name" type="text" placeholder="Tag name"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
-                <input id="edit-tag-color" type="color" value="#6c63ff" title="Pick a color"
-                  class="w-10 h-10 p-0 border-0 bg-transparent" />
-                <button id="edit-tag-save"
-                  class="px-3 py-1 rounded-md bg-brand text-white text-sm font-semibold hover:bg-brand-hover focus:outline-none">Save</button>
-                <button id="edit-tag-cancel"
-                  class="px-3 py-1 rounded-md bg-slate-100 text-slate-600 text-sm hover:bg-slate-200 focus:outline-none">Cancel</button>
-              </div>
             </div>
             <div id="tag-list" class="flex flex-wrap gap-1.5"></div>
           </div>
@@ -1651,7 +1611,7 @@
         a.addEventListener('click', e => {
           e.preventDefault();
           const item = state.batchQueue[parseInt(a.dataset.batchView, 10)];
-          if (item?.jobId) loadResult(item.jobId);
+          if (item?.jobId) loadResult(item.jobId, item.recordingId);
         });
       });
     }
@@ -1857,7 +1817,7 @@
         a.addEventListener('click', e => {
           e.preventDefault();
           const item = state.batchQueue[parseInt(a.dataset.summaryView, 10)];
-          if (item?.jobId) loadResult(item.jobId);
+          if (item?.jobId) loadResult(item.jobId, item.recordingId);
         });
       });
 
@@ -1918,6 +1878,28 @@
     }
 
     async function refreshJobLogs() {
+      if (state.batchMode && state.batchQueue.length > 0) {
+        const jobItems = state.batchQueue.filter(i => i.jobId);
+        if (!jobItems.length) return;
+        const rawLogs = [];
+        await Promise.allSettled(jobItems.map(async item => {
+          try {
+            const res = await fetch(`/api/jobs/${item.jobId}/logs?limit=500`);
+            if (!res.ok) return;
+            const payload = await res.json();
+            const name = item.file?.name || item.jobId;
+            (payload.logs || []).forEach(e => rawLogs.push({ ...e, _name: name }));
+          } catch (_) {}
+        }));
+        rawLogs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        state.jobLogs = rawLogs.map(e => {
+          const ts = e.ts ? new Date(e.ts * 1000).toLocaleTimeString() : '--:--:--';
+          return `[${ts}] [${e._name}] ${e.level || 'INFO'} ${e.message || ''}`;
+        });
+        if (state.jobLogs.length > 1000) state.jobLogs = state.jobLogs.slice(-1000);
+        renderJobLogs();
+        return;
+      }
       const jobId = getActiveJobId();
       if (!jobId) return;
       try {
@@ -2069,7 +2051,7 @@
     // =========================================================================
     // Load result
     // =========================================================================
-    async function loadResult(jobId) {
+    async function loadResult(jobId, recordingId) {
       try {
         const [resultRes, audioRes] = await Promise.all([
           fetch(`/api/jobs/${jobId}/result`),
@@ -2079,6 +2061,10 @@
         const result = await resultRes.json();
         const audioBlob = await audioRes.blob();
 
+        if (recordingId) {
+          state.activeRecordingId = recordingId;
+          state.recordingId = recordingId;
+        }
         state.result = result;
         state.audioUrl = URL.createObjectURL(audioBlob);
         state.filteredSegments = result.segments;
@@ -2335,7 +2321,7 @@
         segId = segIdOpt;
       }
 
-      if (!segEl || !segId) return;
+      if (!segEl || segId == null) return;
 
       // Prevent multiple editors
       if (segEl.querySelector('.segment-edit-area')) return;
@@ -2864,107 +2850,6 @@
       } catch (err) { alert(`Create folder failed: ${err.message}`); }
     }
 
-    function showInlineRenameFolder(folder) {
-      const item = document.querySelector(`[data-folder-id="${folder.id}"]`);
-      if (!item) {
-        // fallback to prompt
-        (async () => {
-          const newName = prompt('Rename folder:', folder.name);
-          if (!newName || newName === folder.name) return;
-          const fd = new FormData(); fd.append('name', newName);
-          try { const res = await fetch(`/api/folders/${folder.id}`, { method: 'PATCH', body: fd }); if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); } await fetchFolders(); } catch (err) { alert(`Rename failed: ${err.message}`); }
-        })();
-        return;
-      }
-
-      // avoid duplicate popovers
-      const popId = `folder-rename-pop-${folder.id}`;
-      if (document.getElementById(popId)) return;
-
-      const rect = item.getBoundingClientRect();
-      const pop = document.createElement('div');
-      pop.id = popId;
-      pop.className = 'absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-3';
-      pop.style.left = Math.max(8 + window.scrollX, rect.left + window.scrollX) + 'px';
-      pop.style.top = (rect.bottom + 6 + window.scrollY) + 'px';
-      pop.style.minWidth = '220px';
-      pop.style.boxSizing = 'border-box';
-
-      const nameInput = document.createElement('input');
-      nameInput.type = 'text';
-      nameInput.value = folder.name || '';
-      nameInput.className = 'w-full rounded border border-slate-200 px-2 py-1 text-sm focus:outline-none mb-2';
-
-      const inlineId = `inline-folder-color-${folder.id}`;
-      const tmpInput = document.createElement('input');
-      tmpInput.type = 'hidden';
-      tmpInput.id = inlineId;
-      tmpInput.value = folder.color_code || '#6c63ff';
-
-      const btnRow = document.createElement('div');
-      btnRow.className = 'flex items-center gap-2 justify-end mt-2';
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'px-3 py-1 text-sm rounded bg-brand text-white'; saveBtn.textContent = 'Save';
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'px-3 py-1 text-sm rounded bg-slate-100 text-slate-600'; cancelBtn.textContent = 'Cancel';
-
-      pop.appendChild(nameInput);
-      pop.appendChild(tmpInput);
-      pop.appendChild(btnRow);
-      btnRow.appendChild(cancelBtn);
-      btnRow.appendChild(saveBtn);
-
-      document.body.appendChild(pop);
-
-      // attach palette to hidden input now that it's in the document
-      attachPaletteToInput(inlineId, 20);
-
-      // live preview: update library accent as the user picks colors
-      const hiddenInputEl = document.getElementById(inlineId);
-      let _colorPreviewHandler = null;
-      if (hiddenInputEl) {
-        _colorPreviewHandler = (e) => { try { if (String(state.library.selectedFolderId) === String(folder.id)) setLibraryAccent(e.target.value); } catch (_) { } };
-        hiddenInputEl.addEventListener('input', _colorPreviewHandler);
-      }
-
-      // focus
-      nameInput.focus(); nameInput.select();
-
-      async function doSave() {
-        const newName = nameInput.value.trim();
-        const newColor = (document.getElementById(inlineId) && document.getElementById(inlineId).value) || '#6c63ff';
-        if (!newName) return;
-        try {
-          const fd = new FormData(); fd.append('name', newName); fd.append('color_code', newColor || '#6c63ff');
-          const res = await fetch(`/api/folders/${folder.id}`, { method: 'PATCH', body: fd });
-          if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
-          // optimistic UI: apply accent immediately if we're editing the currently selected folder
-          try { if (String(state.library.selectedFolderId) === String(folder.id)) setLibraryAccent(newColor); } catch (_) { }
-          await fetchFolders();
-          fetchTags();
-        } catch (err) { alert(`Rename failed: ${err.message}`); }
-        if (hiddenInputEl && _colorPreviewHandler) hiddenInputEl.removeEventListener('input', _colorPreviewHandler);
-        pop.remove();
-      }
-
-      saveBtn.addEventListener('click', async (e) => { e.stopPropagation(); await doSave(); });
-      cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); if (hiddenInputEl && _colorPreviewHandler) hiddenInputEl.removeEventListener('input', _colorPreviewHandler); pop.remove(); });
-
-      // keyboard handlers
-      nameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); doSave(); }
-        if (e.key === 'Escape') { pop.remove(); }
-      });
-
-      // close on outside click
-      setTimeout(() => {
-        function closeHandler(ev) {
-          if (!pop.contains(ev.target) && !item.contains(ev.target)) pop.remove();
-        }
-        document.addEventListener('click', closeHandler, { once: true });
-      }, 0);
-    }
-
     async function deleteFolderConfirm(folderId) {
       if (!confirm('Delete folder? Recordings inside will be moved to All Recordings.')) return;
       try {
@@ -3078,38 +2963,6 @@
       } catch (err) { alert(`Create tag failed: ${err.message}`); }
     }
 
-    let _editingTagId = null;
-    function showTagEditForm(tag) {
-      _editingTagId = tag.id;
-      try { document.getElementById('edit-tag-form').classList.add('hidden'); } catch (_) { }
-      window.showEntityDialog('tag', tag);
-    }
-
-    function hideTagEditForm() {
-      _editingTagId = null;
-      document.getElementById('edit-tag-form').classList.add('hidden');
-      document.getElementById('edit-tag-name').value = '';
-      if (document.getElementById('edit-tag-color')) document.getElementById('edit-tag-color').value = '#6c63ff';
-      setPaletteValue('edit-tag-color', '#6c63ff');
-    }
-
-    async function updateTag() {
-      if (!_editingTagId) return;
-      const name = document.getElementById('edit-tag-name').value.trim();
-      const color = document.getElementById('edit-tag-color').value;
-      if (!name) return;
-      const fd = new FormData();
-      fd.append('name', name);
-      fd.append('color_code', color);
-      try {
-        const res = await fetch(`/api/tags/${_editingTagId}`, { method: 'PATCH', body: fd });
-        if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
-        await fetchTags();
-        await fetchLibrary();
-        hideTagEditForm();
-      } catch (err) { alert(`Update tag failed: ${err.message}`); }
-    }
-
     function showTagMenu(e, tag) {
       document.getElementById('tag-ctx-menu')?.remove();
       const menu = document.createElement('div');
@@ -3127,17 +2980,42 @@
 
     // Generic modal-based editor for tags and folders
     window._entityEditContext = null;
-    window.showEntityDialog = function (type, obj) {
+    window.showEntityDialog = function (type, obj, parentId) {
       try {
         if (typeof obj === 'string') obj = JSON.parse(obj);
       } catch (_) { }
       const modal = document.getElementById('entity-edit-modal');
       if (!modal) return;
-      window._entityEditContext = { type: type, id: obj && obj.id ? obj.id : null };
+      const isNew = !obj || !obj.id;
+      window._entityEditContext = { type, id: isNew ? null : obj.id, parentId: parentId || null };
+
       const title = document.getElementById('entity-edit-title');
       const sub = document.getElementById('entity-edit-sub');
-      title.textContent = type === 'folder' ? 'Folder Settings' : 'Tag Settings';
-      sub.textContent = type === 'folder' ? 'Change the appearance of your folder.' : 'Change the appearance of your tag.';
+      const nameLabel = document.getElementById('entity-edit-name-label');
+      const saveBtn = document.getElementById('entity-edit-save');
+      const parentInfo = document.getElementById('entity-edit-parent-info');
+
+      if (isNew) {
+        title.textContent = type === 'folder' ? 'New Folder' : 'New Tag';
+        sub.textContent = type === 'folder' ? 'Give your folder a name and choose a color.' : 'Give your tag a name and choose a color.';
+        if (saveBtn) saveBtn.textContent = 'Create';
+      } else {
+        title.textContent = type === 'folder' ? 'Folder Settings' : 'Tag Settings';
+        sub.textContent = type === 'folder' ? 'Change the appearance of your folder.' : 'Change the appearance of your tag.';
+        if (saveBtn) saveBtn.textContent = 'Save Changes';
+      }
+      if (nameLabel) nameLabel.textContent = type === 'folder' ? 'Folder Name' : 'Tag Name';
+      if (parentInfo) {
+        if (type === 'folder' && isNew) {
+          const pid = parentId || null;
+          const parentName = pid ? (state.library.folders.find(f => f.id === pid)?.name || 'Folder') : 'All recordings';
+          parentInfo.textContent = 'Parent: ' + parentName;
+          parentInfo.classList.remove('hidden');
+        } else {
+          parentInfo.classList.add('hidden');
+        }
+      }
+
       const nameEl = document.getElementById('entity-edit-name');
       nameEl.value = (obj && obj.name) ? obj.name : '';
 
@@ -3197,65 +3075,29 @@
         fd.append('name', name);
         fd.append('color_code', color);
         if (ctx.type === 'folder') {
-          if (!ctx.id) return;
-          const res = await fetch(`/api/folders/${ctx.id}`, { method: 'PATCH', body: fd });
-          if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
-          // Refresh UI
-          await fetchFolders();
-          fetchTags();
-          fetchLibrary();
-          // apply accent if editing current folder
-          if (String(state.library.selectedFolderId) === String(ctx.id)) setLibraryAccent(color);
+          if (ctx.id) {
+            const res = await fetch(`/api/folders/${ctx.id}`, { method: 'PATCH', body: fd });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
+            await fetchFolders();
+            fetchTags();
+            fetchLibrary();
+            if (String(state.library.selectedFolderId) === String(ctx.id)) setLibraryAccent(color);
+          } else {
+            await createFolder(name, ctx.parentId, color);
+          }
         } else if (ctx.type === 'tag') {
-          if (!ctx.id) return;
-          const res = await fetch(`/api/tags/${ctx.id}`, { method: 'PATCH', body: fd });
-          if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
-          await fetchTags();
-          await fetchLibrary();
+          if (ctx.id) {
+            const res = await fetch(`/api/tags/${ctx.id}`, { method: 'PATCH', body: fd });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
+            await fetchTags();
+            await fetchLibrary();
+          } else {
+            await createTag(name, color);
+          }
         }
         hideEntityDialog();
       } catch (err) { alert('Save failed: ' + (err.message || err)); }
     };
-
-    function showNewFolderForm() {
-      const form = document.getElementById('new-folder-form');
-      const parentLabel = document.getElementById('new-folder-parent');
-      const parentId = state.library.selectedFolderId;
-      parentLabel.textContent = 'Parent: ' + (parentId ? (state.library.folders.find(f => f.id === parentId)?.name || 'Folder') : 'All recordings');
-      form.classList.remove('hidden');
-      const input = document.getElementById('new-folder-name');
-      input.focus();
-      input.select();
-    }
-
-    function hideNewFolderForm() {
-      const form = document.getElementById('new-folder-form');
-      form.classList.add('hidden');
-      const input = document.getElementById('new-folder-name');
-      input.value = '';
-      if (document.getElementById('new-folder-color')) {
-        document.getElementById('new-folder-color').value = '#6c63ff';
-        setPaletteValue('new-folder-color', '#6c63ff');
-      }
-    }
-
-    function showNewTagForm() {
-      const form = document.getElementById('new-tag-form');
-      form.classList.remove('hidden');
-      const input = document.getElementById('new-tag-name');
-      input.focus();
-      input.select();
-    }
-
-    function hideNewTagForm() {
-      const form = document.getElementById('new-tag-form');
-      form.classList.add('hidden');
-      document.getElementById('new-tag-name').value = '';
-      if (document.getElementById('new-tag-color')) {
-        document.getElementById('new-tag-color').value = '#6c63ff';
-        setPaletteValue('new-tag-color', '#6c63ff');
-      }
-    }
 
     // =========================================================================
     // === LIBRARY VIEW ===
@@ -3685,42 +3527,15 @@
         if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'entity-edit-name') { e.preventDefault(); window.saveEntityDialog(); }
       });
 
-      // New-folder inline form handlers
-      document.getElementById('new-folder-btn').addEventListener('click', (e) => { e.stopPropagation(); showNewFolderForm(); });
-      document.getElementById('new-folder-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideNewFolderForm(); });
-      document.getElementById('new-folder-save').addEventListener('click', async (e) => {
+      // New folder / tag — open dialog
+      document.getElementById('new-folder-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        const name = document.getElementById('new-folder-name').value.trim();
-        if (!name) return;
-        const color = document.getElementById('new-folder-color')?.value;
-        await createFolder(name, state.library.selectedFolderId, color);
-        hideNewFolderForm();
+        window.showEntityDialog('folder', null, state.library.selectedFolderId);
       });
-      document.getElementById('new-folder-name').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('new-folder-save').click(); }
-        if (e.key === 'Escape') hideNewFolderForm();
-      });
-
-      // New-tag inline form handlers
-      document.getElementById('new-tag-btn').addEventListener('click', (e) => { e.stopPropagation(); showNewTagForm(); });
-      document.getElementById('new-tag-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideNewTagForm(); });
-      document.getElementById('new-tag-save').addEventListener('click', async (e) => {
+      document.getElementById('new-tag-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        const name = document.getElementById('new-tag-name').value.trim();
-        const color = document.getElementById('new-tag-color').value;
-        if (!name) return;
-        await createTag(name, color);
-        hideNewTagForm();
+        window.showEntityDialog('tag', null);
       });
-      document.getElementById('new-tag-name').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('new-tag-save').click(); }
-        if (e.key === 'Escape') hideNewTagForm();
-      });
-
-      // Edit-tag form handlers
-      document.getElementById('edit-tag-cancel').addEventListener('click', (e) => { e.stopPropagation(); hideTagEditForm(); });
-      document.getElementById('edit-tag-save').addEventListener('click', async (e) => { e.stopPropagation(); await updateTag(); });
-      document.getElementById('edit-tag-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('edit-tag-save').click(); } if (e.key === 'Escape') hideTagEditForm(); });
 
       document.getElementById('lib-sort-select').addEventListener('change', e => {
         state.library.sort = e.target.value;
@@ -3998,8 +3813,9 @@
       </div>
       <div class="space-y-3 modal-body">
         <p id="entity-edit-sub" class="text-sm text-slate-400">Change the appearance of your folder.</p>
+        <p id="entity-edit-parent-info" class="hidden text-xs text-slate-400"></p>
         <div>
-          <label for="entity-edit-name" class="block text-xs text-slate-500 mb-1">Folder Name</label>
+          <label id="entity-edit-name-label" for="entity-edit-name" class="block text-xs text-slate-500 mb-1">Name</label>
           <input id="entity-edit-name" type="text"
             class="w-full entity-input rounded-full border-0 px-6 py-4 text-lg focus:outline-none" />
         </div>
