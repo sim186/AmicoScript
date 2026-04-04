@@ -6,6 +6,7 @@ import PyInstaller.__main__
 def build():
     # Detect OS
     is_windows = sys.platform.startswith('win')
+    is_macos = sys.platform == 'darwin'
 
     # Define paths
     root = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +24,6 @@ def build():
         'run.py',                          # Entry point
         '--name=AmicoScript',              # Output name
         '--onedir',                        # Better for large apps (faster launch/debug)
-        '--noconsole',                     # No terminal window (if desired)
         '--paths=backend',                 # Make backend modules importable during analysis/runtime
         '--add-data=frontend:frontend',    # Include frontend files
         '--add-data=VERSION:.',            # Include VERSION at bundle root
@@ -38,6 +38,30 @@ def build():
         '--hidden-import=torchaudio',
         '--hidden-import=sse_starlette.sse',
     ]
+
+    # Platform-specific UI flags
+    if is_macos:
+        # Create a macOS .app bundle. Provide a bundle identifier and optional icon.
+        args.append('--windowed')
+        # Set a bundle identifier (change to your reverse-domain identifier if desired)
+        args.append('--osx-bundle-identifier=org.amico.AmicoScript')
+        # Choose an .icns icon. Prefer images/AmicoScript.icns, otherwise pick any .icns in images/.
+        icon_default = os.path.join(root, 'images', 'AmicoScript.icns')
+        if os.path.exists(icon_default):
+            icon_path = icon_default
+        else:
+            images_dir = os.path.join(root, 'images')
+            icon_candidates = []
+            if os.path.isdir(images_dir):
+                for fn in os.listdir(images_dir):
+                    if fn.lower().endswith('.icns'):
+                        icon_candidates.append(os.path.join(images_dir, fn))
+            icon_path = icon_candidates[0] if icon_candidates else None
+        if icon_path:
+            args.append(f'--icon={icon_path}')
+    elif is_windows:
+        # On Windows, avoid a console window
+        args.append('--noconsole')
 
     if is_windows:
         version_file_path = None
@@ -99,7 +123,34 @@ VSVersionInfo(
     PyInstaller.__main__.run(args)
     
     print("\nDraft build complete!")
-    print(f"Output available in: {dist}/AmicoScript")
+    if is_macos:
+        app_path = os.path.join(dist, 'AmicoScript.app')
+        print(f"Output available in: {app_path}")
+
+        # Ensure executables inside the .app are executable (fixes Finder 'prohibitory' icon)
+        contents_mac_os = os.path.join(app_path, 'Contents', 'MacOS')
+        if os.path.isdir(contents_mac_os):
+            for fname in os.listdir(contents_mac_os):
+                fpath = os.path.join(contents_mac_os, fname)
+                try:
+                    # make file executable
+                    os.chmod(fpath, os.stat(fpath).st_mode | 0o111)
+                except Exception:
+                    pass
+        # also mark ffmpeg or other bundled binaries if placed in Contents/MacOS
+        # (PyInstaller may put binaries in Resources or MacOS depending on spec)
+        resources_dir = os.path.join(app_path, 'Contents', 'Resources')
+        if os.path.isdir(resources_dir):
+            for root_dir, dirs, files in os.walk(resources_dir):
+                for fn in files:
+                    if fn.lower().startswith('ffmpeg') or fn.endswith('.so') or fn.endswith('.dylib'):
+                        fpath = os.path.join(root_dir, fn)
+                        try:
+                            os.chmod(fpath, os.stat(fpath).st_mode | 0o111)
+                        except Exception:
+                            pass
+    else:
+        print(f"Output available in: {dist}/AmicoScript")
     print("\nNote: You may need to manually bundle ffmpeg binaries in the dist folder if not in system path.")
 
 if __name__ == "__main__":
