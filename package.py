@@ -60,8 +60,22 @@ def build():
         if icon_path:
             args.append(f'--icon={icon_path}')
     elif is_windows:
-        # On Windows, avoid a console window
+        # On Windows, avoid a console window and embed an .ico icon
         args.append('--noconsole')
+        # Prefer images/AmicoScript.ico or the first .ico found in images/
+        icon_default = os.path.join(root, 'images', 'AmicoScript.ico')
+        if os.path.exists(icon_default):
+            icon_path = icon_default
+        else:
+            images_dir = os.path.join(root, 'images')
+            icon_candidates = []
+            if os.path.isdir(images_dir):
+                for fn in os.listdir(images_dir):
+                    if fn.lower().endswith('.ico'):
+                        icon_candidates.append(os.path.join(images_dir, fn))
+            icon_path = icon_candidates[0] if icon_candidates else None
+        if icon_path:
+            args.append(f'--icon={icon_path}')
 
     if is_windows:
         version_file_path = None
