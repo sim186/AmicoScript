@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
+## [1.3.1] - 2026-04-04
+- UI: Remove the inline folder/tag creation in favor of dialog (similar to edit)
+- Re-enabled MacOs release workflow
+
 ## [1.3.0] - 2026-04-04
 - UI: Added `waveform` player with interactive seeking and segment highlighting.
 - UI: Moved the console log to a collapsible bottom panel with timestamps (hidden by default).
