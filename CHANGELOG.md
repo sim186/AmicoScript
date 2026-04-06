@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
+## [1.4.0] - 2026-04-06
+
+### ✨ New Features
+
+- **AI Analysis Engine:** Add per-recording LLM-powered analyses (summary, action items, translation, custom prompts) with streaming results.
+- **LLM Settings & Model Management:** Configure LLM base URL, model name and API key from the UI. List available models and trigger model pulls (Ollama-style `/api/pull`).
+- **Frontend: AI Analysis Panel:** New inner tab in the transcript view for running analyses, viewing streaming output, and inspecting past analysis results.
+
+### ✨ Improvements
+
+- **Job processing:** Background worker now supports `analysis` jobs and streams incremental output to the client; improved job logging and cancel handling.
+- **Frontend UX:** Drawer-style sidebar, inner tab panels (Transcript / AI Analysis), client-side action logs, and a Help modal with Docker LLM tips.
+- **File format support:** Added `.opus` to the allowed upload extensions.
+
+### 🐛 Fixes
+
+- **Cascade deletes:** Deleting a recording now also removes associated Analysis rows from the database.
+- **Robustness:** Better error handling for LLM calls and safer cleanup of analysis job state on failure or cancellation.
+- **Visual polish:** Improved styling
+
+---
+
 ## [1.3.1] - 2026-04-04
 - UI: Remove the inline folder/tag creation in favor of dialog (similar to edit)
 - Re-enabled MacOs release workflow

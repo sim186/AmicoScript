@@ -553,21 +553,36 @@
       border-radius: 4px;
       overflow: hidden !important;
     }
+
+    /* Sidebar (integrated into layout) */
+    /* The sidebar is part of the flex layout. It can be hidden by toggling the
+       `hidden` class on the #sidebar element so the main panel resizes naturally. */
+
+    /* Inner tabs (Transcript / AI Analysis) */
+    .inner-tab-panel {
+      display: none;
+    }
+    .inner-tab-panel.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
   </style>
 </head>
 
 <body class="h-full bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
 
   <!--
-  Layout: fixed sidebar (left) + main panel (right)
+  Layout: drawer sidebar (fixed, slide-in) + main panel (full width)
   Main panel: tab bar + tab content
 -->
   <div class="flex h-full">
 
     <!-- ===================================================================
-       SIDEBAR
+       SIDEBAR DRAWER
   =================================================================== -->
-    <aside class="w-72 shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden">
+    <aside id="sidebar" class="w-72 shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden">
 
       <!-- Logo -->
       <div class="px-5 py-5 border-b border-slate-100">
@@ -737,6 +752,79 @@
             </div>
           </div>
 
+          <hr class="border-slate-100 my-1" />
+
+          <!-- LLM Settings -->
+          <details id="llm-settings-details" class="group">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>LLM Settings</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2 space-y-2">
+              <!-- Base URL -->
+              <div>
+                <label for="llm-base-url" class="block text-xs text-slate-500 mb-0.5">Base URL</label>
+                <input id="llm-base-url" type="text" placeholder="http://localhost:11434"
+                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
+              </div>
+              <!-- Model -->
+              <div class="relative">
+                <label for="llm-model-input" class="block text-xs text-slate-500 mb-0.5">Model</label>
+                <div class="flex gap-1">
+                  <input id="llm-model-input" type="text" placeholder="e.g. llama3.2"
+                    class="flex-1 text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
+                  <button id="llm-browse-models-btn" type="button" title="Browse available models"
+                    class="text-xs px-2 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition shrink-0">
+                    Browse
+                  </button>
+                </div>
+                <!-- Model browser panel -->
+                <div id="llm-models-panel" class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-600">Models</span>
+                    <button id="llm-refresh-models-btn" type="button" class="text-xs text-slate-400 hover:text-brand transition">↻ Refresh</button>
+                  </div>
+                  <div id="llm-installed-section" class="hidden">
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Installed</p>
+                    <div id="llm-installed-list"></div>
+                  </div>
+                  <div>
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Popular</p>
+                    <div id="llm-popular-list"></div>
+                  </div>
+                </div>
+              </div>
+              <!-- API Key (optional) -->
+              <div>
+                <label for="llm-api-key" class="block text-xs text-slate-500 mb-0.5">API Key <span class="font-normal">(optional)</span></label>
+                <div class="relative">
+                  <input id="llm-api-key" type="password" placeholder="Leave empty for Ollama"
+                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-brand" />
+                  <button type="button" id="llm-key-eye"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg id="llm-key-eye-open" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                    <svg id="llm-key-eye-closed" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <!-- Test + status -->
+              <div class="flex items-center gap-2">
+                <button id="llm-test-btn" type="button"
+                  class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition">
+                  Test Connection
+                </button>
+                <span id="llm-test-status" class="text-xs"></span>
+              </div>
+            </div>
+          </details>
+
         </div><!-- /sidebar-transcript -->
 
         <!-- SIDEBAR: Library tab -->
@@ -792,6 +880,8 @@
           class="ml-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0">Changelog</button>
         <a id="changelog-remote-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md"
           target="_blank" rel="noopener" class="ml-1 text-slate-400 hover:underline">Open ↗</a>
+        <button id="help-view-btn" type="button"
+          class="ml-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0">Help</button>
       </div>
     </aside>
 
@@ -801,7 +891,14 @@
     <div class="flex-1 flex flex-col min-w-0 h-full">
 
       <!-- Tab bar -->
-      <div class="bg-white border-b border-slate-200 px-6 flex items-end gap-1 shrink-0">
+      <div class="bg-white border-b border-slate-200 px-2 flex items-end gap-1 shrink-0">
+        <!-- Hamburger drawer toggle -->
+        <button id="drawer-toggle" onclick="toggleDrawer()" aria-label="Toggle sidebar"
+          class="flex items-center justify-center w-9 h-9 mb-1 rounded-lg text-slate-500 hover:text-brand hover:bg-brand-muted/30 transition focus:outline-none shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
         <button id="tab-btn-transcribe"
           class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-brand text-brand -mb-px focus:outline-none"
           aria-selected="true" role="tab" aria-controls="tab-transcribe">
@@ -868,7 +965,7 @@
             <!-- Drop zone -->
             <div id="drop-zone" role="button" tabindex="0" aria-label="Upload audio file"
               class="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-8 py-14 text-center cursor-pointer transition hover:border-brand hover:bg-brand-muted/20 focus:outline-none focus:ring-2 focus:ring-brand">
-              <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.mkv" multiple class="hidden"
+              <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.mkv,.opus" multiple class="hidden"
                 aria-hidden="true" />
               <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="1.5">
@@ -877,7 +974,7 @@
               </svg>
               <div>
                 <p class="font-medium text-slate-700">Drop audio here or <span class="text-brand">browse</span></p>
-                <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC · MP4 · MOV · MKV</p>
+                <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC · MP4 · MOV · MKV · OPUS</p>
               </div>
             </div>
 
@@ -967,34 +1064,135 @@
         <div id="tab-transcript" class="tab-panel overflow-hidden" role="tabpanel">
           <div class="flex flex-col h-full">
 
-            <div class="px-6 py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between gap-4">
-              <div class="relative flex-1 max-w-lg">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-                </svg>
-                <input id="search-input" type="search" placeholder="Search transcript…" aria-label="Search transcript"
-                  class="w-full pl-10 pr-24 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
-                <span id="search-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
+            <!-- Inner tab bar: Transcript / AI Analysis -->
+            <div class="bg-white border-b border-slate-200 px-4 flex items-end gap-0 shrink-0">
+              <button id="inner-tab-btn-transcript"
+                class="inner-tab-btn px-5 py-2.5 text-sm font-medium border-b-2 border-brand text-brand -mb-px focus:outline-none transition"
+                aria-selected="true">Transcript</button>
+              <button id="inner-tab-btn-ai"
+                class="inner-tab-btn px-5 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px focus:outline-none transition"
+                aria-selected="false">AI Analysis</button>
+            </div>
+
+            <!-- Inner panel: Transcript -->
+            <div id="inner-panel-transcript" class="inner-tab-panel">
+              <div class="px-6 py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between gap-4">
+                <div class="relative flex-1 max-w-lg">
+                  <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+                  </svg>
+                  <input id="search-input" type="search" placeholder="Search transcript…" aria-label="Search transcript"
+                    class="w-full pl-10 pr-24 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
+                  <span id="search-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
+                </div>
+                <button id="translate-all-btn" class="translate-all-btn hidden"
+                  title="Translate all segments directly to English">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  </svg>
+                  Translate all
+                </button>
               </div>
+              <!-- Segments -->
+              <div class="flex-1 overflow-y-auto px-6 py-4">
+                <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5"></div>
+              </div>
+            </div><!-- /inner-panel-transcript -->
 
-              <button id="translate-all-btn" class="translate-all-btn hidden"
-                title="Translate all segments directly to English">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                </svg>
-                Translate all
-              </button>
-            </div>
+            <!-- Inner panel: AI Analysis -->
+            <div id="inner-panel-ai" class="inner-tab-panel overflow-y-auto">
+              <div class="w-full px-6 py-6 space-y-4">
 
-            <!-- Segments -->
-            <div class="flex-1 overflow-y-auto px-6 py-4">
-              <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5"></div>
-            </div>
+                <!-- Output language -->
+                <div>
+                  <label for="ai-output-lang" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Output Language</label>
+                  <select id="ai-output-lang"
+                    class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="">Same as transcript</option>
+                    <option value="English">English</option>
+                    <option value="Italian">Italian</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="French">French</option>
+                    <option value="German">German</option>
+                    <option value="Portuguese">Portuguese</option>
+                    <option value="Dutch">Dutch</option>
+                    <option value="Polish">Polish</option>
+                    <option value="Russian">Russian</option>
+                    <option value="Japanese">Japanese</option>
+                    <option value="Chinese">Chinese</option>
+                    <option value="Korean">Korean</option>
+                    <option value="Arabic">Arabic</option>
+                    <option value="Turkish">Turkish</option>
+                    <option value="Swedish">Swedish</option>
+                    <option value="Danish">Danish</option>
+                    <option value="Finnish">Finnish</option>
+                    <option value="Norwegian">Norwegian</option>
+                    <option value="Ukrainian">Ukrainian</option>
+                  </select>
+                </div>
+
+                <!-- Type selector -->
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Analysis Type</label>
+                  <div class="flex flex-wrap gap-2" role="group" aria-label="Analysis type">
+                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="summary">Summary</button>
+                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="action_items">Action Items</button>
+                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="translate">Translate</button>
+                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="custom">Custom</button>
+                  </div>
+                </div>
+
+                <!-- Target language (translate only) -->
+                <div id="ai-lang-row" class="hidden">
+                  <label class="block text-xs text-slate-500 mb-1">Target language</label>
+                  <input id="ai-target-lang" type="text" placeholder="e.g. Italian, French…"
+                    class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand" />
+                </div>
+
+                <!-- Custom prompt (custom only) -->
+                <div id="ai-custom-row" class="hidden">
+                  <label class="block text-xs text-slate-500 mb-1">Custom instructions</label>
+                  <textarea id="ai-custom-prompt" rows="4" placeholder="Your instructions for the LLM…"
+                    class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
+                </div>
+
+                <!-- Run / Stop button -->
+                <button id="ai-run-btn"
+                  class="w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition disabled:opacity-40">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+                  Run Analysis
+                </button>
+
+                <!-- Streaming result -->
+                <div id="ai-result-area" class="hidden">
+                  <div class="flex items-center justify-between mb-2">
+                    <span id="ai-result-label" class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Result</span>
+                    <button id="ai-result-copy" class="text-xs text-brand hover:underline">Copy</button>
+                  </div>
+                  <div id="ai-result-text"
+                    class="text-sm text-slate-700 bg-slate-50 rounded-lg border border-slate-200 p-4 whitespace-pre-wrap min-h-[120px] leading-relaxed"></div>
+                  <div id="ai-result-spinner" class="hidden flex items-center gap-1.5 mt-2 text-xs text-slate-400">
+                    <svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    Generating…
+                  </div>
+                </div>
+
+                <!-- Past analyses -->
+                <div id="ai-past-analyses" class="hidden">
+                  <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Previous Analyses</h3>
+                  <div id="ai-past-list" class="space-y-2"></div>
+                </div>
+
+              </div>
+            </div><!-- /inner-panel-ai -->
 
           </div>
         </div><!-- /tab-transcript -->
@@ -1076,6 +1274,26 @@
           <span class="shortcut-key">Space</span>
         </div>
         <div class="shortcut-row">
+          <span class="shortcut-desc">Next segment</span>
+          <span class="shortcut-key">N</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">Previous segment</span>
+          <span class="shortcut-key">P</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">Save segment edit</span>
+          <span class="shortcut-key">Ctrl + Enter</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">Toggle console</span>
+          <span class="shortcut-key">`</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">Toggle sidebar</span>
+          <span class="shortcut-key">Alt + S</span>
+        </div>
+        <div class="shortcut-row">
           <span class="shortcut-desc">Seek backward 5s</span>
           <span class="shortcut-key">J</span>
         </div>
@@ -1122,6 +1340,7 @@
       jobMessage: '',
       eventSource: null,
       jobLogs: [],
+      clientLogs: [],           // client-side action log (persistent across jobs)
       logPollTimer: null,
 
       wavesurfer: null,
@@ -1138,6 +1357,10 @@
 
       // Library mode — set when opening a recording from the library
       activeRecordingId: null,
+
+      // AI Analysis
+      analysisJobId: null,
+      analysisEventSource: null,
 
       // Library data
       library: {
@@ -1383,6 +1606,7 @@
     // Tabs
     // =========================================================================
     function switchTab(name) {
+      clientLog(`Tab switched → ${name}`);
       state.activeTab = name;
 
       document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1403,8 +1627,33 @@
       });
 
       document.getElementById('export-bar').classList.toggle('hidden', name !== 'transcript');
-      document.getElementById('translate-all-btn').classList.toggle('hidden', name !== 'transcript');
+      // translate-all-btn: hide when leaving transcript tab; inner tab manages it when on transcript
+      if (name !== 'transcript') {
+        document.getElementById('translate-all-btn').classList.add('hidden');
+      } else {
+        // Restore translate-all-btn based on current inner tab state
+        const innerTranscriptActive = document.getElementById('inner-panel-transcript')?.classList.contains('active');
+        document.getElementById('translate-all-btn').classList.toggle('hidden', !innerTranscriptActive);
+      }
       if (name === 'library') fetchLibrary();
+    }
+
+    function switchInnerTab(name) {
+      // name: 'transcript' or 'ai'
+      document.querySelectorAll('.inner-tab-btn').forEach(btn => {
+        const active = btn.id === `inner-tab-btn-${name}`;
+        btn.setAttribute('aria-selected', String(active));
+        btn.classList.toggle('border-brand', active);
+        btn.classList.toggle('text-brand', active);
+        btn.classList.toggle('border-transparent', !active);
+        btn.classList.toggle('text-slate-500', !active);
+      });
+      document.querySelectorAll('.inner-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `inner-panel-${name}`);
+      });
+      // translate-all-btn only visible on transcript inner tab
+      document.getElementById('translate-all-btn').classList.toggle('hidden', name !== 'transcript');
+      if (name === 'ai') clientLog('AI Analysis panel opened');
     }
 
     document.getElementById('tab-btn-transcribe').addEventListener('click', () => switchTab('transcribe'));
@@ -1457,6 +1706,7 @@
     }
 
     function selectModel(id) {
+      clientLog(`Model selected: ${id}`);
       state.selectedModel = id;
       localStorage.setItem('selectedModel', id);
       document.querySelectorAll('.model-card').forEach(c => {
@@ -1515,10 +1765,12 @@
         return;
       }
       const ext = file.name.split('.').pop().toLowerCase();
-      if (!['mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'mkv'].includes(ext)) {
+      if (!['mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'mkv', 'opus'].includes(ext)) {
+        clientLog(`Unsupported file: ${file.name}`, 'WARN');
         showError(`Unsupported file type: .${ext}`);
         return;
       }
+      clientLog(`File selected: ${file.name} (${fmtBytes(file.size)})`);
       hideError();
       state.selectedFile = file;
       document.getElementById('file-name').textContent = file.name;
@@ -1528,10 +1780,11 @@
     }
 
     function handleFiles(files) {
-      const ALLOWED = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'mkv'];
+      const ALLOWED = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'mkv', 'opus'];
       const valid = files.filter(f => ALLOWED.includes(f.name.split('.').pop().toLowerCase()));
       const skipped = files.length - valid.length;
-      if (valid.length === 0) { showError('No supported files found.'); return; }
+      if (valid.length === 0) { clientLog('Batch: no supported files found', 'WARN'); showError('No supported files found.'); return; }
+      clientLog(`Batch: ${valid.length} file(s) queued${skipped ? `, ${skipped} skipped` : ''}`);
       hideError();
       if (skipped > 0) showError(`${skipped} file(s) skipped — unsupported format.`);
 
@@ -1643,6 +1896,7 @@
       const btn = document.getElementById('diarize-toggle');
       btn.addEventListener('click', () => {
         state.diarize = !state.diarize;
+        clientLog(`Diarization ${state.diarize ? 'enabled' : 'disabled'}`);
         btn.setAttribute('aria-checked', String(state.diarize));
         btn.querySelector('span').style.transform = state.diarize ? 'translateX(16px)' : 'translateX(0)';
         btn.classList.toggle('bg-brand', state.diarize);
@@ -1685,6 +1939,7 @@
     async function startTranscription() {
       if (state.batchMode) { startBatchTranscription(); return; }
       if (!state.selectedFile) return;
+      clientLog(`Transcription started: ${state.selectedFile.name} [model=${state.selectedModel}, lang=${state.selectedLanguage||'auto'}, diarize=${state.diarize}]`);
       hideError();
 
       const fd = new FormData();
@@ -1843,14 +2098,23 @@
       return `[${ts}] ${level} ${message}`;
     }
 
+    function clientLog(msg, level = 'INFO') {
+      const ts = new Date().toLocaleTimeString();
+      state.clientLogs.push(`[${ts}] ${level} ${msg}`);
+      if (state.clientLogs.length > 500) state.clientLogs = state.clientLogs.slice(-500);
+      renderJobLogs();
+      document.getElementById('console-activity-dot').classList.remove('hidden');
+    }
+
     function renderJobLogs() {
       const pre = document.getElementById('proc-log');
       if (!pre) return;
-      if (!state.jobLogs.length) {
-        pre.textContent = 'No logs yet.';
-        return;
-      }
-      pre.textContent = state.jobLogs.join('\n');
+      const all = [];
+      if (state.clientLogs.length) all.push(...state.clientLogs);
+      if (state.clientLogs.length && state.jobLogs.length) all.push('──── Backend ────');
+      if (state.jobLogs.length) all.push(...state.jobLogs);
+      if (!all.length) { pre.textContent = 'No logs yet.'; return; }
+      pre.textContent = all.join('\n');
       pre.scrollTop = pre.scrollHeight;
     }
 
@@ -2005,14 +2269,16 @@
           es.close();
           refreshJobLogs();
           if (jobType === 'transcribe') {
+            clientLog('Transcription complete');
             loadResult(jobId);
           } else if (jobType === 'translate') {
-            // Just reload current recording if we have one
+            clientLog('Translation complete');
             if (state.activeRecordingId) loadRecording(state.activeRecordingId);
           }
         } else if (data.status === 'error') {
           es.close();
           refreshJobLogs();
+          clientLog(`${jobType === 'translate' ? 'Translation' : 'Transcription'} error: ${data.message}`, 'ERROR');
           setProcessing(false);
           showError(`${jobType === 'translate' ? 'Translation' : 'Transcription'} error: ${data.message}`);
         } else if (data.status === 'cancelled') {
@@ -2042,6 +2308,7 @@
     // Cancel
     // =========================================================================
     async function cancelJob() {
+      clientLog('Transcription cancelled by user', 'WARN');
       state.eventSource?.close();
       if (state.jobId) await fetch(`/api/jobs/${state.jobId}/cancel`, { method: 'POST' }).catch(() => { });
       setProcessing(false);
@@ -2120,6 +2387,10 @@
       // Segments
       document.getElementById('search-input').value = '';
       renderSegments(r.segments, '');
+
+      // Past AI analyses
+      const recId = state.activeRecordingId || state.recordingId;
+      if (recId) loadPastAnalyses(recId);
     }
 
     function renderSpeakerLegend(speakers) {
@@ -2624,6 +2895,7 @@
             return;
           }
           try {
+            clientLog(`Export as ${fmt.toUpperCase()}: ${baseName}.${fmt}`);
             const res = await fetch(exportUrl);
             if (!res.ok) throw new Error(await res.text());
             const blob = await res.blob();
@@ -2634,6 +2906,7 @@
             a.click();
             URL.revokeObjectURL(url);
           } catch (err) {
+            clientLog(`Export failed: ${err.message}`, 'ERROR');
             alert(`Export failed: ${err.message}`);
           }
         });
@@ -2682,6 +2955,9 @@
     // localStorage restore
     // =========================================================================
     async function restoreSettings() {
+      // Restore sidebar state (default: visible)
+      if (localStorage.getItem('drawerOpen') === '0') closeDrawer(); else openDrawer();
+
       const m = localStorage.getItem('selectedModel');
       if (m) state.selectedModel = m;
 
@@ -2708,6 +2984,17 @@
       } catch (_) { /* server not available, use localStorage */ }
       if (!tok) tok = localStorage.getItem('hfToken') || '';
       if (tok) { state.hfToken = tok; document.getElementById('hf-token-input').value = tok; }
+
+      // Load LLM settings from server
+      try {
+        const res = await fetch('/api/llm/settings');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.llm_base_url) document.getElementById('llm-base-url').value = cfg.llm_base_url;
+          if (cfg.llm_model_name) document.getElementById('llm-model-input').value = cfg.llm_model_name;
+          if (cfg.llm_api_key) document.getElementById('llm-api-key').value = cfg.llm_api_key;
+        }
+      } catch (_) { /* server not available */ }
     }
 
     // =========================================================================
@@ -3316,6 +3603,7 @@
         alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
         return;
       }
+      clientLog(`Opening recording: ${rec.filename}`);
       try {
         const [trRes, audioRes] = await Promise.all([
           fetch(`/api/recordings/${rec.id}/transcript`),
@@ -3337,6 +3625,14 @@
         state.activeSpeakerFilter = null;
         state.currentSegmentId = null;
         state.searchQuery = '';
+
+        // Reset AI analysis panel and inputs
+        document.getElementById('ai-result-area').classList.add('hidden');
+        document.getElementById('ai-result-text').textContent = '';
+        document.getElementById('ai-past-analyses').classList.add('hidden');
+        const customInp = document.getElementById('ai-custom-prompt'); if (customInp) customInp.value = '';
+        const targ = document.getElementById('ai-target-lang'); if (targ) targ.value = '';
+        const out = document.getElementById('ai-output-lang'); if (out) out.value = '';
 
         renderResults();
 
@@ -3649,6 +3945,395 @@
     }
 
     // =========================================================================
+    // AI Analysis
+    // =========================================================================
+
+    // --- Type selector ---
+    function initAiAnalysis() {
+      // Type buttons
+      document.querySelectorAll('.ai-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.ai-type-btn').forEach(b => {
+            b.classList.remove('border-brand', 'text-brand', 'bg-brand/5');
+            b.classList.add('border-slate-200', 'text-slate-600');
+          });
+          btn.classList.add('border-brand', 'text-brand', 'bg-brand/5');
+          btn.classList.remove('border-slate-200', 'text-slate-600');
+          const type = btn.dataset.type;
+          document.getElementById('ai-lang-row').classList.toggle('hidden', type !== 'translate');
+          document.getElementById('ai-custom-row').classList.toggle('hidden', type !== 'custom');
+        });
+      });
+
+      // Run / Stop button
+      document.getElementById('ai-run-btn').addEventListener('click', () => {
+        if (state.analysisJobId) {
+          stopAnalysis();
+        } else {
+          runAnalysis();
+        }
+      });
+
+      // Copy result
+      document.getElementById('ai-result-copy').addEventListener('click', () => {
+        const text = document.getElementById('ai-result-text').textContent;
+        if (text) navigator.clipboard.writeText(text).catch(() => {});
+      });
+
+      // LLM Settings: eye toggle for API key
+      document.getElementById('llm-key-eye').addEventListener('click', () => {
+        const inp = document.getElementById('llm-api-key');
+        const isHidden = inp.type === 'password';
+        inp.type = isHidden ? 'text' : 'password';
+        document.getElementById('llm-key-eye-open').classList.toggle('hidden', isHidden);
+        document.getElementById('llm-key-eye-closed').classList.toggle('hidden', !isHidden);
+      });
+
+      // LLM Settings: auto-save on input (debounced)
+      let _llmSaveTimer = null;
+      ['llm-base-url', 'llm-model-input', 'llm-api-key'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+          clearTimeout(_llmSaveTimer);
+          _llmSaveTimer = setTimeout(saveLlmSettings, 600);
+        });
+      });
+
+      // Browse models button
+      document.getElementById('llm-browse-models-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const panel = document.getElementById('llm-models-panel');
+        if (panel.classList.contains('hidden')) openModelsBrowser(); else panel.classList.add('hidden');
+      });
+
+      // Refresh inside panel
+      document.getElementById('llm-refresh-models-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        refreshModelsBrowser();
+      });
+
+      // Close panel on outside click
+      document.addEventListener('click', (e) => {
+        const panel = document.getElementById('llm-models-panel');
+        const browseBtn = document.getElementById('llm-browse-models-btn');
+        if (panel && !panel.contains(e.target) && e.target !== browseBtn) {
+          panel.classList.add('hidden');
+        }
+      });
+
+      // Test connection button
+      document.getElementById('llm-test-btn').addEventListener('click', testLlmConnection);
+    }
+
+    function getSelectedAnalysisType() {
+      const btn = document.querySelector('.ai-type-btn.border-brand');
+      return btn ? btn.dataset.type : null;
+    }
+
+    async function runAnalysis() {
+      const recId = state.activeRecordingId || state.recordingId;
+      if (!recId) { alert('No recording loaded.'); return; }
+
+      const type = getSelectedAnalysisType();
+      if (!type) { alert('Select an analysis type first.'); return; }
+      clientLog(`AI analysis started: type=${type}, model=${document.getElementById('llm-model-input').value || '?'}`);
+
+      const fd = new FormData();
+      fd.append('analysis_type', type);
+      if (type === 'translate') {
+        fd.append('target_language', document.getElementById('ai-target-lang').value.trim() || 'English');
+      }
+      if (type === 'custom') {
+        const prompt = document.getElementById('ai-custom-prompt').value.trim();
+        if (!prompt) { alert('Enter a custom prompt.'); return; }
+        fd.append('custom_prompt', prompt);
+      }
+      const outputLang = document.getElementById('ai-output-lang').value.trim();
+      if (outputLang) fd.append('output_language', outputLang);
+
+      try {
+        const res = await fetch(`/api/recordings/${recId}/analyses`, { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+          throw new Error(err.detail || 'Failed to start analysis');
+        }
+        const { job_id } = await res.json();
+        connectAnalysisSSE(job_id, recId);
+        // Clear custom prompt after submitting the request
+        const custom = document.getElementById('ai-custom-prompt'); if (custom) custom.value = '';
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function connectAnalysisSSE(jobId, recId) {
+      state.analysisJobId = jobId;
+      const resultDiv = document.getElementById('ai-result-text');
+      const spinner = document.getElementById('ai-result-spinner');
+      const runBtn = document.getElementById('ai-run-btn');
+      const resultArea = document.getElementById('ai-result-area');
+
+      resultDiv.textContent = '';
+      resultArea.classList.remove('hidden');
+      spinner.classList.remove('hidden');
+      runBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg> Stop`;
+
+      const es = new EventSource(`/api/jobs/${jobId}/stream`);
+      state.analysisEventSource = es;
+
+      es.onmessage = e => {
+        let data;
+        try { data = JSON.parse(e.data); } catch { return; }
+        if (data.heartbeat) return;
+
+        if (data.status === 'streaming' && data.data?.chunk) {
+          resultDiv.textContent += data.data.chunk;
+          resultDiv.scrollTop = resultDiv.scrollHeight;
+        } else if (data.status === 'done') {
+          es.close();
+          state.analysisJobId = null;
+          state.analysisEventSource = null;
+          spinner.classList.add('hidden');
+          _resetAnalysisBtn();
+          clientLog('AI analysis complete');
+          const typeLabel = getSelectedAnalysisType();
+          if (typeLabel) document.getElementById('ai-result-label').textContent = typeLabel.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+          loadPastAnalyses(recId || state.activeRecordingId || state.recordingId);
+        } else if (data.status === 'error') {
+          es.close();
+          state.analysisJobId = null;
+          state.analysisEventSource = null;
+          spinner.classList.add('hidden');
+          _resetAnalysisBtn();
+          clientLog(`AI analysis error: ${data.message || 'unknown'}`, 'ERROR');
+          if (data.message) resultDiv.textContent += `\n\n[Error: ${data.message}]`;
+        } else if (data.status === 'cancelled') {
+          es.close();
+          state.analysisJobId = null;
+          state.analysisEventSource = null;
+          spinner.classList.add('hidden');
+          _resetAnalysisBtn();
+        }
+      };
+
+      es.onerror = () => { es.close(); state.analysisJobId = null; state.analysisEventSource = null; spinner.classList.add('hidden'); _resetAnalysisBtn(); };
+    }
+
+    function _resetAnalysisBtn() {
+      const runBtn = document.getElementById('ai-run-btn');
+      runBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg> Run Analysis`;
+    }
+
+    async function stopAnalysis() {
+      if (state.analysisEventSource) { state.analysisEventSource.close(); state.analysisEventSource = null; }
+      if (state.analysisJobId) {
+        fetch(`/api/jobs/${state.analysisJobId}/cancel`, { method: 'POST' }).catch(() => {});
+        state.analysisJobId = null;
+      }
+      document.getElementById('ai-result-spinner').classList.add('hidden');
+      _resetAnalysisBtn();
+    }
+
+    async function loadPastAnalyses(recordingId) {
+      if (!recordingId) return;
+      try {
+        const res = await fetch(`/api/recordings/${recordingId}/analyses`);
+        if (!res.ok) return;
+        const analyses = await res.json();
+        const container = document.getElementById('ai-past-list');
+        const section = document.getElementById('ai-past-analyses');
+        if (!analyses.length) { section.classList.add('hidden'); return; }
+        section.classList.remove('hidden');
+        container.innerHTML = analyses.map(a => {
+          const label = a.analysis_type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const preview = a.result_text.slice(0, 90) + (a.result_text.length > 90 ? '…' : '');
+          const date = new Date(a.created_at * 1000).toLocaleDateString();
+          return `<div class="border border-slate-200 rounded-lg p-2 text-xs" data-analysis-id="${a.id}">
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="font-semibold text-slate-700">${label}</span>
+              <button onclick="window._deleteAnalysis('${a.id}','${recordingId}')" class="text-slate-300 hover:text-red-400 transition text-xs leading-none">✕</button>
+            </div>
+            <div class="text-slate-500 cursor-pointer hover:text-slate-700 leading-snug" onclick="window._showAnalysisResult('${a.id}','${recordingId}')">${preview || '(empty)'}</div>
+            <div class="text-slate-300 mt-0.5">${date} · ${a.model_name}</div>
+          </div>`;
+        }).join('');
+      } catch { /* silently ignore */ }
+    }
+
+    window._showAnalysisResult = async function(analysisId, recordingId) {
+      try {
+        const res = await fetch(`/api/recordings/${recordingId}/analyses/${analysisId}`);
+        if (!res.ok) return;
+        const a = await res.json();
+        const resultDiv = document.getElementById('ai-result-text');
+        resultDiv.textContent = a.result_text;
+        const label = a.analysis_type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        document.getElementById('ai-result-label').textContent = label;
+        document.getElementById('ai-result-area').classList.remove('hidden');
+      } catch { /* ignore */ }
+    };
+
+    window._deleteAnalysis = async function(analysisId, recordingId) {
+      if (!confirm('Delete this analysis result?')) return;
+      try {
+        await fetch(`/api/recordings/${recordingId}/analyses/${analysisId}`, { method: 'DELETE' });
+        loadPastAnalyses(recordingId);
+        // Clear result area if it was showing this analysis
+        // (no easy way to track, just leave it)
+      } catch { /* ignore */ }
+    };
+
+    // --- LLM Settings ---
+
+    async function saveLlmSettings() {
+      const fd = new FormData();
+      const baseUrl = document.getElementById('llm-base-url').value.trim() || 'http://localhost:11434';
+      const model = document.getElementById('llm-model-input').value.trim();
+      fd.append('llm_base_url', baseUrl);
+      fd.append('llm_model_name', model);
+      fd.append('llm_api_key', document.getElementById('llm-api-key').value);
+      clientLog(`LLM settings saved: url=${baseUrl}, model=${model || '(none)'}`);
+      try { await fetch('/api/llm/settings', { method: 'POST', body: fd }); } catch { /* ignore */ }
+    }
+
+    const POPULAR_MODELS = [
+      { id: 'llama3.2', label: 'Llama 3.2 (3B)' },
+      { id: 'llama3.1', label: 'Llama 3.1 (8B)' },
+      { id: 'mistral', label: 'Mistral (7B)' },
+      { id: 'gemma2', label: 'Gemma 2 (9B)' },
+      { id: 'qwen2.5', label: 'Qwen 2.5 (7B)' },
+      { id: 'phi4', label: 'Phi-4 (14B)' },
+      { id: 'deepseek-r1', label: 'DeepSeek R1 (7B)' },
+    ];
+
+    async function openModelsBrowser() {
+      const panel = document.getElementById('llm-models-panel');
+      panel.classList.remove('hidden');
+      await refreshModelsBrowser();
+    }
+
+    async function refreshModelsBrowser() {
+      const installedSection = document.getElementById('llm-installed-section');
+      const installedList = document.getElementById('llm-installed-list');
+      const popularList = document.getElementById('llm-popular-list');
+
+      // Populate popular models list (with pull button)
+      popularList.innerHTML = POPULAR_MODELS.map(m => `
+        <div class="flex items-center justify-between px-3 py-1.5 hover:bg-slate-50 text-xs gap-2">
+          <button type="button" onclick="selectLlmModel('${escHtml(m.id)}')"
+            class="flex-1 text-left text-slate-700 hover:text-brand transition truncate">${escHtml(m.label)}</button>
+          <button type="button" onclick="pullLlmModel('${escHtml(m.id)}')" id="pull-btn-${escHtml(m.id)}"
+            class="shrink-0 text-[10px] px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition">
+            Pull
+          </button>
+        </div>
+      `).join('');
+
+      // Fetch installed models
+      try {
+        await saveLlmSettings();
+        const res = await fetch('/api/llm/models');
+        const models = await res.json();
+        if (models.length) {
+          installedSection.classList.remove('hidden');
+          installedList.innerHTML = models.map(m => `
+            <div class="flex items-center px-3 py-1.5 hover:bg-slate-50 text-xs gap-2">
+              <button type="button" onclick="selectLlmModel('${escHtml(m.id)}')"
+                class="flex-1 text-left text-slate-700 hover:text-brand transition truncate font-medium">${escHtml(m.id)}</button>
+              <span class="shrink-0 text-slate-400">installed</span>
+            </div>
+          `).join('');
+        } else {
+          installedSection.classList.add('hidden');
+        }
+      } catch {
+        installedSection.classList.add('hidden');
+      }
+    }
+
+    function selectLlmModel(modelId) {
+      document.getElementById('llm-model-input').value = modelId;
+      document.getElementById('llm-models-panel').classList.add('hidden');
+      clientLog(`LLM model selected: ${modelId}`);
+      saveLlmSettings();
+    }
+
+    async function pullLlmModel(modelId) {
+      const btn = document.getElementById(`pull-btn-${modelId}`);
+      if (btn) { btn.textContent = '…'; btn.disabled = true; }
+      clientLog(`Pulling LLM model: ${modelId}`);
+      try {
+        const res = await fetch('/api/llm/models/pull', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: modelId }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        clientLog(`Model pull complete: ${modelId}`);
+        if (btn) { btn.textContent = '✓'; }
+        // Auto-select the pulled model
+        selectLlmModel(modelId);
+        // Refresh installed list
+        await refreshModelsBrowser();
+      } catch (err) {
+        clientLog(`Model pull failed: ${err.message}`, 'ERROR');
+        if (btn) { btn.textContent = '✗'; btn.disabled = false; }
+        setTimeout(() => { if (btn) { btn.textContent = 'Pull'; btn.disabled = false; } }, 3000);
+      }
+    }
+
+    async function loadLlmModels() {
+      // Legacy: just open the browse panel
+      openModelsBrowser();
+    }
+
+    async function testLlmConnection() {
+      const btn = document.getElementById('llm-test-btn');
+      const statusEl = document.getElementById('llm-test-status');
+      btn.disabled = true;
+      btn.textContent = 'Testing…';
+      statusEl.textContent = '';
+      try {
+        await saveLlmSettings();
+        const res = await fetch('/api/llm/test-connection', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          statusEl.className = 'text-xs text-emerald-500';
+          statusEl.textContent = data.model_info || 'Connected ✓';
+        } else {
+          statusEl.className = 'text-xs text-red-500';
+          statusEl.textContent = data.error || 'Connection failed';
+        }
+      } catch (err) {
+        statusEl.className = 'text-xs text-red-500';
+        statusEl.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Test Connection';
+      }
+    }
+
+    // =========================================================================
+    // Sidebar show/hide (integrated)
+    // =========================================================================
+    function openDrawer() {
+      const sb = document.getElementById('sidebar'); if (!sb) return;
+      sb.classList.remove('hidden');
+      // shift console to account for sidebar width (w-72 = 18rem)
+      document.documentElement.style.setProperty('--console-left', '18rem');
+      localStorage.setItem('drawerOpen', '1');
+    }
+    function closeDrawer() {
+      const sb = document.getElementById('sidebar'); if (!sb) return;
+      sb.classList.add('hidden');
+      document.documentElement.style.setProperty('--console-left', '0');
+      localStorage.setItem('drawerOpen', '0');
+    }
+    function toggleDrawer() {
+      const sb = document.getElementById('sidebar'); if (!sb) return;
+      if (sb.classList.contains('hidden')) openDrawer(); else closeDrawer();
+    }
+
+    // =========================================================================
     // Init
     // =========================================================================
     function init() {
@@ -3662,6 +4347,7 @@
 
       document.getElementById('language-select').addEventListener('change', e => {
         state.selectedLanguage = e.target.value;
+        clientLog(`Language set: ${e.target.value || 'auto-detect'}`);
         localStorage.setItem('selectedLanguage', e.target.value);
       });
 
@@ -3692,6 +4378,13 @@
         clearFile();
       });
       initConsole();
+      initAiAnalysis();
+
+      // Inner tabs: Transcript / AI Analysis
+      document.getElementById('inner-tab-btn-transcript').addEventListener('click', () => switchInnerTab('transcript'));
+      document.getElementById('inner-tab-btn-ai').addEventListener('click', () => switchInnerTab('ai'));
+      // Activate transcript inner tab by default
+      switchInnerTab('transcript');
 
       document.getElementById('new-btn').addEventListener('click', () => {
         state.result = null;
@@ -3728,6 +4421,16 @@
 
         const overlay = document.getElementById('changelog-modal-overlay');
         if (overlay) overlay.addEventListener('click', () => { const modal = document.getElementById('changelog-modal'); if (modal) modal.classList.add('hidden'); });
+      })();
+
+      // Help modal
+      (function attachHelpHandlers() {
+        const btn = document.getElementById('help-view-btn');
+        if (btn) btn.addEventListener('click', () => { clientLog('Help modal opened'); document.getElementById('help-modal').classList.remove('hidden'); });
+        const closeBtn = document.getElementById('help-close-btn');
+        if (closeBtn) closeBtn.addEventListener('click', () => document.getElementById('help-modal').classList.add('hidden'));
+        const overlay = document.getElementById('help-modal-overlay');
+        if (overlay) overlay.addEventListener('click', () => document.getElementById('help-modal').classList.add('hidden'));
       })();
     }
 
@@ -3797,6 +4500,46 @@
     </div>
   </div>
 
+  <!-- Help modal -->
+  <div id="help-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center px-4 py-8">
+    <div id="help-modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-xl p-6 w-full max-w-lg mx-auto shadow-lg z-10">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-slate-800">Help &amp; Setup</h3>
+        <button id="help-close-btn" class="text-slate-400 hover:text-slate-700 text-sm">Close</button>
+      </div>
+      <div class="space-y-4 text-sm text-slate-700">
+        <!-- Docker tip -->
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-4">
+          <h4 class="font-semibold text-slate-800 mb-1">Running in Docker?</h4>
+          <p class="text-xs text-slate-500 mb-2">Use <code class="bg-slate-100 px-1 rounded font-mono">host.docker.internal</code> instead of <code class="bg-slate-100 px-1 rounded font-mono">localhost</code> as the LLM base URL.</p>
+          <button type="button" onclick="document.getElementById('llm-base-url').value='http://host.docker.internal:11434'; saveLlmSettings(); document.getElementById('help-modal').classList.add('hidden');"
+            class="text-xs px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition">
+            Set host.docker.internal
+          </button>
+        </div>
+        <!-- Links -->
+        <div class="space-y-2">
+          <a href="https://github.com/sim186/amico-script#readme" target="_blank" rel="noopener"
+            class="flex items-center gap-2 text-brand hover:underline text-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            README — setup &amp; usage guide ↗
+          </a>
+          <a href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md" target="_blank" rel="noopener"
+            class="flex items-center gap-2 text-brand hover:underline text-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            CHANGELOG — version history ↗
+          </a>
+          <a href="https://github.com/sim186/amico-script/issues" target="_blank" rel="noopener"
+            class="flex items-center gap-2 text-brand hover:underline text-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            Report an issue on GitHub ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Entity edit modal -->
   <div id="entity-edit-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center px-4 py-8">
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
@@ -3839,15 +4582,15 @@
   <!-- ===================================================================
        Fixed console panel (collapsed by default)
   ==================================================================== -->
-  <div id="console-panel" class="fixed bottom-0 left-72 right-0 z-50 bg-slate-900 border-t border-slate-700 shadow-2xl">
+  <div id="console-panel" class="fixed bottom-0 right-0 z-50 bg-slate-800 border-t border-slate-700 shadow-2xl" style="left: var(--console-left, 0); transition: left 220ms ease;">
     <!-- Toggle bar — always visible -->
     <div id="console-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="console-body"
-      class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none hover:bg-slate-800 transition focus:outline-none focus:ring-inset focus:ring-1 focus:ring-brand">
+      class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none bg-slate-700 text-slate-50 transition focus:outline-none focus:ring-inset focus:ring-1 focus:ring-brand">
       <!-- Terminal icon -->
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-50 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
       </svg>
-      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Console</span>
+      <span class="text-xs font-semibold text-slate-50 uppercase tracking-wider">Console</span>
       <!-- Live activity dot -->
       <span id="console-activity-dot" class="hidden w-1.5 h-1.5 rounded-full bg-brand animate-pulse shrink-0"></span>
       <div class="flex-1"></div>

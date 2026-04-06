@@ -73,3 +73,22 @@ class Tag(SQLModel, table=True):
 class RecordingTag(SQLModel, table=True):
     recording_id: str = Field(foreign_key="recording.id", primary_key=True)
     tag_id: str = Field(foreign_key="tag.id", primary_key=True)
+
+
+# ---------------------------------------------------------------------------
+# Analysis  (LLM-generated analysis results)
+# ---------------------------------------------------------------------------
+
+class Analysis(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    recording_id: str = Field(foreign_key="recording.id", index=True)
+    # "summary" | "action_items" | "translate" | "custom"
+    analysis_type: str
+    prompt_used: str = Field(default="")
+    result_text: str = Field(default="")
+    target_language: Optional[str] = None
+    model_name: str = Field(default="")
+    llm_base_url: str = Field(default="")
+    created_at: float = Field(default_factory=time.time)
+    # pending | done | error
+    status: str = Field(default="pending")

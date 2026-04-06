@@ -31,3 +31,22 @@ def _get_saved_hf_token() -> str:
     """Return the HF token from saved settings or the HF_TOKEN env var."""
     settings = _load_settings()
     return settings.get("hf_token", "") or os.environ.get("HF_TOKEN", "")
+
+
+def _get_llm_settings() -> dict:
+    """Return LLM config: base_url, model_name, api_key."""
+    settings = _load_settings()
+    return {
+        "llm_base_url": settings.get("llm_base_url", "http://localhost:11434"),
+        "llm_model_name": settings.get("llm_model_name", ""),
+        "llm_api_key": settings.get("llm_api_key", ""),
+    }
+
+
+def _save_llm_settings(base_url: str, model_name: str, api_key: str) -> None:
+    """Persist LLM settings to disk."""
+    settings = _load_settings()
+    settings["llm_base_url"] = base_url
+    settings["llm_model_name"] = model_name
+    settings["llm_api_key"] = api_key
+    _save_settings(settings)

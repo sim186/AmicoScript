@@ -62,10 +62,10 @@ from sse_starlette.sse import EventSourceResponse
 import state
 from db import get_session, init_db, new_session
 from exports import _format_json, _format_srt, _format_txt, _format_md
-from models import Folder, Recording, RecordingTag, Tag, Transcript
+from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
 from pipeline import _append_job_log, _cleanup_job_temp_files, _push_event, _worker_loop
 from releases import _fetch_latest_release, _is_version_newer
-from settings import _get_saved_hf_token, _load_settings, _save_settings
+from settings import _get_llm_settings, _get_saved_hf_token, _load_settings, _save_llm_settings, _save_settings
 from storage import get_recording_audio_path, ingest_file
 
 # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ else:
 # Constants
 # ---------------------------------------------------------------------------
 
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".mp4", ".mov", ".mkv"}
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".mp4", ".mov", ".mkv", ".opus"}
 
 MODELS_META = [
     {"id": "tiny",     "name": "Tiny",     "params": "~39M",   "ram": "~1 GB",  "speed": 5, "accuracy": 1},
@@ -254,6 +254,233 @@ async def save_settings(hf_token: str = Form("")) -> dict:
     settings = _load_settings()
     settings["hf_token"] = hf_token
     _save_settings(settings)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# API: LLM settings + utility
+# ---------------------------------------------------------------------------
+
+@app.get("/api/llm/settings")
+def get_llm_settings() -> dict:
+    return _get_llm_settings()
+
+
+@app.post("/api/llm/settings")
+async def save_llm_settings(
+    llm_base_url: str = Form("http://localhost:11434"),
+    llm_model_name: str = Form(""),
+    llm_api_key: str = Form(""),
+) -> dict:
+    _save_llm_settings(llm_base_url, llm_model_name, llm_api_key)
+    return {"ok": True}
+
+
+@app.post("/api/llm/test-connection")
+async def test_llm_connection() -> dict:
+    import requests as _req
+
+    cfg = _get_llm_settings()
+    base_url = cfg["llm_base_url"].rstrip("/")
+    model = cfg["llm_model_name"]
+    api_key = cfg["llm_api_key"]
+
+    if not model:
+        return {"ok": False, "error": "No model configured. Set it in AI Analysis settings.", "model_info": None}
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": "Say 'ok' in one word."}],
+        "stream": False,
+        "max_tokens": 5,
+    }
+    try:
+        resp = await run_in_threadpool(
+            lambda: _req.post(
+                f"{base_url}/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=8,
+            )
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply = data["choices"][0]["message"]["content"]
+        return {"ok": True, "error": None, "model_info": f"Model '{model}' responded: {reply[:80]}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "model_info": None}
+
+
+@app.get("/api/llm/models")
+async def list_llm_models() -> list:
+    import requests as _req
+
+    cfg = _get_llm_settings()
+    base_url = cfg["llm_base_url"].rstrip("/")
+    api_key = cfg["llm_api_key"]
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = await run_in_threadpool(
+            lambda: _req.get(f"{base_url}/v1/models", headers=headers, timeout=5)
+        )
+        resp.raise_for_status()
+        return [{"id": m["id"], "name": m.get("name", m["id"])} for m in resp.json().get("data", [])]
+    except Exception:
+        return []
+
+
+@app.post("/api/llm/models/pull")
+async def pull_llm_model(body: dict) -> dict:
+    """Fire-and-forget model pull via Ollama /api/pull endpoint."""
+    import requests as _req
+
+    model_name = (body.get("model_name") or "").strip()
+    if not model_name:
+        raise HTTPException(400, "model_name required")
+
+    cfg = _get_llm_settings()
+    base_url = cfg["llm_base_url"].rstrip("/")
+    try:
+        # Use a long timeout; Ollama pull can take minutes
+        await run_in_threadpool(
+            lambda: _req.post(
+                f"{base_url}/api/pull",
+                json={"model": model_name, "stream": False},
+                timeout=600,
+            )
+        )
+        return {"ok": True, "model": model_name}
+    except Exception as exc:
+        raise HTTPException(502, f"Pull failed: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# API: analyses (per-recording LLM results)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/recordings/{recording_id}/analyses")
+async def create_analysis(
+    recording_id: str,
+    analysis_type: str = Form(...),
+    target_language: str = Form(""),
+    custom_prompt: str = Form(""),
+    output_language: str = Form(""),
+    session: Session = Depends(get_session),
+) -> dict:
+    rec = session.get(Recording, recording_id)
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    tr = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found — complete transcription first")
+
+    cfg = _get_llm_settings()
+    if not cfg["llm_model_name"]:
+        raise HTTPException(400, "No LLM model configured. Set it in AI Analysis settings.")
+
+    analysis_id = str(uuid.uuid4())
+    analysis = Analysis(
+        id=analysis_id,
+        recording_id=recording_id,
+        analysis_type=analysis_type,
+        target_language=target_language or None,
+        model_name=cfg["llm_model_name"],
+        llm_base_url=cfg["llm_base_url"],
+        status="pending",
+    )
+    session.add(analysis)
+    session.commit()
+
+    job_id = str(uuid.uuid4())
+    job: dict = {
+        "id": job_id,
+        "type": "analysis",
+        "recording_id": recording_id,
+        "analysis_id": analysis_id,
+        "status": "queued",
+        "progress": 0.0,
+        "message": "Queued",
+        "file_path": rec.file_path,
+        "original_filename": rec.filename,
+        "options": {
+            "analysis_type": analysis_type,
+            "target_language": target_language,
+            "custom_prompt": custom_prompt,
+            "output_language": output_language,
+            "transcript_full_text": tr.full_text,
+            **cfg,
+        },
+        "result": None,
+        "error": None,
+        "created_at": time.time(),
+        "sse_queue": asyncio.Queue(),
+        "cancel_flag": threading.Event(),
+        "logs": [],
+        "temp_files": [],
+    }
+    state.jobs[job_id] = job
+    state.JOB_QUEUE.put(job_id)
+    return {"job_id": job_id, "analysis_id": analysis_id}
+
+
+@app.get("/api/recordings/{recording_id}/analyses")
+def list_analyses(
+    recording_id: str, session: Session = Depends(get_session)
+) -> list:
+    rows = session.exec(
+        select(Analysis)
+        .where(Analysis.recording_id == recording_id)
+        .order_by(Analysis.created_at.desc())
+    ).all()
+    return [
+        {
+            "id": a.id,
+            "analysis_type": a.analysis_type,
+            "result_text": a.result_text,
+            "target_language": a.target_language,
+            "model_name": a.model_name,
+            "status": a.status,
+            "created_at": a.created_at,
+        }
+        for a in rows
+    ]
+
+
+@app.get("/api/recordings/{recording_id}/analyses/{analysis_id}")
+def get_analysis(
+    recording_id: str, analysis_id: str, session: Session = Depends(get_session)
+) -> dict:
+    a = session.get(Analysis, analysis_id)
+    if not a or a.recording_id != recording_id:
+        raise HTTPException(404, "Analysis not found")
+    return {
+        "id": a.id,
+        "analysis_type": a.analysis_type,
+        "result_text": a.result_text,
+        "target_language": a.target_language,
+        "model_name": a.model_name,
+        "status": a.status,
+        "created_at": a.created_at,
+    }
+
+
+@app.delete("/api/recordings/{recording_id}/analyses/{analysis_id}")
+def delete_analysis(
+    recording_id: str, analysis_id: str, session: Session = Depends(get_session)
+) -> dict:
+    a = session.get(Analysis, analysis_id)
+    if not a or a.recording_id != recording_id:
+        raise HTTPException(404, "Analysis not found")
+    session.delete(a)
+    session.commit()
     return {"ok": True}
 
 
@@ -607,7 +834,7 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
     except OSError:
         pass
 
-    # Cascade: delete RecordingTag links and Transcript rows.
+    # Cascade: delete RecordingTag links, Transcript rows, and Analysis rows.
     for link in session.exec(
         select(RecordingTag).where(RecordingTag.recording_id == recording_id)
     ).all():
@@ -616,6 +843,10 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
         select(Transcript).where(Transcript.recording_id == recording_id)
     ).all():
         session.delete(tr)
+    for an in session.exec(
+        select(Analysis).where(Analysis.recording_id == recording_id)
+    ).all():
+        session.delete(an)
 
     session.delete(rec)
     session.commit()
