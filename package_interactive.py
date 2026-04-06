@@ -21,6 +21,15 @@ BUILD = ROOT / "build"
 ARTIFACTS = ROOT / "build" / "artifacts"
 
 
+def _add_data_arg(src: str, dest: str) -> str:
+    """Return a PyInstaller --add-data argument with the correct separator.
+
+    PyInstaller expects --add-data=SRC:DEST on POSIX and --add-data=SRC;DEST
+    on Windows.
+    """
+    return f"--add-data={src}{os.pathsep}{dest}"
+
+
 def read_version():
     vfile = ROOT / "VERSION"
     if vfile.exists():
@@ -76,29 +85,47 @@ def main():
 
     # Include frontend and metadata files
     if include_frontend and (ROOT / "frontend").exists():
-        args.append("--add-data=frontend:frontend")
+        args.append(_add_data_arg("frontend", "frontend"))
     # Always try to include VERSION
     if (ROOT / "VERSION").exists():
-        args.append("--add-data=VERSION:.")
+        args.append(_add_data_arg("VERSION", "."))
     if include_changelog and (ROOT / "CHANGELOG.md").exists():
-        args.append("--add-data=CHANGELOG.md:.")
+        args.append(_add_data_arg("CHANGELOG.md", "."))
 
-    # Helpful hidden imports from existing package.py
+    # Helpful hidden imports from existing package.py (avoid forcing heavy libs)
     hidden = [
         "main",
         "ffmpeg_helper",
-        "faster_whisper",
-        "pyannote.audio",
-        "torch",
-        "torchaudio",
         "sse_starlette.sse",
     ]
     for h in hidden:
         args.append(f"--hidden-import={h}")
 
-    # Bundle runtime package data files required by these libraries.
-    args.append("--collect-data=faster_whisper")
-    args.append("--collect-data=pyannote.audio")
+    # Exclude common heavy/optional modules by default when building from
+    # a minimal venv so they aren't accidentally bundled.
+    excludes = [
+        'torchcodec',
+        'tensorboard',
+        'torch.utils.tensorboard',
+        'uvicorn.streaming',
+    ]
+    for ex in excludes:
+        args.append(f"--exclude-module={ex}")
+
+    # Bundle runtime data only if present in the environment (keeps minimal
+    # venvs small).  Always try to collect faster_whisper if present.
+    try:
+        import importlib.util as _importlib_util
+        if _importlib_util.find_spec('faster_whisper') is not None:
+            args.append("--hidden-import=faster_whisper")
+            args.append("--collect-data=faster_whisper")
+        if _importlib_util.find_spec('pyannote.audio') is not None:
+            args.append('--hidden-import=pyannote.audio')
+            args.append("--collect-data=pyannote.audio")
+        if _importlib_util.find_spec('huggingface_hub') is not None:
+            args.append('--hidden-import=huggingface_hub')
+    except Exception:
+        pass
 
     print("\nPyInstaller arguments:")
     print(args)

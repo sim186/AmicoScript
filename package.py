@@ -1,7 +1,17 @@
 import os
 import sys
 import shutil
+import importlib.util as _importlib_util
 import PyInstaller.__main__
+
+
+def _add_data_arg(src: str, dest: str) -> str:
+    """Return a PyInstaller --add-data argument with the correct separator.
+
+    PyInstaller expects --add-data=SRC:DEST on POSIX and --add-data=SRC;DEST
+    on Windows.
+    """
+    return f"--add-data={src}{os.pathsep}{dest}"
 
 def build():
     # Detect OS
@@ -25,19 +35,42 @@ def build():
         '--name=AmicoScript',              # Output name
         '--onedir',                        # Better for large apps (faster launch/debug)
         '--paths=backend',                 # Make backend modules importable during analysis/runtime
-        '--add-data=frontend:frontend',    # Include frontend files
-        '--add-data=VERSION:.',            # Include VERSION at bundle root
-        '--add-data=CHANGELOG.md:.',      # Include changelog
+        _add_data_arg('frontend', 'frontend'),   # Include frontend files
+        _add_data_arg('VERSION', '.'),           # Include VERSION at bundle root
+        _add_data_arg('CHANGELOG.md', '.'),      # Include changelog
         '--hidden-import=main',            # backend/main.py imported dynamically in run.py
         '--hidden-import=ffmpeg_helper',   # backend/ffmpeg_helper.py imported dynamically in run.py
-        '--hidden-import=faster_whisper',
-        '--collect-data=faster_whisper',  # include VAD ONNX assets (silero_vad_v6.onnx)
-        '--hidden-import=pyannote.audio',
-        '--collect-data=pyannote.audio',  # include telemetry/config.yaml and other package assets
-        '--hidden-import=torch',
-        '--hidden-import=torchaudio',
         '--hidden-import=sse_starlette.sse',
     ]
+
+    # Exclude known heavy/optional modules so PyInstaller doesn't accidentally
+    # pull them into the bundle when building from a minimal venv.
+    excludes = [
+        'torchcodec',
+        'tensorboard',
+        'torch.utils.tensorboard',
+        'uvicorn.streaming',
+    ]
+    for ex in excludes:
+        args.append(f"--exclude-module={ex}")
+
+    # Only collect package data for optional heavy packages if they are
+    # actually installed in the build environment (keeps minimal venv builds
+    # quiet and small).  Mirror the logic used in package_interactive.py so
+    # minimal venv builds remain minimal.
+    try:
+        if _importlib_util.find_spec('faster_whisper') is not None:
+            args.append('--hidden-import=faster_whisper')
+            args.append('--collect-data=faster_whisper')
+        if _importlib_util.find_spec('pyannote.audio') is not None:
+            args.append('--hidden-import=pyannote.audio')
+            args.append('--collect-data=pyannote.audio')
+        if _importlib_util.find_spec('huggingface_hub') is not None:
+            # Imported dynamically via importlib in backend/resource_downloader.py
+            args.append('--hidden-import=huggingface_hub')
+    except Exception:
+        # Fall back to not collecting heavy package data in minimal environments
+        pass
 
     # Platform-specific UI flags
     if is_macos:

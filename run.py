@@ -30,11 +30,11 @@ _ensure_standard_streams()
 if hasattr(sys, '_MEIPASS'):
     # Running in a bundle
     BASE_DIR = Path(sys._MEIPASS)
-    FFMPEG_DIR = Path(sys.executable).parent
+    EXE_DIR = Path(sys.executable).parent
 else:
     # Running in normal Python
     BASE_DIR = Path(__file__).parent / "backend"
-    FFMPEG_DIR = BASE_DIR
+    EXE_DIR = Path(__file__).parent
 
 # Ensure we can import backend packages if not in bundle
 if str(BASE_DIR) not in sys.path:
@@ -42,13 +42,28 @@ if str(BASE_DIR) not in sys.path:
 
 # Download FFmpeg on start if missing
 try:
-    from ffmpeg_helper import get_ffmpeg_path
-    get_ffmpeg_path(FFMPEG_DIR)
+    import config
+    from ffmpeg_helper import start_background_download
+    # Download into config.STORAGE_ROOT/bin (user-writable) rather than the
+    # app/executable directory.
+    start_background_download(config.STORAGE_ROOT / "bin")
 except Exception as e:
     print(f"Failed to setup FFmpeg: {e}")
 
 # Ensure ffmpeg and other bundled binaries are found in PATH
-os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "") + os.pathsep + str(BASE_DIR)
+try:
+    import config
+    storage_bin = config.STORAGE_ROOT / "bin"
+except Exception:
+    storage_bin = None
+
+path_parts = []
+if storage_bin is not None:
+    path_parts.append(str(storage_bin))
+path_parts.append(str(EXE_DIR))
+path_parts.append(os.environ.get("PATH", ""))
+path_parts.append(str(BASE_DIR))
+os.environ["PATH"] = os.pathsep.join(p for p in path_parts if p)
 
 
 def open_browser(url):
@@ -71,7 +86,8 @@ if __name__ == "__main__":
     print(f"Starting AmicoScript at {url}...")
     
     # Start browser in a background thread
-    threading.Thread(target=open_browser, args=(url,), daemon=True).start()
+    if os.environ.get("AMICOSCRIPT_NO_BROWSER", "0") != "1":
+        threading.Thread(target=open_browser, args=(url,), daemon=True).start()
     
     # Run uvicorn
     import main

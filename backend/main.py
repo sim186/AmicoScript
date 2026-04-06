@@ -76,12 +76,17 @@ if hasattr(sys, "_MEIPASS"):
     # Running inside a PyInstaller bundle
     BASE_DIR = Path(sys._MEIPASS)
     EXE_DIR = Path(sys.executable).parent
-    UPLOAD_DIR = EXE_DIR / "uploads"
+    try:
+        from config import STORAGE_ROOT
+        UPLOAD_DIR = STORAGE_ROOT / "uploads"
+    except Exception:
+        # Fallback to executable directory (may be non-writable on some systems).
+        UPLOAD_DIR = EXE_DIR / "uploads"
 else:
     BASE_DIR = Path(__file__).parent
     UPLOAD_DIR = BASE_DIR / "uploads"
 
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 if (BASE_DIR / "frontend").exists():
     FRONTEND_DIR = BASE_DIR / "frontend"

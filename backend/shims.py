@@ -30,7 +30,14 @@ def _load_wav(source, frame_offset: int = 0, num_frames: int = -1):
     contract.  Only 16-bit PCM is supported, which is what ffmpeg produces
     with -sample_fmt s16 (our normalisation command).
     """
-    import torch as _torch
+    try:
+        import torch as _torch
+    except Exception as exc:
+        raise RuntimeError(
+            "Torch is required for the audio shim when converting to tensors. "
+            "Install torch in your build/runtime venv (pip install torch) or avoid running diarization. "
+            "If you are building a minimal package, enable diarization by installing torch into the packaging venv."
+        ) from exc
 
     with _wave.open(str(source), "rb") as wf:
         sr = wf.getframerate()
@@ -54,6 +61,9 @@ def _load_wav(source, frame_offset: int = 0, num_frames: int = -1):
             "Ensure _convert_audio_for_diarization produced -sample_fmt s16."
         )
 
+    # WAV files use little-endian 16-bit PCM by convention. On unusual
+    # architectures or non-PCM inputs the byte ordering may differ; we
+    # assume standard little-endian WAVs as produced by ffmpeg -sample_fmt s16.
     buf = _array.array("h")   # signed short
     buf.frombytes(raw)
     # as_tensor shares memory with the array buffer — clone to own the data.

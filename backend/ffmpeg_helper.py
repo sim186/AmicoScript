@@ -91,7 +91,11 @@ def get_ffmpeg_path(base_dir: Path | None = None) -> Path:
         if system == "windows":
             os_key = "windows-64"
         elif system == "darwin":
-            os_key = "osx-64" # Rosetta or Universal usually works for ARM Macs
+            # Prefer ARM64 builds when available; fall back to x86_64.
+            if "arm64" in machine or "aarch64" in machine:
+                os_key = "osx-arm64" if "osx-arm64" in data.get("bin", {}) else "osx-64"
+            else:
+                os_key = "osx-64"
         elif system == "linux":
             if "arm64" in machine or "aarch64" in machine:
                 os_key = "linux-arm64"

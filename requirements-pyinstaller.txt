@@ -1,0 +1,5 @@
+PyInstaller==6.19.0
+
+# NOTE: keep only the packaging/runtime tools required for PyInstaller analysis.
+# Heavy runtime dependencies (torch, torchaudio, faster-whisper, pyannote.audio,
+# pydantic, sqlmodel, etc.) are intentionally omitted to ensure minimal bundles.

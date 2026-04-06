@@ -36,18 +36,29 @@ jobs:
           python package.py
         shell: bash
 
+      - name: Smoke test built artifact
+        run: |
+          python scripts/smoke_test_bundle.py
+        shell: bash
+
       - name: Create zip artifact (Windows)
         if: runner.os == 'Windows'
         run: |
           pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/AmicoScript/*' -DestinationPath "build\artifacts\AmicoScript-${{ github.ref_name }}-windows.zip" -Force"
 
-      - name: Create zip artifact (macOS/Linux)
-        if: runner.os != 'Windows'
+      - name: Create zip artifact (macOS)
+        if: runner.os == 'macOS'
         run: |
           mkdir -p build/artifacts
-          # On mac the build produces an .app bundle (dist/AmicoScript.app).
-          # Zip any AmicoScript output (binary dir or .app bundle).
-          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-${{ matrix.os }}.zip" dist/AmicoScript* || true
+          # Preserve .app bundle structure.
+          ditto -c -k --keepParent "dist/AmicoScript.app" "build/artifacts/AmicoScript-${{ github.ref_name }}-macos.zip"
+        shell: bash
+
+      - name: Create zip artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p build/artifacts
+          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-linux.zip" dist/AmicoScript || true
         shell: bash
 
       - name: Create GitHub Release and upload artifacts
