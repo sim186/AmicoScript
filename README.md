@@ -10,6 +10,8 @@
 
 ![Demo](images/demo.gif)
 
+Amicoscript is perfect for journalists, researchers, students, or anyone who wants control over their audio data and transcripts. It supports batch processing, multiple export formats, and optional AI analysis features — all running locally on your hardware.
+
 ## ✨ Why AmicoScript
 
 Most transcription tools:
@@ -29,11 +31,11 @@ AmicoScript keeps everything local.
 - 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, ACC, MP4, MOV, MKV)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
+- 🤖 AI analysis (summary, action items, translation, custom prompts)
+- 🧠 LLM integration: configure local LLMs (Ollama or similar) from the UI
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
- - 🤖 AI analysis (summary, action items, translation, custom prompts)
- - 🧠 LLM integration: configure local LLMs (Ollama or similar) from the UI
- - 🔍 Global search across transcripts
+- 🔍 Global search across transcripts
 - 🗂️ Organize with folders and tags
 - ✏️ Edit individual segments
 - 📤 Export to JSON, SRT, TXT, Markdown
