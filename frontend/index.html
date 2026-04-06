@@ -4143,19 +4143,49 @@
         const section = document.getElementById('ai-past-analyses');
         if (!analyses.length) { section.classList.add('hidden'); return; }
         section.classList.remove('hidden');
-        container.innerHTML = analyses.map(a => {
+
+        const fragment = document.createDocumentFragment();
+        analyses.forEach(a => {
           const label = a.analysis_type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
           const preview = a.result_text.slice(0, 90) + (a.result_text.length > 90 ? '…' : '');
           const date = new Date(a.created_at * 1000).toLocaleDateString();
-          return `<div class="border border-slate-200 rounded-lg p-2 text-xs" data-analysis-id="${a.id}">
-            <div class="flex items-center justify-between mb-0.5">
-              <span class="font-semibold text-slate-700">${label}</span>
-              <button onclick="window._deleteAnalysis('${a.id}','${recordingId}')" class="text-slate-300 hover:text-red-400 transition text-xs leading-none">✕</button>
-            </div>
-            <div class="text-slate-500 cursor-pointer hover:text-slate-700 leading-snug" onclick="window._showAnalysisResult('${a.id}','${recordingId}')">${preview || '(empty)'}</div>
-            <div class="text-slate-300 mt-0.5">${date} · ${a.model_name}</div>
-          </div>`;
-        }).join('');
+
+          const analysisDiv = document.createElement('div');
+          analysisDiv.className = 'border border-slate-200 rounded-lg p-2 text-xs';
+          analysisDiv.dataset.analysisId = String(a.id);
+
+          const headerDiv = document.createElement('div');
+          headerDiv.className = 'flex items-center justify-between mb-0.5';
+
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'font-semibold text-slate-700';
+          labelSpan.textContent = label;
+
+          const deleteButton = document.createElement('button');
+          deleteButton.type = 'button';
+          deleteButton.className = 'text-slate-300 hover:text-red-400 transition text-xs leading-none';
+          deleteButton.textContent = '✕';
+          deleteButton.addEventListener('click', () => window._deleteAnalysis(a.id, recordingId));
+
+          headerDiv.appendChild(labelSpan);
+          headerDiv.appendChild(deleteButton);
+
+          const previewDiv = document.createElement('div');
+          previewDiv.className = 'text-slate-500 cursor-pointer hover:text-slate-700 leading-snug';
+          previewDiv.textContent = preview || '(empty)';
+          previewDiv.addEventListener('click', () => window._showAnalysisResult(a.id, recordingId));
+
+          const metaDiv = document.createElement('div');
+          metaDiv.className = 'text-slate-300 mt-0.5';
+          metaDiv.textContent = `${date} · ${a.model_name}`;
+
+          analysisDiv.appendChild(headerDiv);
+          analysisDiv.appendChild(previewDiv);
+          analysisDiv.appendChild(metaDiv);
+          fragment.appendChild(analysisDiv);
+        });
+
+        container.replaceChildren(fragment);
       } catch { /* silently ignore */ }
     }
 
