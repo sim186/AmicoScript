@@ -148,6 +148,70 @@ AmicoScript can now call a locally hosted LLM (e.g. Ollama or any service implem
 - Translations: translate the full transcript into a target language using the LLM.
 - Custom prompts: run arbitrary instructions against the transcript.
 
+### Setting Up Ollama (LLM Runtime)
+
+To use the AI analysis features, you need a compatible LLM service running locally. **Ollama** is the easiest option and is free.
+
+#### Installation
+
+**macOS:**
+1. Download from [ollama.com](https://ollama.com)
+2. Move **Ollama.app** to `/Applications` and run it
+3. The Ollama service will start automatically in the background
+
+**Windows:**
+1. Download the installer from [ollama.com](https://ollama.com)
+2. Run the installer and follow the prompts
+3. Ollama runs as a background service automatically
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+Then start the service:
+```bash
+ollama serve
+```
+
+#### Getting a Model
+
+Once Ollama is running, pull a model to download it locally:
+
+```bash
+ollama pull mistral      # Fast, good for summaries
+ollama pull neural-chat  # Smaller, lighter weight
+ollama pull llama2       # More capable, larger (~4GB)
+```
+
+First pull takes time (model download), but subsequent loads are instant.
+
+#### Confirming Ollama Works
+
+Check that Ollama is running at `http://localhost:11434`:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+You should see a JSON list of your downloaded models.
+
+#### Configuring AmicoScript
+
+1. Open AmicoScript and go to **LLM Settings** (sidebar)
+2. Set:
+   - **Base URL:** `http://localhost:11434` (default)
+   - **Model Name:** your chosen model (e.g., `mistral`)
+   - **API Key:** leave blank (Ollama doesn't require one)
+3. Click **Test Connection** to verify
+
+Done! You can now use AI analysis features.
+
+#### Docker Note
+
+If running AmicoScript in Docker and Ollama on your host machine, use `http://host.docker.internal:11434` as the base URL instead.
+
+---
+
 Key implementation notes
 
 - Settings: LLM configuration is persisted to the same settings store used for HF tokens. The UI exposes a `LLM Settings` panel (base URL, model name, API key).
