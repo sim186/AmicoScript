@@ -293,7 +293,10 @@ def _assign_speaker(seg_start: float, seg_end: float, diarization) -> str:
 def _get_whisper_model(model_name: str) -> tuple:
     """Return a (WhisperModel, device) pair, reusing the cached instance when possible."""
     from faster_whisper import WhisperModel
-    from backend import resource_downloader
+    try:
+        from backend import resource_downloader
+    except ImportError:
+        import resource_downloader
 
     if (
         state._cached_model is not None
@@ -533,12 +536,7 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
                     return
 
                 progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
-                _push_event(
-                    job_id, "transcribing", progress,
-                    f"Transcribing… {_ts(seg.end)} / {_ts(duration)}",
-                )
-
-                segments_list.append({
+                seg_dict = {
                     "id": len(segments_list),
                     "start": round(seg.start, 3),
                     "end": round(seg.end, 3),
@@ -553,7 +551,18 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
                         }
                         for w in (seg.words or [])
                     ],
-                })
+                }
+                segments_list.append(seg_dict)
+                _push_event(
+                    job_id, "transcribing", progress,
+                    f"Transcribing… {_ts(seg.end)} / {_ts(duration)}",
+                    data={"segment": {
+                        "id": seg_dict["id"],
+                        "start": seg_dict["start"],
+                        "end": seg_dict["end"],
+                        "text": seg_dict["text"],
+                    }},
+                )
         finally:
             stop_first_segment_watchdog.set()
 
@@ -572,7 +581,10 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
             # Ensure pyannote model assets are cached (will raise clear
             # errors if Hugging Face token or downloader is unavailable).
             try:
-                from backend import resource_downloader as _rd
+                try:
+                    from backend import resource_downloader as _rd
+                except ImportError:
+                    import resource_downloader as _rd
                 _rd.ensure_pyannote_model("pyannote/speaker-diarization-3.1", opts.get("hf_token"))
             except Exception:
                 # Defer to pyannote's own error handling if download isn't possible
