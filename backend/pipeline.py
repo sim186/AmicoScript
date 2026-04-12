@@ -338,6 +338,81 @@ def _get_whisper_model(model_name: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Colab proxy
+# ---------------------------------------------------------------------------
+
+def _process_colab_job(job_id: str, colab_url: str) -> None:
+    import requests
+    import json
+    job = state.jobs[job_id]
+    opts = job["options"]
+    file_path = job["file_path"]
+    
+    _append_job_log(job_id, "INFO", f"Forwarding job to Colab Engine at {colab_url}")
+    _push_event(job_id, "transcribing", 0.05, "Uploading file to Google Colab...")
+
+    colab_url = colab_url.rstrip("/")
+    try:
+        with open(file_path, "rb") as f:
+            files = {"file": (job.get("original_filename", "audio.wav"), f)}
+            data = {
+                "model": opts.get("model", "small"),
+                "language": opts.get("language", ""),
+                "diarize": "true" if opts.get("diarize") else "false",
+                "hf_token": opts.get("hf_token", ""),
+                "num_speakers": opts.get("num_speakers", "") or "",
+                "min_speakers": opts.get("min_speakers", "") or "",
+                "max_speakers": opts.get("max_speakers", "") or "",
+            }
+            resp = requests.post(f"{colab_url}/api/transcribe", files=files, data=data, timeout=3600)
+            resp.raise_for_status()
+            colab_job_id = resp.json()["job_id"]
+
+        _append_job_log(job_id, "INFO", f"Colab job created: {colab_job_id}. Proxying SSE stream...")
+        
+        with requests.get(f"{colab_url}/api/jobs/{colab_job_id}/stream", stream=True, timeout=86400) as sse_resp:
+            for line in sse_resp.iter_lines():
+                if job["cancel_flag"].is_set():
+                    try:
+                        requests.post(f"{colab_url}/api/jobs/{colab_job_id}/cancel", timeout=10)
+                    except Exception:
+                        pass
+                    _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+                    _sync_job_to_db(job_id)
+                    return
+
+                if line:
+                    decoded = line.decode('utf-8')
+                    if decoded.startswith("data: "):
+                        event_data = json.loads(decoded[6:])
+                        if "heartbeat" in event_data:
+                            continue
+                        st = event_data.get("status")
+                        pr = event_data.get("progress", 0.0)
+                        msg = event_data.get("message", "")
+                        
+                        if st == "done":
+                            res_resp = requests.get(f"{colab_url}/api/jobs/{colab_job_id}/result", timeout=60)
+                            res_resp.raise_for_status()
+                            job["result"] = res_resp.json()
+                            _push_event(job_id, "done", 1.0, "Transcription complete.", data=job["result"])
+                            _sync_job_to_db(job_id)
+                            return
+                        elif st in ("error", "cancelled"):
+                            job["error"] = msg
+                            _push_event(job_id, st, pr, msg)
+                            _sync_job_to_db(job_id)
+                            return
+                        else:
+                            _push_event(job_id, st, pr, msg, data=event_data.get("data"))
+
+    except Exception as exc:
+        job["error"] = str(exc)
+        _append_job_log(job_id, "ERROR", f"Colab proxy failed: {exc}")
+        _push_event(job_id, "error", -1, f"Colab engine error: {exc}")
+        _sync_job_to_db(job_id)
+
+# ---------------------------------------------------------------------------
 # Job processor
 # ---------------------------------------------------------------------------
 
@@ -362,6 +437,11 @@ def _process_job(job_id: str) -> None:  # noqa: C901 — complex by necessity
 
         if job_type == "analysis":
             _process_analysis_job(job_id)
+            return
+
+        colab_url = opts.get("colab_url")
+        if colab_url:
+            _process_colab_job(job_id, colab_url)
             return
 
         _append_job_log(

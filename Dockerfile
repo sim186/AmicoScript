@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # package (matching the venv layout where run.py adds backend/ to sys.path).
 COPY backend/ backend/
 COPY frontend/ frontend/
+COPY scripts/ scripts/
 
 # Temp staging area for uploaded files before they are moved to STORAGE_ROOT.
 RUN mkdir -p backend/uploads

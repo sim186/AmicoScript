@@ -107,6 +107,33 @@ For reproducible benchmarking instructions, see the [BENCHMARKS.md](BENCHMARKS.m
 
 ---
 
+## ☁️ Optional: Cloud Power (Google Colab)
+
+If you don't have a powerful local GPU, you can offload the heavy transcription workload to Google Colab for free while keeping the application and your file library strictly local.
+
+1. Toggle **Cloud Power** on in the sidebar.
+2. Click **Open notebook in Colab ↗** — this opens the notebook directly in Google Colab without any manual upload.
+3. In Colab, go to **Runtime > Change runtime type** and select **T4 GPU**.
+
+![Colab Runtime Setup](images/colab_runtime_type.png)
+
+![Colab GPU Setup](images/colab_runtime_gpu.png)
+
+4. Run **Cell 1** to install dependencies (~2–4 min).
+5. Get your free [ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken), paste it into `NGROK_AUTH_TOKEN` in **Cell 2**, then run it.
+
+![Ngrok Token](images/ngrok_token.png)
+
+![Ngrok Collab](images/ngrok_colab_token.png)
+
+6. Copy the generated `.ngrok-free.app` URL and paste it into the **Colab Bridge URL** field in AmicoScript.
+
+> The ngrok URL changes every session — re-paste it each time you restart the notebook.
+
+Your files will now be seamlessly processed on the cloud GPU, but saved and managed exclusively on your local machine!
+
+---
+
 ## 🧩 Optional: Speaker Diarization
 
 Uses `pyannote` and requires a Hugging Face token.

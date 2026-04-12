@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
+[Unreleased]:
+
+### ✨ Improvements
+
+- **Optional Google Collab Integration:** Added the ability to connect to Google Collab for enhanced AI analysis capabilities, this is especially useful for users without local GPU resources. To use this feature instruction in the README.md are provided.
+- **Bulk Actions**:: Added the ability to select multiple recordings in the library and apply bulk actions such as moving to a folder, adding/removing tags, or deleting.
+- **Load or Drop Directory:** Added the ability to load or drop a directory of audio files for batch transcription.
+
+### 🐛 Fixes
+- **Clean batched file list** before processing to avoid issues with empty or invalid entries.
+- **UI minor improvements** console log being shown over the transcript content and some mobile layout issues.
+
 ## [1.4.1] - 2026-04-11
 
 ### ✨ Improvements

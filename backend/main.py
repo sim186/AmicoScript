@@ -93,6 +93,11 @@ if (BASE_DIR / "frontend").exists():
 else:
     FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
+if (BASE_DIR / "scripts").exists():
+    SCRIPTS_DIR = BASE_DIR / "scripts"
+else:
+    SCRIPTS_DIR = BASE_DIR.parent / "scripts"
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -550,6 +555,7 @@ async def transcribe(
     model: str = Form("small"),
     language: str = Form(""),
     diarize: str = Form("false"),
+    colab_url: str = Form(""),
     hf_token: str = Form(""),
     num_speakers: str = Form(""),
     min_speakers: str = Form(""),
@@ -577,6 +583,7 @@ async def transcribe(
         "model": model,
         "language": language,
         "diarize": diarize.lower() == "true",
+        "colab_url": colab_url,
         "num_speakers": int(num_speakers) if num_speakers.isdigit() else None,
         "min_speakers": int(min_speakers) if min_speakers.isdigit() else None,
         "max_speakers": int(max_speakers) if max_speakers.isdigit() else None,
@@ -1514,6 +1521,9 @@ async def api_exit(request: Request):
 # ---------------------------------------------------------------------------
 # Static frontend (must be last so /api routes take priority)
 # ---------------------------------------------------------------------------
+
+if SCRIPTS_DIR.exists():
+    app.mount("/scripts", StaticFiles(directory=str(SCRIPTS_DIR)), name="scripts")
 
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

@@ -646,8 +646,9 @@
 
           <!-- Model -->
           <div>
-            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Model</h2>
-            <div id="model-grid" role="radiogroup" aria-label="Whisper model" class="space-y-1.5"></div>
+            <label for="model-select" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Model</label>
+            <select id="model-select" aria-label="Whisper model"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"></select>
           </div>
 
           <!-- Language -->
@@ -741,6 +742,44 @@
                       class="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cloud Power -->
+          <div class="mt-6 border-t border-slate-100 pt-5">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+              Cloud Power
+              <span class="px-1.5 py-0.5 rounded-full bg-brand-muted/20 text-brand text-[10px] font-bold">BETA</span>
+            </h2>
+            <div class="flex items-center gap-2 mb-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
+              <button id="cloud-power-toggle" role="switch" aria-checked="false" aria-label="Enable Colab Bridge"
+                class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-slate-200 transition focus:outline-none focus:ring-2 focus:ring-brand">
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow translate-x-0 transition-transform duration-200"></span>
+              </button>
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold text-slate-700">Google Colab Engine</span>
+                <span class="text-[10px] text-slate-500 leading-tight">Run on free cloud GPU</span>
+              </div>
+            </div>
+
+            <div id="cloud-power-section" class="hidden space-y-3">
+              <div>
+                <label for="colab-url-input" class="block text-xs text-slate-500 mb-1">Colab Bridge URL</label>
+                <input type="url" id="colab-url-input" placeholder="https://...ngrok-free.app" autocomplete="off"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
+                <p class="mt-1 text-[10px] text-slate-400">The URL changes every session — re-paste it after restarting the notebook.</p>
+                <p class="mt-2 text-xs flex items-center justify-between">
+                  <a href="https://colab.research.google.com/github/sim186/amico-script/blob/main/scripts/colab_bridge.ipynb"
+                    target="_blank" rel="noopener"
+                    class="text-brand hover:underline flex items-center gap-1 font-medium">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Open notebook in Colab ↗
+                  </a>
+                </p>
               </div>
             </div>
           </div>
@@ -911,22 +950,35 @@
             <div id="tag-list" class="flex flex-wrap gap-1.5"></div>
           </div>
         </div><!-- /sidebar-library -->
-
+        <div aria-hidden="true" style="height:var(--console-h,36px);flex-shrink:0"></div>
       </div><!-- /sidebar scroll -->
 
-      <!-- Sidebar footer: app version -->
-      <div class="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
-        Version <span id="app-version" class="font-medium text-slate-700">—</span>
-        <a id="github-link" href="https://github.com/sim186/amico-script" target="_blank" rel="noopener"
-          class="ml-2 text-slate-500 hover:text-slate-700 hover:underline">GitHub</a>
-        <button id="shortcuts-view-btn" type="button" onclick="toggleShortcutsOverlay(true)"
-          class="ml-2 text-brand hover:underline bg-transparent border-0 p-0 text-xs">Shortcuts (?)</button>
-        <button id="changelog-view-btn" type="button"
-          class="ml-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0">Changelog</button>
-        <a id="changelog-remote-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md"
-          target="_blank" rel="noopener" class="ml-1 text-slate-400 hover:underline">Open ↗</a>
-        <button id="help-view-btn" type="button"
-          class="ml-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0">Help</button>
+      <!-- Sidebar footer -->
+      <div class="px-4 py-3 border-t border-slate-100 space-y-2">
+        <!-- Version + GitHub -->
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-400">v<span id="app-version" class="font-medium text-slate-600">—</span></span>
+          <a id="github-link" href="https://github.com/sim186/amico-script" target="_blank" rel="noopener"
+            class="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+            </svg>
+            GitHub
+          </a>
+        </div>
+        <!-- Quick links -->
+        <div class="flex items-center justify-between text-xs">
+          <button id="shortcuts-view-btn" type="button" onclick="toggleShortcutsOverlay(true)"
+            class="text-slate-500 hover:text-brand transition bg-transparent border-0 p-0">Shortcuts</button>
+          <span class="text-slate-200">·</span>
+          <button id="changelog-view-btn" type="button"
+            class="text-slate-500 hover:text-slate-700 transition bg-transparent border-0 p-0">Changelog</button>
+          <a id="changelog-remote-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md"
+            target="_blank" rel="noopener" class="text-slate-300 hover:text-slate-500 transition">↗</a>
+          <span class="text-slate-200">·</span>
+          <button id="help-view-btn" type="button"
+            class="text-slate-500 hover:text-slate-700 transition bg-transparent border-0 p-0">Help</button>
+        </div>
       </div>
     </aside>
 
@@ -1173,6 +1225,7 @@
               <!-- Segments -->
               <div class="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-4">
                 <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5"></div>
+                <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
               </div>
             </div><!-- /inner-panel-transcript -->
 
@@ -1264,6 +1317,7 @@
                 </div>
 
               </div>
+              <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
             </div><!-- /inner-panel-ai -->
 
           </div>
@@ -1381,6 +1435,7 @@
                 <p class="text-xs mt-1">Transcribed files will appear here</p>
               </div>
               <div id="library-list" class="space-y-2.5"></div>
+              <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
             </div>
           </div>
         </div><!-- /tab-library -->
@@ -1462,6 +1517,8 @@
       selectedModel: 'small',
       selectedLanguage: '',
       diarize: false,
+      cloudPower: false,
+      colabUrl: '',
       hfToken: '',
       numSpeakers: '',
       minSpeakers: '',
@@ -1812,33 +1869,14 @@
     ];
 
     function renderModelGrid() {
-      const grid = document.getElementById('model-grid');
-      grid.innerHTML = '';
+      const sel = document.getElementById('model-select');
+      sel.innerHTML = '';
       MODELS.forEach(m => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.dataset.model = m.id;
-        btn.setAttribute('role', 'radio');
-        btn.setAttribute('aria-checked', String(m.id === state.selectedModel));
-        btn.className = 'model-card w-full flex items-center gap-3 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-brand/40 focus:outline-none';
-        if (m.id === state.selectedModel) btn.classList.add('selected');
-
-        const dots = Array.from({ length: 5 }, (_, i) =>
-          `<span class="inline-block w-1.5 h-1.5 rounded-full ${i < m.speed ? 'bg-brand' : 'bg-slate-200'}"></span>`
-        ).join('');
-
-        btn.innerHTML = `
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-sm font-semibold text-slate-800">${m.name}</span>
-          <span class="text-xs text-slate-400">${m.params}</span>
-        </div>
-        <div class="flex items-center gap-0.5 mt-1">${dots}</div>
-      </div>
-    `;
-        btn.title = m.note;
-        btn.addEventListener('click', () => selectModel(m.id));
-        grid.appendChild(btn);
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.name} (${m.params}) — ${m.note}`;
+        if (m.id === state.selectedModel) opt.selected = true;
+        sel.appendChild(opt);
       });
     }
 
@@ -1846,11 +1884,8 @@
       clientLog(`Model selected: ${id}`);
       state.selectedModel = id;
       localStorage.setItem('selectedModel', id);
-      document.querySelectorAll('.model-card').forEach(c => {
-        const sel = c.dataset.model === id;
-        c.classList.toggle('selected', sel);
-        c.setAttribute('aria-checked', String(sel));
-      });
+      const sel = document.getElementById('model-select');
+      if (sel) sel.value = id;
     }
 
     // =========================================================================
@@ -2022,7 +2057,9 @@
       const frag = document.createDocumentFragment();
       state.batchQueue.forEach((item, idx) => {
         const pct = Math.round(item.progress * 100);
+        const uploadPct = item.status === 'uploading' ? Math.round((item.progress / 0.05)) : 0;
         const label = item.status === 'processing' ? `${pct}%` :
+          item.status === 'uploading' ? `↑ ${uploadPct}%` :
           item.status.charAt(0).toUpperCase() + item.status.slice(1);
         const li = document.createElement('li');
         li.className = 'flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-3 py-2 text-sm';
@@ -2030,6 +2067,7 @@
           <span class="flex-1 truncate font-medium text-slate-700" title="${escHtml(item.file.name)}">${escHtml(item.file.name)}</span>
           <span class="text-xs text-slate-400 shrink-0">${fmtBytes(item.file.size)}</span>
           <span class="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[item.status] || statusColors.pending}">${label}</span>
+          ${item.status === 'uploading' ? `<div class="shrink-0 w-14 bg-slate-100 rounded-full h-1"><div class="bg-blue-400 h-1 rounded-full transition-all" style="width:${uploadPct}%"></div></div>` : ''}
           ${item.status === 'processing' ? `<div class="shrink-0 w-14 bg-slate-100 rounded-full h-1"><div class="bg-brand h-1 rounded-full transition-all" style="width:${pct}%"></div></div>` : ''}
           ${item.status === 'done' ? `<a href="#" data-batch-view="${idx}" class="shrink-0 text-xs text-brand hover:underline focus:outline-none">View</a>` : ''}
           ${item.status === 'pending' ? `<button data-batch-remove="${idx}" class="shrink-0 text-slate-300 hover:text-red-400 transition focus:outline-none" aria-label="Remove">
@@ -2094,42 +2132,103 @@
     // =========================================================================
     function initDiarizeToggle() {
       const btn = document.getElementById('diarize-toggle');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          state.diarize = !state.diarize;
+          clientLog(`Diarization ${state.diarize ? 'enabled' : 'disabled'}`);
+          btn.setAttribute('aria-checked', String(state.diarize));
+          const dot = btn.querySelector('span');
+          if (dot) dot.style.transform = state.diarize ? 'translateX(16px)' : 'translateX(0)';
+          btn.classList.toggle('bg-brand', state.diarize);
+          btn.classList.toggle('bg-slate-200', !state.diarize);
+          const hfSection = document.getElementById('hf-section');
+          if (hfSection) hfSection.classList.toggle('hidden', !state.diarize);
+          localStorage.setItem('diarize', String(state.diarize));
+        });
+      }
+
+      const hfInput = document.getElementById('hf-token-input');
+      if (hfInput) {
+        hfInput.addEventListener('input', e => {
+          state.hfToken = e.target.value;
+          localStorage.setItem('hfToken', e.target.value);
+          _saveHfTokenDebounced(e.target.value);
+        });
+      }
+
+      const hfEyeBtn = document.getElementById('hf-eye-btn');
+      if (hfEyeBtn) {
+        hfEyeBtn.addEventListener('click', () => {
+          const inp = document.getElementById('hf-token-input');
+          if (!inp) return;
+          const show = inp.type === 'password';
+          inp.type = show ? 'text' : 'password';
+          const openEye = document.getElementById('hf-eye-open');
+          const closedEye = document.getElementById('hf-eye-closed');
+          if (openEye) openEye.classList.toggle('hidden', show);
+          if (closedEye) closedEye.classList.toggle('hidden', !show);
+        });
+      }
+
+      ['num-speakers-input', 'min-speakers-input', 'max-speakers-input'].forEach(id => {
+        const inp = document.getElementById(id);
+        if (inp) {
+          inp.addEventListener('input', e => {
+            const prop = id.split('-')[0] + id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1);
+            // wait, state properties are numSpeakers, minSpeakers, maxSpeakers
+            if (id === 'num-speakers-input') state.numSpeakers = e.target.value;
+            if (id === 'min-speakers-input') state.minSpeakers = e.target.value;
+            if (id === 'max-speakers-input') state.maxSpeakers = e.target.value;
+          });
+        }
+      });
+    }
+
+    function initCloudPowerToggle() {
+      const btn = document.getElementById('cloud-power-toggle');
+      if (!btn) return;
       btn.addEventListener('click', () => {
-        state.diarize = !state.diarize;
-        clientLog(`Diarization ${state.diarize ? 'enabled' : 'disabled'}`);
-        btn.setAttribute('aria-checked', String(state.diarize));
-        btn.querySelector('span').style.transform = state.diarize ? 'translateX(16px)' : 'translateX(0)';
-        btn.classList.toggle('bg-brand', state.diarize);
-        btn.classList.toggle('bg-slate-200', !state.diarize);
-        document.getElementById('hf-section').classList.toggle('hidden', !state.diarize);
-        localStorage.setItem('diarize', String(state.diarize));
+        state.cloudPower = !state.cloudPower;
+        btn.setAttribute('aria-checked', String(state.cloudPower));
+        const dot = btn.querySelector('span');
+        if (dot) dot.style.transform = state.cloudPower ? 'translateX(16px)' : 'translateX(0)';
+        btn.classList.toggle('bg-brand', state.cloudPower);
+        btn.classList.toggle('bg-slate-200', !state.cloudPower);
+        const section = document.getElementById('cloud-power-section');
+        if (section) section.classList.toggle('hidden', !state.cloudPower);
+        localStorage.setItem('cloudPower', String(state.cloudPower));
       });
 
-      document.getElementById('hf-token-input').addEventListener('input', e => {
-        state.hfToken = e.target.value;
-        localStorage.setItem('hfToken', e.target.value);
-        // Persist to server
-        _saveHfTokenDebounced(e.target.value);
-      });
+      const urlInput = document.getElementById('colab-url-input');
+      if (urlInput) {
+        urlInput.addEventListener('input', e => {
+          state.colabUrl = e.target.value.trim();
+          localStorage.setItem('colabUrl', state.colabUrl);
+        });
+      }
+    }
 
-      document.getElementById('hf-eye-btn').addEventListener('click', () => {
-        const inp = document.getElementById('hf-token-input');
-        const show = inp.type === 'password';
-        inp.type = show ? 'text' : 'password';
-        document.getElementById('hf-eye-open').classList.toggle('hidden', show);
-        document.getElementById('hf-eye-closed').classList.toggle('hidden', !show);
-      });
-
-      document.getElementById('num-speakers-input').addEventListener('input', e => {
-        state.numSpeakers = e.target.value;
-      });
-
-      document.getElementById('min-speakers-input').addEventListener('input', e => {
-        state.minSpeakers = e.target.value;
-      });
-
-      document.getElementById('max-speakers-input').addEventListener('input', e => {
-        state.maxSpeakers = e.target.value;
+    // =========================================================================
+    // Upload helper — uses XHR so we get upload progress events
+    // =========================================================================
+    function uploadWithProgress(fd, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/transcribe');
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) onProgress(e.loaded / e.total);
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { reject(new Error('Invalid server response')); }
+          } else {
+            try { reject(new Error(JSON.parse(xhr.responseText).detail || xhr.statusText)); }
+            catch { reject(new Error(xhr.statusText || `HTTP ${xhr.status}`)); }
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error — check your connection'));
+        xhr.send(fd);
       });
     }
 
@@ -2139,33 +2238,53 @@
     async function startTranscription() {
       if (state.batchMode) { startBatchTranscription(); return; }
       if (!state.selectedFile) return;
-      clientLog(`Transcription started: ${state.selectedFile.name} [model=${state.selectedModel}, lang=${state.selectedLanguage||'auto'}, diarize=${state.diarize}]`);
+
+      // Capture and immediately clear the staged file so dropping a new file
+      // after this job completes does not create an unwanted batch.
+      const file = state.selectedFile;
+      state.selectedFile = null;
+      document.getElementById('file-info').classList.add('hidden');
+      document.getElementById('start-btn').disabled = true;
+
+      const dest = state.cloudPower ? `Colab (${state.colabUrl})` : 'local';
+      clientLog(`Uploading ${file.name} → ${dest} [model=${state.selectedModel}, lang=${state.selectedLanguage||'auto'}, diarize=${state.diarize}]`);
       hideError();
 
       const fd = new FormData();
-      fd.append('file', state.selectedFile);
+      fd.append('file', file);
       fd.append('model', state.selectedModel);
       fd.append('language', state.selectedLanguage);
       fd.append('diarize', state.diarize ? 'true' : 'false');
+      if (state.cloudPower) fd.append('colab_url', state.colabUrl);
       fd.append('hf_token', state.hfToken);
       fd.append('num_speakers', state.numSpeakers);
       fd.append('min_speakers', state.minSpeakers);
       fd.append('max_speakers', state.maxSpeakers);
 
       setProcessing(true);
+      document.getElementById('proc-filename').textContent = file.name;
+      document.getElementById('proc-message').textContent = 'Uploading…';
 
+      let lastMilestone = -1;
       try {
-        const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(err.detail || 'Upload failed');
-        }
-        const { job_id, recording_id } = await res.json();
-        state.jobId = job_id;
-        state.recordingId = recording_id || null;
+        const data = await uploadWithProgress(fd, pct => {
+          const p = Math.round(pct * 100);
+          document.getElementById('proc-message').textContent = p < 100 ? `Uploading… ${p}%` : 'Queued…';
+          document.getElementById('progress-bar').style.width = `${p}%`;
+          document.getElementById('proc-percent').textContent = `${p}%`;
+          document.getElementById('progress-bar-wrap').setAttribute('aria-valuenow', String(p));
+          const milestone = Math.floor(p / 25) * 25;
+          if (milestone > lastMilestone) { clientLog(`Upload ${milestone}%`); lastMilestone = milestone; }
+        });
+        clientLog(`Upload complete — job ${data.job_id}`);
+        // Reset progress bar so SSE-driven transcription progress starts from 0
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('proc-percent').textContent = '0%';
+        document.getElementById('progress-bar-wrap').setAttribute('aria-valuenow', '0');
+        state.jobId = data.job_id;
+        state.recordingId = data.recording_id || null;
         state.activeRecordingId = null;
-        document.getElementById('proc-filename').textContent = state.selectedFile.name;
-        connectSSE(job_id);
+        connectSSE(data.job_id);
       } catch (err) {
         setProcessing(false);
         showError(`Upload failed: ${err.message}`);
@@ -2178,6 +2297,7 @@
       fd.append('model', state.selectedModel);
       fd.append('language', state.selectedLanguage);
       fd.append('diarize', state.diarize ? 'true' : 'false');
+      if (state.cloudPower) fd.append('colab_url', state.colabUrl);
       fd.append('hf_token', state.hfToken);
       fd.append('num_speakers', state.numSpeakers);
       fd.append('min_speakers', state.minSpeakers);
@@ -2199,17 +2319,22 @@
 
     async function submitBatchItem(item) {
       item.status = 'uploading';
+      item.progress = 0;
+      item.message = 'Uploading…';
       renderBatchList();
+      clientLog(`Uploading ${item.file.name}…`);
       try {
-        const res = await fetch('/api/transcribe', { method: 'POST', body: makeBatchFormData(item.file) });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(err.detail || 'Upload failed');
-        }
-        const { job_id, recording_id } = await res.json();
-        item.jobId = job_id;
-        item.recordingId = recording_id || null;
+        const data = await uploadWithProgress(makeBatchFormData(item.file), pct => {
+          item.progress = pct * 0.05; // upload counts as first 5% of total progress
+          item.message = `Uploading… ${Math.round(pct * 100)}%`;
+          renderBatchList();
+        });
+        clientLog(`Upload complete: ${item.file.name} — job ${data.job_id}`);
+        item.jobId = data.job_id;
+        item.recordingId = data.recording_id || null;
         item.status = 'queued';
+        item.progress = 0;
+        item.message = '';
         renderBatchList();
         connectBatchSSE(item);
       } catch (err) {
@@ -2290,7 +2415,6 @@
         state.result = null;
         document.getElementById('segments-list').innerHTML = '';
         tph.classList.remove('hidden');
-        switchTab('transcript');
         switchInnerTab('transcript');
         resetJobLogs();
         startLogPolling();
@@ -2412,11 +2536,17 @@
       const chevron = document.getElementById('console-chevron');
       const actions = document.getElementById('console-actions');
 
+      function setConsoleHeight() {
+        const h = document.getElementById('console-panel').offsetHeight;
+        document.documentElement.style.setProperty('--console-h', `${h}px`);
+      }
+
       function openConsole() {
         body.classList.remove('hidden');
         actions.classList.remove('hidden');
         chevron.style.transform = 'rotate(180deg)';
         toggle.setAttribute('aria-expanded', 'true');
+        setConsoleHeight();
         // Scroll log to bottom when opening
         const pre = document.getElementById('proc-log');
         pre.scrollTop = pre.scrollHeight;
@@ -2427,6 +2557,7 @@
         actions.classList.add('hidden');
         chevron.style.transform = '';
         toggle.setAttribute('aria-expanded', 'false');
+        setConsoleHeight();
       }
 
       toggle.addEventListener('click', () => {
@@ -3211,6 +3342,23 @@
         btn.querySelector('span').style.transform = 'translateX(16px)';
         btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
         document.getElementById('hf-section').classList.remove('hidden');
+      }
+
+      if (localStorage.getItem('cloudPower') === 'true') {
+        state.cloudPower = true;
+        const btn = document.getElementById('cloud-power-toggle');
+        if (btn) {
+          btn.setAttribute('aria-checked', 'true');
+          btn.querySelector('span').style.transform = 'translateX(16px)';
+          btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
+          document.getElementById('cloud-power-section').classList.remove('hidden');
+        }
+      }
+      const savedColabUrl = localStorage.getItem('colabUrl');
+      if (savedColabUrl) {
+        state.colabUrl = savedColabUrl;
+        const cInp = document.getElementById('colab-url-input');
+        if (cInp) cInp.value = savedColabUrl;
       }
 
       // Load HF token: try server first, then localStorage fallback
@@ -4784,8 +4932,10 @@
     function init() {
       restoreSettings();
       renderModelGrid();
+      document.getElementById('model-select').addEventListener('change', e => selectModel(e.target.value));
       initDropZone();
       initDiarizeToggle();
+      initCloudPowerToggle();
       initAudioPlayer();
       initExportButtons();
       initShortcuts();
@@ -4824,6 +4974,12 @@
         clearFile();
       });
       initConsole();
+      // Initialise console height variable so .console-padded elements have
+      // correct bottom padding before the user ever opens/closes the console.
+      requestAnimationFrame(() => {
+        const h = document.getElementById('console-panel').offsetHeight;
+        document.documentElement.style.setProperty('--console-h', `${h}px`);
+      });
       initAiAnalysis();
 
       // Inner tabs: Transcript / AI Analysis
