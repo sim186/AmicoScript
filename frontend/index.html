@@ -1015,14 +1015,17 @@
               class="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-8 py-14 text-center cursor-pointer transition hover:border-brand hover:bg-brand-muted/20 focus:outline-none focus:ring-2 focus:ring-brand">
               <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.mkv,.opus" multiple class="hidden"
                 aria-hidden="true" />
+              <input type="file" id="folder-input" webkitdirectory multiple class="hidden"
+                aria-hidden="true" />
               <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                   d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
               <div>
-                <p class="font-medium text-slate-700">Drop audio here or <span class="text-brand">browse</span></p>
+                <p class="font-medium text-slate-700">Drop files or a folder here, or <span class="text-brand">browse files</span></p>
                 <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC · MP4 · MOV · MKV · OPUS</p>
+                <p class="mt-2 text-xs text-slate-400">or <button id="folder-btn" class="text-brand hover:underline focus:outline-none" type="button">select a folder</button></p>
               </div>
             </div>
 
@@ -1810,17 +1813,80 @@
         if (!zone.contains(e.relatedTarget))
           zone.classList.remove('border-brand', 'bg-brand-muted/20');
       });
-      zone.addEventListener('drop', e => {
+      zone.addEventListener('drop', async e => {
         e.preventDefault();
         zone.classList.remove('border-brand', 'bg-brand-muted/20');
+        const items = Array.from(e.dataTransfer.items);
+        // Check if any item is a directory entry
+        const hasEntry = items.length && items[0].webkitGetAsEntry;
+        if (hasEntry) {
+          const entries = items.map(i => i.webkitGetAsEntry()).filter(Boolean);
+          const hasDir = entries.some(en => en.isDirectory);
+          if (hasDir) {
+            // Recursively collect all files from all entries
+            const files = await collectFilesFromEntries(entries);
+            if (files.length === 1) handleFile(files[0]);
+            else handleFiles(files);
+            return;
+          }
+        }
         const files = Array.from(e.dataTransfer.files);
         if (files.length === 1) handleFile(files[0]);
         else if (files.length > 1) handleFiles(files);
       });
 
+      document.getElementById('folder-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        document.getElementById('folder-input').click();
+      });
+      document.getElementById('folder-input').addEventListener('change', () => {
+        const files = Array.from(document.getElementById('folder-input').files);
+        if (!files.length) return;
+        if (files.length === 1) handleFile(files[0]);
+        else handleFiles(files);
+        document.getElementById('folder-input').value = '';
+      });
+
       document.getElementById('clear-file-btn').addEventListener('click', e => {
         e.stopPropagation();
         clearFile();
+      });
+    }
+
+    // Recursively collect File objects from an array of FileSystemEntry objects
+    function collectFilesFromEntries(entries) {
+      return new Promise(resolve => {
+        const files = [];
+        let pending = 0;
+
+        function readEntry(entry) {
+          if (entry.isFile) {
+            pending++;
+            entry.file(file => {
+              files.push(file);
+              pending--;
+              if (pending === 0) resolve(files);
+            });
+          } else if (entry.isDirectory) {
+            pending++;
+            const reader = entry.createReader();
+            function readBatch() {
+              reader.readEntries(batch => {
+                if (batch.length === 0) {
+                  pending--;
+                  if (pending === 0) resolve(files);
+                  return;
+                }
+                batch.forEach(readEntry);
+                readBatch(); // keep reading until exhausted (>100 entries)
+              });
+            }
+            readBatch();
+          }
+        }
+
+        if (entries.length === 0) { resolve(files); return; }
+        entries.forEach(readEntry);
       });
     }
 
