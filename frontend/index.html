@@ -1276,7 +1276,15 @@
           <div class="flex flex-col h-full">
             <!-- Library toolbar -->
             <div class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center gap-3">
+              <!-- Select-all checkbox -->
+              <input type="checkbox" id="lib-select-all"
+                class="rounded border-slate-300 text-brand focus:ring-brand cursor-pointer shrink-0"
+                title="Select all"
+                onchange="toggleSelectAll(this.checked)" />
               <span id="library-folder-label" class="text-sm font-semibold text-slate-700 flex-1">All recordings</span>
+
+              <!-- Normal toolbar (sort + tag filter) -->
+              <div id="lib-normal-toolbar" class="flex items-center gap-3">
               <div class="flex items-center gap-1.5 text-xs text-slate-500">
                 <label for="lib-sort-select">Sort</label>
                 <select id="lib-sort-select"
@@ -1304,6 +1312,60 @@
                 <span class="text-slate-400">Tag:</span>
                 <span id="lib-tag-filter-name" class="font-semibold text-slate-700"></span>
                 <button onclick="clearTagFilter()" class="text-slate-300 hover:text-red-400 transition">×</button>
+                </div>
+              </div>
+
+              <!-- Bulk action toolbar (shown when ≥1 selected) -->
+              <div id="lib-bulk-toolbar" class="hidden items-center gap-2">
+                <span id="lib-bulk-count" class="text-xs text-slate-500 mr-1"></span>
+
+                <!-- Move to folder -->
+                <div class="relative">
+                  <button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
+                    title="Move selected to folder"
+                    onclick="window.togglePopover(this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    </svg>
+                    Move
+                  </button>
+                  <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
+                    <p class="text-xs text-slate-400 px-1 mb-1">Move to folder</p>
+                    <select id="lib-bulk-folder-select"
+                      class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+                      onchange="bulkMoveToFolder(this.value)">
+                      <option value="">— No folder —</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Export -->
+                <div class="relative">
+                  <button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
+                    title="Export selected"
+                    onclick="window.togglePopover(this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Export
+                  </button>
+                  <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[120px]">
+                    <p class="text-xs text-slate-400 px-3 py-1">Format</p>
+                    <button onclick="event.stopPropagation(); bulkExport('json')" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">JSON</button>
+                    <button onclick="event.stopPropagation(); bulkExport('srt')"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">SRT</button>
+                    <button onclick="event.stopPropagation(); bulkExport('txt')"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">TXT</button>
+                    <button onclick="event.stopPropagation(); bulkExport('md')"   class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">Markdown</button>
+                  </div>
+                </div>
+
+                <!-- Delete -->
+                <button onclick="bulkDelete()"
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-xs font-medium text-red-600 transition focus:outline-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -1443,6 +1505,7 @@
         selectedTagId: null,
         sort: 'created_at',
         order: 'desc',
+        selectedIds: new Set(),
       },
     };
 
@@ -3578,20 +3641,74 @@
       } catch (_) { }
     }
 
+    function updateBulkBar() {
+      const sel = state.library.selectedIds;
+      const bulkBar = document.getElementById('lib-bulk-toolbar');
+      const normalBar = document.getElementById('lib-normal-toolbar');
+      const countEl = document.getElementById('lib-bulk-count');
+      const selectAllCb = document.getElementById('lib-select-all');
+      const n = sel.size;
+      const total = state.library.recordings.length;
+
+      if (n > 0) {
+        bulkBar.classList.remove('hidden');
+        bulkBar.classList.add('flex');
+        normalBar.classList.add('hidden');
+        countEl.textContent = `${n} selected`;
+        // Update folder options in the bulk move dropdown
+        const folderSel = document.getElementById('lib-bulk-folder-select');
+        folderSel.innerHTML = '<option value="">— No folder —</option>' +
+          state.library.folders.map(f => `<option value="${escHtml(String(f.id))}">${escHtml(f.name)}</option>`).join('');
+      } else {
+        bulkBar.classList.add('hidden');
+        bulkBar.classList.remove('flex');
+        normalBar.classList.remove('hidden');
+        countEl.textContent = '';
+      }
+
+      // Sync select-all checkbox state
+      if (selectAllCb) {
+        selectAllCb.indeterminate = n > 0 && n < total;
+        selectAllCb.checked = total > 0 && n === total;
+      }
+    }
+
+    function toggleSelectAll(checked) {
+      if (checked) {
+        state.library.recordings.forEach(r => state.library.selectedIds.add(r.id));
+      } else {
+        state.library.selectedIds.clear();
+      }
+      // Sync individual checkboxes
+      document.querySelectorAll('.rec-card-cb').forEach(cb => { cb.checked = checked; });
+      // Sync card highlight
+      document.querySelectorAll('.rec-card').forEach(card => {
+        card.classList.toggle('ring-2', checked);
+        card.classList.toggle('ring-brand', checked);
+        card.classList.toggle('ring-inset', checked);
+      });
+      updateBulkBar();
+    }
+
     function renderLibrary() {
       const list = document.getElementById('library-list');
       const empty = document.getElementById('library-empty');
       const recs = state.library.recordings;
+      // Preserve selections only for IDs still in the current result set
+      const validIds = new Set(recs.map(r => r.id));
+      state.library.selectedIds.forEach(id => { if (!validIds.has(id)) state.library.selectedIds.delete(id); });
       if (!recs.length) {
         list.innerHTML = '';
         empty.classList.remove('hidden');
+        updateBulkBar();
         return;
       }
       empty.classList.add('hidden');
       list.innerHTML = '';
       recs.forEach(rec => {
         const card = document.createElement('div');
-        card.className = 'rec-card';
+        const isSelected = state.library.selectedIds.has(rec.id);
+        card.className = 'rec-card' + (isSelected ? ' ring-2 ring-brand ring-inset' : '');
         card.onclick = () => openRecording(rec);
         // enable drag of recordings to folders
         card.draggable = true;
@@ -3640,7 +3757,11 @@
         const folderName = rec.folder_id ? (state.library.folders.find(f => f.id === rec.folder_id)?.name || '') : '';
 
         card.innerHTML = `
-      <div class="flex items-start justify-between gap-3">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="rec-card-cb mt-0.5 rounded border-slate-300 text-brand focus:ring-brand cursor-pointer shrink-0"
+               ${isSelected ? 'checked' : ''}
+               onclick="event.stopPropagation()"
+               onchange="toggleCardSelection('${rec.id}', this.checked, this.closest('.rec-card'))" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-slate-800 truncate">${escHtml(rec.filename)}</p>
           <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}${folderName ? ' · ' + escHtml(folderName) : ''}</p>
@@ -3694,6 +3815,86 @@
     `;
         list.appendChild(card);
       });
+      updateBulkBar();
+    }
+
+    function toggleCardSelection(id, checked, cardEl) {
+      if (checked) {
+        state.library.selectedIds.add(id);
+      } else {
+        state.library.selectedIds.delete(id);
+      }
+      if (cardEl) {
+        cardEl.classList.toggle('ring-2', checked);
+        cardEl.classList.toggle('ring-brand', checked);
+        cardEl.classList.toggle('ring-inset', checked);
+      }
+      updateBulkBar();
+    }
+
+    async function bulkDelete() {
+      const ids = [...state.library.selectedIds];
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} recording${ids.length > 1 ? 's' : ''} and their transcripts?`)) return;
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          const res = await fetch(`/api/recordings/${id}`, { method: 'DELETE' });
+          if (!res.ok) failed++;
+          else {
+            if (state.activeRecordingId === id) { state.activeRecordingId = null; state.result = null; }
+          }
+        } catch (_) { failed++; }
+      }
+      state.library.selectedIds.clear();
+      if (failed) alert(`${failed} deletion${failed > 1 ? 's' : ''} failed.`);
+      fetchLibrary();
+    }
+
+    async function bulkExport(fmt) {
+      document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+      const ids = [...state.library.selectedIds];
+      if (!ids.length) return;
+      for (const id of ids) {
+        try {
+          const rec = state.library.recordings.find(r => r.id === id);
+          const baseName = (rec?.filename || id).replace(/\.[^.]+$/, '');
+          const res = await fetch(`/api/recordings/${id}/export/${fmt}`);
+          if (!res.ok) { alert(`Export failed for ${baseName}: HTTP ${res.status}`); continue; }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${baseName}.${fmt}`; a.click();
+          URL.revokeObjectURL(url);
+          // small delay to avoid overwhelming the browser with simultaneous downloads
+          await new Promise(r => setTimeout(r, 150));
+        } catch (err) { alert(`Export failed: ${err.message}`); }
+      }
+    }
+
+    async function bulkMoveToFolder(folderId) {
+      document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
+      const ids = [...state.library.selectedIds];
+      if (!ids.length) return;
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          const fd = new FormData();
+          fd.append('folder_id', folderId);
+          const res = await fetch(`/api/recordings/${id}`, { method: 'PATCH', body: fd });
+          if (!res.ok) { failed++; continue; }
+          const rec = state.library.recordings.find(r => r.id === id);
+          if (rec) rec.folder_id = folderId || null;
+        } catch (_) { failed++; }
+      }
+      // If viewing a specific folder, remove moved-away cards
+      if (state.library.selectedFolderId && state.library.selectedFolderId !== folderId) {
+        state.library.recordings = state.library.recordings.filter(r => !ids.includes(r.id));
+      }
+      state.library.selectedIds.clear();
+      if (failed) alert(`${failed} move${failed > 1 ? 's' : ''} failed.`);
+      renderLibrary();
+      try { fetchFolders(); fetchTags(); } catch (_) { }
     }
 
     function togglePopover(btn) {
