@@ -795,30 +795,6 @@
             <div id="meta-items" class="space-y-1.5"></div>
             <!-- Folder & tags for the open recording -->
             <div id="rec-folder-tag-meta" class="hidden pt-1"></div>
-            <!-- Auto-tag -->
-            <div id="auto-tag-container" class="hidden pt-1">
-              <button id="auto-tag-btn"
-                class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition w-full">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3.168 3.168 0 01-.956 2.27A3 3 0 0112 21a3 3 0 01-2.137-.883 3.168 3.168 0 01-.956-2.27l-.347-.347z"/>
-                </svg>
-                <span id="auto-tag-btn-label">Auto-tag</span>
-              </button>
-              <div id="auto-tag-panel" class="hidden mt-2 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
-                <p class="text-xs text-slate-500">Suggested tags:</p>
-                <div id="auto-tag-chips" class="flex flex-wrap gap-1.5"></div>
-                <div class="flex gap-2">
-                  <button id="auto-tag-apply-btn"
-                    class="text-xs px-2.5 py-1 rounded-lg bg-brand text-white hover:bg-brand/90 transition">
-                    Apply all
-                  </button>
-                  <button id="auto-tag-cancel-btn"
-                    class="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-400 transition">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- Speaker legend -->
@@ -992,6 +968,15 @@
             <div id="tag-list" class="flex flex-wrap gap-1.5"></div>
           </div>
         </div><!-- /sidebar-library -->
+
+        <div id="sidebar-search" class="sidebar-panel">
+          <div class="px-4 pt-4 pb-2 flex flex-col gap-2">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">AI Search</p>
+            <p class="text-xs text-slate-500">Ask questions in natural language to find relevant moments across all your recordings.</p>
+            <p class="text-xs text-slate-400 mt-1">Recordings must be semantically indexed before they appear here. Use the "Index all transcripts" button in Transcribe settings.</p>
+          </div>
+        </div><!-- /sidebar-search -->
+
         <div aria-hidden="true" style="height:var(--console-h,36px);flex-shrink:0"></div>
       </div><!-- /sidebar scroll -->
 
@@ -1056,6 +1041,11 @@
           aria-selected="false" role="tab" aria-controls="tab-library">
           Library
         </button>
+        <button id="tab-btn-search"
+          class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px transition focus:outline-none"
+          aria-selected="false" role="tab" aria-controls="tab-search">
+          Search
+        </button>
         <!-- Global actions (Export + Search) -->
         <div class="ml-auto flex items-center gap-4 pb-2">
           <div id="export-bar" class="hidden flex items-center gap-1.5">
@@ -1088,13 +1078,7 @@
                 d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
             </svg>
             <input id="global-search-input" type="search" placeholder="Search library…"
-              class="w-44 pl-8 pr-12 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
-            <button id="search-mode-toggle"
-              title="Toggle search mode: Keyword / AI Semantic"
-              onclick="toggleSearchMode()"
-              class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded font-medium bg-slate-100 text-slate-500 hover:bg-brand/10 hover:text-brand transition select-none">
-              KW
-            </button>
+              class="w-44 pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
             <div id="global-search-dropdown" class="search-dropdown hidden"></div>
           </div>
         </div>
@@ -1364,6 +1348,32 @@
                   <div id="ai-past-list" class="space-y-2"></div>
                 </div>
 
+                <!-- Auto-tag (Local LLM) -->
+                <div id="auto-tag-container" class="hidden">
+                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Auto-Tag with Local LLM</label>
+                  <button id="auto-tag-btn"
+                    class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition w-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3.168 3.168 0 01-.956 2.27A3 3 0 0112 21a3 3 0 01-2.137-.883 3.168 3.168 0 01-.956-2.27l-.347-.347z"/>
+                    </svg>
+                    <span id="auto-tag-btn-label">Suggest Tags</span>
+                  </button>
+                  <div id="auto-tag-panel" class="hidden mt-2 p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                    <p class="text-xs text-slate-500">Suggested tags:</p>
+                    <div id="auto-tag-chips" class="flex flex-wrap gap-1.5"></div>
+                    <div class="flex gap-2">
+                      <button id="auto-tag-apply-btn"
+                        class="text-xs px-2.5 py-1 rounded-lg bg-brand text-white hover:bg-brand/90 transition">
+                        Apply all
+                      </button>
+                      <button id="auto-tag-cancel-btn"
+                        class="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-400 transition">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
               </div>
               <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
             </div><!-- /inner-panel-ai -->
@@ -1505,6 +1515,40 @@
           </div>
         </div><!-- /tab-library -->
 
+        <!-- ---------------------------------------------------------------
+           TAB: SEARCH
+        --------------------------------------------------------------- -->
+        <div id="tab-search" class="tab-panel overflow-y-auto px-4 py-8 md:px-8" role="tabpanel">
+          <div class="max-w-2xl mx-auto">
+            <h2 class="text-xl font-bold text-slate-800 mb-1">AI Search</h2>
+            <p class="text-sm text-slate-500 mb-6">Ask a question in natural language to find relevant moments across your recordings.</p>
+
+            <!-- Search input -->
+            <div class="relative mb-8">
+              <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input id="ai-search-input" type="search" placeholder="Ask a question about your recordings…"
+                class="w-full pl-12 pr-12 py-3 rounded-xl border border-slate-200 bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand transition" />
+              <div id="ai-search-spinner" class="hidden absolute right-4 top-1/2 -translate-y-1/2">
+                <svg class="animate-spin w-4 h-4 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Results -->
+            <div id="ai-search-results">
+              <p id="ai-search-hint" class="text-sm text-slate-400 text-center py-12">
+                Search across all transcripts using natural language.<br>
+                <span class="text-xs">Requires recordings to be semantically indexed.</span>
+              </p>
+            </div>
+          </div>
+        </div><!-- /tab-search -->
+
       </div><!-- /tab panels -->
     </div><!-- /main panel -->
 
@@ -1620,9 +1664,6 @@
 
       // Auto-tag suggestions (populated by suggest-tags endpoint)
       _autoTagSuggestions: [],
-
-      // Search mode: 'keyword' or 'semantic'
-      searchMode: 'keyword',
 
       // Library data
       library: {
@@ -1930,6 +1971,7 @@
       if (!document.getElementById('tab-btn-transcript').disabled) switchTab('transcript');
     });
     document.getElementById('tab-btn-library').addEventListener('click', () => switchTab('library'));
+    document.getElementById('tab-btn-search').addEventListener('click', () => switchTab('search'));
 
     // =========================================================================
     // Model cards
@@ -3413,6 +3455,25 @@
       document.getElementById('error-msg').classList.add('hidden');
     }
 
+    let _toastTimer = null;
+    function showToast(msg, type = 'info') {
+      let el = document.getElementById('toast-notification');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast-notification';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      const base = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg pointer-events-none text-white';
+      el.className = base + (type === 'error' ? ' bg-red-600' : ' bg-slate-800');
+      el.style.opacity = '1';
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => {
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0';
+      }, 3000);
+    }
+
     // =========================================================================
     // HF Token server persistence
     // =========================================================================
@@ -4512,25 +4573,7 @@
       });
     }
 
-    function toggleSearchMode() {
-      state.searchMode = state.searchMode === 'keyword' ? 'semantic' : 'keyword';
-      const btn = document.getElementById('search-mode-toggle');
-      const input = document.getElementById('global-search-input');
-      if (state.searchMode === 'semantic') {
-        btn.textContent = 'AI';
-        btn.classList.add('bg-brand/10', 'text-brand');
-        btn.classList.remove('bg-slate-100', 'text-slate-500');
-        input.placeholder = 'Ask a question…';
-      } else {
-        btn.textContent = 'KW';
-        btn.classList.remove('bg-brand/10', 'text-brand');
-        btn.classList.add('bg-slate-100', 'text-slate-500');
-        input.placeholder = 'Search library…';
-      }
-    }
-
     async function runGlobalSearch(q) {
-      if (state.searchMode === 'semantic') { await runSemanticSearch(q); return; }
       const dropdown = document.getElementById('global-search-dropdown');
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
@@ -4562,52 +4605,8 @@
       } catch (_) { }
     }
 
-    async function runSemanticSearch(q) {
-      const dropdown = document.getElementById('global-search-dropdown');
-      dropdown.innerHTML = '<div class="search-dropdown-item text-xs text-slate-400">Searching…</div>';
-      dropdown.classList.remove('hidden');
-      try {
-        const res = await fetch(`/api/search/semantic?q=${encodeURIComponent(q)}&limit=15`);
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          dropdown.innerHTML = `<div class="search-dropdown-item text-xs text-red-400">${escHtml(err.detail || 'Semantic search failed')}</div>`;
-          return;
-        }
-        const results = await res.json();
-        if (!results.length) {
-          dropdown.innerHTML = '<div class="search-dropdown-item text-xs text-slate-400">No semantic matches found. Try indexing your recordings first.</div>';
-          return;
-        }
-        dropdown.innerHTML = '';
-        results.forEach(r => {
-          const item = document.createElement('div');
-          item.className = 'search-dropdown-item';
-          const ts = (r.start != null) ? fmtDur(r.start) : '';
-          const score = Math.round(r.score * 100);
-          item.innerHTML = `
-            <p class="text-xs font-semibold text-slate-700 truncate">${escHtml(r.filename)}</p>
-            <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-              ${ts ? `<span class="font-mono">${ts}</span>` : ''}
-              <span class="truncate">${escHtml((r.chunk_text || '').slice(0, 90))}</span>
-              <span class="shrink-0 px-1 py-0.5 rounded bg-brand/10 text-brand text-[10px] font-medium">${score}%</span>
-            </p>`;
-          item.onclick = () => {
-            dropdown.classList.add('hidden');
-            document.getElementById('global-search-input').value = '';
-            const rec = { id: r.recording_id, filename: r.filename, status: 'done', duration: r.duration, tags: [], semantic_indexed: true };
-            openRecording(rec, r.start);
-          };
-          dropdown.appendChild(item);
-        });
-        dropdown.classList.remove('hidden');
-      } catch (err) {
-        dropdown.innerHTML = `<div class="search-dropdown-item text-xs text-red-400">${escHtml(err.message)}</div>`;
-      }
-    }
-
     // Perform a search and populate the library view with matching recordings
     async function doSearchToLibrary(q) {
-      if (state.searchMode === 'semantic') { await doSemanticSearchToLibrary(q); return; }
       if (!q) {
         state.library.selectedFolderId = null;
         state.library.selectedTagId = null;
@@ -4653,42 +4652,85 @@
       }
     }
 
-    async function doSemanticSearchToLibrary(q) {
-      if (!q) { fetchLibrary(); return; }
-      try {
-        const res = await fetch(`/api/search/semantic?q=${encodeURIComponent(q)}&limit=50`);
-        if (!res.ok) { showToast((await res.json().catch(() => ({}))).detail || 'Semantic search failed', 'error'); return; }
-        const rows = await res.json();
+    // =========================================================================
+    // === AI SEARCH TAB ===
+    // =========================================================================
+    let _aiSearchTimer = null;
 
-        if (!rows.length) {
-          state.library.recordings = [];
-          renderLibrary();
-          if (state.activeTab !== 'library') switchTab('library');
+    async function runAISearch(q) {
+      const resultsEl = document.getElementById('ai-search-results');
+      const spinner = document.getElementById('ai-search-spinner');
+
+      if (q.length < 3) {
+        resultsEl.innerHTML = `<p class="text-sm text-slate-400 text-center py-12">
+          Search across all transcripts using natural language.<br>
+          <span class="text-xs">Requires recordings to be semantically indexed.</span>
+        </p>`;
+        return;
+      }
+
+      spinner.classList.remove('hidden');
+      resultsEl.innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/search/semantic?q=${encodeURIComponent(q)}&limit=20`);
+        spinner.classList.add('hidden');
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          resultsEl.innerHTML = `<p class="text-sm text-red-400 text-center py-8">${escHtml(err.detail || 'Search failed. Please try again.')}</p>`;
           return;
         }
 
-        // De-duplicate by recording_id, keeping best score per recording
-        const best = {};
-        rows.forEach(r => { if (!best[r.recording_id] || r.score > best[r.recording_id].score) best[r.recording_id] = r; });
-        const unique = Object.values(best).sort((a, b) => b.score - a.score);
+        const results = await res.json();
 
-        const recPromises = unique.map(r => fetch(`/api/recordings/${r.recording_id}`).then(rp => rp.ok ? rp.json() : null).catch(() => null));
-        const recs = (await Promise.all(recPromises)).filter(Boolean);
-        state.library.recordings = recs;
-        state.library.selectedFolderId = null;
-        state.library.selectedTagId = null;
-
-        const label = document.getElementById('library-folder-label');
-        if (label) {
-          label.textContent = `AI results for "${q}"`;
-          label.style.backgroundColor = hexToRgba('#6c63ff', 0.09);
+        if (!results.length) {
+          resultsEl.innerHTML = `<p class="text-sm text-slate-400 text-center py-12">No matches found. Try rephrasing your question.</p>`;
+          return;
         }
 
-        renderLibrary();
-        if (state.activeTab !== 'library') switchTab('library');
+        resultsEl.innerHTML = '';
+        results.forEach(r => {
+          const score = Math.round(r.score * 100);
+          const ts = (r.start != null) ? fmtDur(r.start) : null;
+          const card = document.createElement('div');
+          card.className = 'flex flex-col gap-1 px-4 py-3 rounded-xl border border-slate-100 bg-white hover:border-brand/40 hover:shadow-sm cursor-pointer transition mb-3';
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm font-semibold text-slate-700 truncate">${escHtml(r.filename)}</p>
+              <div class="flex items-center gap-2 shrink-0">
+                ${ts ? `<span class="text-xs font-mono text-slate-400">${ts}</span>` : ''}
+                <span class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand text-[11px] font-medium">${score}%</span>
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 line-clamp-2">${escHtml((r.chunk_text || '').slice(0, 160))}</p>
+          `;
+          card.onclick = () => {
+            const rec = { id: r.recording_id, filename: r.filename, status: 'done', duration: r.duration, tags: [], semantic_indexed: true };
+            openRecording(rec, r.start);
+          };
+          resultsEl.appendChild(card);
+        });
       } catch (err) {
-        console.error('Semantic search to library failed', err);
+        spinner.classList.add('hidden');
+        resultsEl.innerHTML = `<p class="text-sm text-red-400 text-center py-8">${escHtml(err.message)}</p>`;
       }
+    }
+
+    function initAISearch() {
+      const input = document.getElementById('ai-search-input');
+      input.addEventListener('input', () => {
+        clearTimeout(_aiSearchTimer);
+        const q = input.value.trim();
+        _aiSearchTimer = setTimeout(() => runAISearch(q), 400);
+      });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          clearTimeout(_aiSearchTimer);
+          runAISearch(input.value.trim());
+        }
+      });
     }
 
     // =========================================================================
@@ -4784,6 +4826,7 @@
       }
 
       initGlobalSearch();
+      initAISearch();
     }
 
     // =========================================================================
@@ -5057,7 +5100,7 @@
 
     async function autoTagRecording() {
       const recId = state.activeRecordingId || state.recordingId;
-      if (!recId) return;
+      if (!recId) { clientLog('Auto-tag: no active recording', 'WARN'); return; }
       const btn = document.getElementById('auto-tag-btn');
       const label = document.getElementById('auto-tag-btn-label');
       const panel = document.getElementById('auto-tag-panel');
@@ -5065,15 +5108,20 @@
 
       btn.disabled = true;
       label.textContent = 'Thinking…';
+      clientLog(`Auto-tag: requesting suggestions for recording ${recId}`);
 
       try {
         const res = await fetch(`/api/recordings/${recId}/suggest-tags`, { method: 'POST' });
+        clientLog(`Auto-tag: response status ${res.status}`);
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Suggestion failed');
+          const msg = err.detail || `HTTP ${res.status}`;
+          clientLog(`Auto-tag: error — ${msg}`, 'ERROR');
+          throw new Error(msg);
         }
         const data = await res.json();
         state._autoTagSuggestions = data.suggestions || [];
+        clientLog(`Auto-tag: received ${state._autoTagSuggestions.length} suggestion(s): ${state._autoTagSuggestions.map(s => s.name).join(', ') || 'none'}`);
 
         if (!state._autoTagSuggestions.length) {
           showToast('No tag suggestions returned');
@@ -5086,10 +5134,11 @@
 
         panel.classList.remove('hidden');
       } catch (err) {
+        clientLog(`Auto-tag: failed — ${err.message}`, 'ERROR');
         showToast('Auto-tag failed: ' + err.message, 'error');
       } finally {
         btn.disabled = false;
-        label.textContent = 'Auto-tag';
+        label.textContent = 'Suggest Tags';
       }
     }
 
@@ -5101,22 +5150,27 @@
       const applyBtn = document.getElementById('auto-tag-apply-btn');
       applyBtn.disabled = true;
       applyBtn.textContent = 'Applying…';
+      clientLog(`Auto-tag: applying ${suggestions.length} tag(s) to recording ${recId}`);
 
       try {
         for (const s of suggestions) {
           let tagId = s.existing_tag_id;
 
           if (!tagId) {
+            clientLog(`Auto-tag: creating new tag "${s.name}"`);
             const fd = new FormData();
             fd.append('name', s.name);
             fd.append('color_code', s.color_code);
             const cr = await fetch('/api/tags', { method: 'POST', body: fd });
-            if (!cr.ok) continue;
+            if (!cr.ok) { clientLog(`Auto-tag: failed to create tag "${s.name}" (${cr.status})`, 'WARN'); continue; }
             const tag = await cr.json();
             tagId = tag.id;
+          } else {
+            clientLog(`Auto-tag: reusing existing tag "${s.name}" (id=${tagId})`);
           }
 
-          await fetch(`/api/recordings/${recId}/tags/${tagId}`, { method: 'POST' });
+          const linkRes = await fetch(`/api/recordings/${recId}/tags/${tagId}`, { method: 'POST' });
+          clientLog(`Auto-tag: linked tag "${s.name}" — status ${linkRes.status}`);
         }
 
         // Refresh recording metadata and tags display
@@ -5133,8 +5187,10 @@
         fetchTags();
         document.getElementById('auto-tag-panel').classList.add('hidden');
         state._autoTagSuggestions = [];
+        clientLog(`Auto-tag: done — ${suggestions.length} tag(s) applied`);
         showToast(`Applied ${suggestions.length} tag(s)`);
       } catch (err) {
+        clientLog(`Auto-tag: apply failed — ${err.message}`, 'ERROR');
         showToast('Failed to apply tags: ' + err.message, 'error');
       } finally {
         applyBtn.disabled = false;

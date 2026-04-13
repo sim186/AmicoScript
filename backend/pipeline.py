@@ -14,6 +14,7 @@ Diarization fixes applied here:
 """
 import asyncio
 import gc
+import logging
 import os
 import shutil
 import subprocess
@@ -22,6 +23,8 @@ import time
 import traceback
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 from sqlmodel import select
 
 import state
@@ -976,31 +979,43 @@ def _suggest_tags_llm(prompt: str, cfg: dict) -> list:
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    url = f"{base_url}/v1/chat/completions"
+    logger.info("suggest-tags: POST %s model=%s", url, model_name)
+
     payload = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
         "max_tokens": 200,
     }
-    resp = _req.post(
-        f"{base_url}/v1/chat/completions",
-        json=payload,
-        headers=headers,
-        timeout=30,
-    )
+    try:
+        resp = _req.post(url, json=payload, headers=headers, timeout=30)
+    except Exception as exc:
+        logger.error("suggest-tags: request failed — %s", exc)
+        raise
+
+    logger.info("suggest-tags: response status %s", resp.status_code)
     resp.raise_for_status()
     content = resp.json()["choices"][0]["message"]["content"].strip()
+    logger.info("suggest-tags: raw LLM output: %r", content[:300])
 
     # Robustly extract the first [...] JSON array from the response
     match = _re.search(r'\[.*?\]', content, _re.DOTALL)
     if not match:
+        logger.error("suggest-tags: no JSON array in response: %r", content[:200])
         raise ValueError(f"LLM did not return a JSON array. Got: {content[:200]!r}")
     candidates = _json.loads(match.group())
-    return [str(s).strip().lower() for s in candidates if isinstance(s, str) and s.strip()][:5]
+    result = [str(s).strip().lower() for s in candidates if isinstance(s, str) and s.strip()][:5]
+    logger.info("suggest-tags: parsed tags: %s", result)
+    return result
 
 
 def _get_embedding(text: str, cfg: dict) -> list:
-    """Call Ollama's /api/embed endpoint and return the embedding vector."""
+    """Call Ollama's embedding endpoint and return the embedding vector.
+
+    Tries the newer /api/embed endpoint first (Ollama ≥ 0.5.0); falls back to
+    the legacy /api/embeddings endpoint for older installations.
+    """
     import requests as _req
 
     base_url = cfg["llm_base_url"].rstrip("/")
@@ -1010,13 +1025,41 @@ def _get_embedding(text: str, cfg: dict) -> list:
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    def _raise_friendly(r):
+        """Raise a clear error, surfacing Ollama's own message when available."""
+        try:
+            msg = r.json().get("error") or r.text
+        except Exception:
+            msg = r.text
+        if r.status_code == 404 and "not found" in msg.lower():
+            raise RuntimeError(
+                f"Embedding model '{model_name}' not found in Ollama. "
+                f"Run: ollama pull {model_name}"
+            )
+        r.raise_for_status()
+
     resp = _req.post(
         f"{base_url}/api/embed",
         json={"model": model_name, "input": text},
         headers=headers,
         timeout=30,
     )
-    resp.raise_for_status()
+
+    if resp.status_code == 404:
+        body = resp.json() if resp.content else {}
+        if "not found" in body.get("error", "").lower():
+            _raise_friendly(resp)
+        # Endpoint not found — try legacy /api/embeddings (Ollama < 0.5.0)
+        resp = _req.post(
+            f"{base_url}/api/embeddings",
+            json={"model": model_name, "prompt": text},
+            headers=headers,
+            timeout=30,
+        )
+        _raise_friendly(resp)
+        return resp.json()["embedding"]
+
+    _raise_friendly(resp)
     return resp.json()["embeddings"][0]
 
 

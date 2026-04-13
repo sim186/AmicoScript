@@ -12,6 +12,7 @@ all API routes, and delegates heavy lifting to the focused modules below.
 """
 import asyncio
 import json
+import logging
 import os
 import re
 import sys
@@ -20,6 +21,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import Optional
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 # Must be set before torch is imported anywhere (even transitively).
 os.environ["OMP_NUM_THREADS"] = "1"
