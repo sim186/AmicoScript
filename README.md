@@ -109,13 +109,13 @@ Feedback and benchmarks are welcome.
 
 For reproducible benchmarking instructions, see the [BENCHMARKS.md](BENCHMARKS.md) page.
 
-If the performance on your machine are not acceptable take a look to the Google Colab section.
+If the performance on your machine are not acceptable and you are fine with releasing a bit of local-first philosophy take a look to the Google Colab section.
 
 ---
 
 ## ☁️ Optional: Cloud Power (Google Colab)
 
-If you don't have a powerful local GPU, you can offload the heavy transcription workload to Google Colab for free while keeping the application and your file library strictly local.
+If you don't have a powerful local GPU, you can offload the heavy transcription workload to Google Colab for free while keeping the application and your file library strictly local. This option is absolutely optional.
 
 1. Toggle **Cloud Power** on in the sidebar.
 2. Click **Open notebook in Colab ↗** — this opens the notebook directly in Google Colab without any manual upload.
