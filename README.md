@@ -83,6 +83,9 @@ pip install -r backend/requirements.txt
 python run.py
 ```
 
+## 🏃🏼 Running from the installer
+In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
+
 ### macOS: Running unsigned apps (Not disabling Gatekeeper)
 
 1. Download the latest release from the Releases page.
@@ -90,7 +93,6 @@ python run.py
 3. Unzip the downloaded file. Double-click the application file (`AmicoScript.app`). macOS will prevent it from opening because it's from an unidentified developer.
 4. In System Settings → Privacy & Security, click the "Open Anyway" button next to the blocked app, then confirm when prompted to allow the application to run.
 5. The app will launch — you're ready to create icns files from PNG, JPG, or other image formats.
-
 
 `run.py` will download `ffmpeg` automatically on first run.
 
@@ -106,6 +108,8 @@ Performance depends on your hardware (CPU/GPU) and selected model size.
 Feedback and benchmarks are welcome.
 
 For reproducible benchmarking instructions, see the [BENCHMARKS.md](BENCHMARKS.md) page.
+
+If the performance on your machine are not acceptable take a look to the Google Colab section.
 
 ---
 
