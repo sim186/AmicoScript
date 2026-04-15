@@ -6,6 +6,26 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ✨ Improvements
+
+- Backend API modularization: split the monolithic FastAPI routes into dedicated router modules under `backend/api/routes/` (`settings`, `llm`, `analyses`, `releases`, `transcription`, `library`, `folders_tags`) and reduced `backend/main.py` to startup, worker orchestration, and static mounts.
+- Worker/message cleanup: introduced `backend/core/messages.py` to centralize repeated status strings used across transcription and Colab proxy flows.
+- Resilience cleanup: narrowed several broad exception handlers in core modules to more specific expected failure types while preserving retry and fallback behavior.
+
+### 🧪 Tests
+
+- Added unit tests for diarization speaker assignment overlap/fallback logic.
+- Added unit tests for audio normalization helpers and ffmpeg-missing fallback paths.
+- Added unit tests for Whisper model cache key behavior (`compute_type`, `device`, `device_index`).
+- Added unit tests for CUDA/VAD error classifiers.
+- Added mocked integration tests for transcription flow orchestration and cancellation path.
+- Added mocked integration tests for Colab proxy success/error forwarding.
+- Added retry-behavior test coverage for `_sync_job_to_db`.
+- Added `tests/conftest.py` bootstrap to support backend-style imports in test runtime.
+
+### 🐛 Fixes
+
+- Fixed DB sync retry handling regression by allowing transient `RuntimeError` to be retried in `_sync_job_to_db`.
 
 
 ## [1.6.0] - 2026-04-14

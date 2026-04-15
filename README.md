@@ -28,7 +28,7 @@ AmicoScript keeps everything local.
 
 ## 🚀 Features
 
-- 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, ACC, MP4, MOV, MKV)
+- 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, AAC, MP4, MOV, MKV)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
 - 🤖 AI analysis (summary, action items, translation, custom prompts)
@@ -45,6 +45,9 @@ AmicoScript keeps everything local.
 - 🚀 For Mac, Windows, Docker, or local Python
 
 ---
+
+## ⛔️ Disclaimer
+AmicoScript is a personal project and not affiliated with OpenAI. It uses OpenAI's Whisper models, which are open-source, but AmicoScript itself is independently developed. Use at your own risk. I cannot guarantee the security, privacy, or performance of the application. Always review the code and understand how it works before running it on your machine.
 
 ## ⚡ Example
 
@@ -83,6 +86,12 @@ pip install -r backend/requirements.txt
 python run.py
 ```
 
+### Tests
+
+```bash
+pytest -q
+```
+
 ## 🏃🏼 Running from the installer
 In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
 
@@ -92,7 +101,7 @@ In the [releases](https://github.com/sim186/AmicoScript/releases) page you can d
 2. Because the app is not signed by Apple, macOS will initially block it. Open System Settings → Privacy & Security and enable "App Store and identified developers" (allow apps downloaded from App Store and identified developers).
 3. Unzip the downloaded file. Double-click the application file (`AmicoScript.app`). macOS will prevent it from opening because it's from an unidentified developer.
 4. In System Settings → Privacy & Security, click the "Open Anyway" button next to the blocked app, then confirm when prompted to allow the application to run.
-5. The app will launch — you're ready to create icns files from PNG, JPG, or other image formats.
+5. The app will launch normally after confirmation.
 
 `run.py` will download `ffmpeg` automatically on first run.
 
@@ -106,8 +115,6 @@ Performance depends on your hardware (CPU/GPU) and selected model size.
 - Smaller models → faster processing
 
 Feedback and benchmarks are welcome.
-
-For reproducible benchmarking instructions, see the [BENCHMARKS.md](BENCHMARKS.md) page.
 
 If the performance on your machine are not acceptable and you are fine with releasing a bit of local-first philosophy take a look to the Google Colab section.
 
@@ -130,7 +137,7 @@ If you don't have a powerful local GPU, you can offload the heavy transcription 
 
 ![Ngrok Token](images/ngrok_token.png)
 
-![Ngrok Collab](images/ngrok_colab_token.png)
+![Ngrok Colab](images/ngrok_colab_token.png)
 
 6. Copy the generated `.ngrok-free.app` URL and paste it into the **Colab Bridge URL** field in AmicoScript.
 
@@ -170,10 +177,10 @@ Full documentation (API, setup, details):
 
 ## 🏗️ Architecture (brief)
 
-- Backend: Python + FastAPI
+- Backend: Python + FastAPI (`backend/main.py` + modular routers in `backend/api/routes/`)
 - Frontend: Single HTML (no build step)
-- Processing: Background jobs
-- Storage: Temporary local files (auto-cleanup)
+- Processing: Sequential background worker (`asyncio.Queue`) with structured logging
+- Storage: Local SQLite metadata + local managed recording files (with temp-file cleanup)
 
 ---
 
