@@ -6,10 +6,13 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.8.0] - 2026-04-15
 ### ✨ Improvements
 - URL source support in the downloader flow to include YouTube, TikTok, Instagram, Facebook, X, Vimeo, and Twitch (through `yt-dlp` resolution).
 - Automatic platform tagging: recordings imported from URLs now receive a source tag (for example `youtube`, `tiktok`, `instagram`) for easier filtering in the library.
-
+- No change details provided.
 
 ## [1.7.0] - 2026-04-15
 ### ✨ Improvements
