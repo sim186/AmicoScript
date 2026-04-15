@@ -9,6 +9,7 @@ from typing import Optional
 import state
 from db import new_session
 from models import Recording, Transcript
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from utils.logging_utils import get_logger
@@ -68,7 +69,7 @@ def _push_event(
     else:
         try:
             queue.put_nowait(event)
-        except Exception:
+        except asyncio.QueueFull:
             pass
 
 
@@ -131,7 +132,7 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
                 session.add(rec)
                 session.commit()
                 return
-        except Exception:
+        except (SQLAlchemyError, OSError, RuntimeError, TypeError, ValueError):
             if attempt == retries:
                 logger.exception(
                     "Failed to sync job to database",

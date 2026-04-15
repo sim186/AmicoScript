@@ -19,6 +19,16 @@ from core.job_helpers import (
     _push_event,
     _sync_job_to_db,
 )
+from core.messages import (
+    COLAB_UPLOADING,
+    TRANSCRIPTION_CANCELLED,
+    TRANSCRIPTION_COMPLETE,
+    TRANSCRIPTION_GPU_FALLBACK,
+    TRANSCRIPTION_LOADING_MODEL,
+    TRANSCRIPTION_STARTING,
+    TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
+    TRANSCRIPTION_WAITING_FIRST_SEGMENT,
+)
 from exports import _ts as format_timestamp
 
 
@@ -98,7 +108,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     opts = job["options"]
     file_path = job["file_path"]
 
-    _push_event(job_id, "loading_model", 0.03, f"Loading model '{opts['model']}'...")
+    _push_event(job_id, "loading_model", 0.03, TRANSCRIPTION_LOADING_MODEL.format(model=opts["model"]))
 
     model, model_device = _get_whisper_model(
         opts["model"],
@@ -111,7 +121,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
         job_id,
         "transcribing",
         0.05,
-        "Starting transcription (first progress update may take time on long files/CPU)...",
+        TRANSCRIPTION_STARTING,
     )
 
     if opts.get("diarize"):
@@ -125,7 +135,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     else:
         try:
             ffmpeg_helper.start_background_download()
-        except Exception:
+        except (RuntimeError, OSError):
             pass
 
     lang = opts.get("language") or None
@@ -151,14 +161,14 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                 job_id,
                 "transcribing",
                 0.05,
-                f"Still transcribing... waiting for first segment ({waited_seconds}s)",
+                TRANSCRIPTION_WAITING_FIRST_SEGMENT.format(seconds=waited_seconds),
             )
             if waited_seconds >= 600:
                 _push_event(
                     job_id,
                     "error",
                     -1,
-                    "Transcription timed out before first segment. Try a smaller model or split the audio.",
+                    TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
                 )
                 job["cancel_flag"].set()
                 stop_first_segment_watchdog.set()
@@ -193,7 +203,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                     best_of=best_of,
                 )
             elif model_device != "cpu" and _is_missing_cuda_runtime_error(exc):
-                _push_event(job_id, "transcribing", 0.05, "GPU runtime unavailable. Retrying on CPU...")
+                _push_event(job_id, "transcribing", 0.05, TRANSCRIPTION_GPU_FALLBACK)
                 model, _ = _get_whisper_model(
                     opts["model"],
                     compute_type=opts.get("compute_type", "int8"),
@@ -220,7 +230,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                 stop_first_segment_watchdog.set()
 
             if job["cancel_flag"].is_set():
-                _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+                _push_event(job_id, "cancelled", 0.0, TRANSCRIPTION_CANCELLED)
                 _sync_job_to_db(job_id)
                 return [], {"cancelled": True}
 
@@ -266,7 +276,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
             if callable(close_fn):
                 try:
                     close_fn()
-                except Exception:
+                except (RuntimeError, OSError):
                     pass
 
 
@@ -285,7 +295,7 @@ def _finalize_transcription_result(
         "segments": segments_list,
     }
     state.jobs[job_id]["result"] = result
-    _push_event(job_id, "done", 1.0, "Transcription complete.", data=result)
+    _push_event(job_id, "done", 1.0, TRANSCRIPTION_COMPLETE, data=result)
     _sync_job_to_db(job_id)
     return result
 
@@ -334,7 +344,7 @@ def _process_job(job_id: str) -> None:
             import torch as _torch
             if hasattr(_torch, "cuda") and _torch.cuda.is_available():
                 _torch.cuda.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError):
             pass
         gc.collect()
 

@@ -54,7 +54,7 @@ def _translate_audio_chunk(
         model, _ = _get_whisper_model(model_name)
         segments, _ = model.transcribe(chunk_path, task="translate")
         return " ".join(s.text.strip() for s in segments).strip()
-    except Exception as exc:
+    except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as exc:
         return f"Translation error: {exc}"
     finally:
         if os.path.exists(chunk_path):

@@ -5,6 +5,7 @@ import requests
 
 import state
 from core.job_helpers import _append_job_log, _handle_job_error, _push_event, _sync_job_to_db
+from core.messages import COLAB_UPLOADING, TRANSCRIPTION_CANCELLED, TRANSCRIPTION_COMPLETE
 
 
 def _handle_colab_job(job_id: str) -> None:
@@ -15,7 +16,7 @@ def _handle_colab_job(job_id: str) -> None:
     colab_url = (opts.get("colab_url") or "").rstrip("/")
 
     _append_job_log(job_id, "INFO", f"Forwarding job to Colab engine at {colab_url}")
-    _push_event(job_id, "transcribing", 0.05, "Uploading file to Google Colab...")
+    _push_event(job_id, "transcribing", 0.05, COLAB_UPLOADING)
 
     try:
         with open(file_path, "rb") as fh:
@@ -52,7 +53,7 @@ def _handle_colab_job(job_id: str) -> None:
                         requests.post(f"{colab_url}/api/jobs/{colab_job_id}/cancel", timeout=10)
                     except requests.RequestException:
                         _append_job_log(job_id, "WARN", "Failed to cancel remote Colab job")
-                    _push_event(job_id, "cancelled", 0.0, "Cancelled.")
+                    _push_event(job_id, "cancelled", 0.0, TRANSCRIPTION_CANCELLED)
                     _sync_job_to_db(job_id)
                     return
 
@@ -78,7 +79,7 @@ def _handle_colab_job(job_id: str) -> None:
                     )
                     res_resp.raise_for_status()
                     job["result"] = res_resp.json()
-                    _push_event(job_id, "done", 1.0, "Transcription complete.", data=job["result"])
+                    _push_event(job_id, "done", 1.0, TRANSCRIPTION_COMPLETE, data=job["result"])
                     _sync_job_to_db(job_id)
                     return
 

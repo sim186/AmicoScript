@@ -1,5 +1,6 @@
 """LLM analysis job processing."""
 import json as _json
+from json import JSONDecodeError
 
 import requests as _req
 
@@ -124,7 +125,7 @@ def _process_analysis_job(job_id: str) -> None:
 
                 try:
                     chunk = _json.loads(line)
-                except Exception:
+                except JSONDecodeError:
                     continue
 
                 delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
