@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -60,6 +61,16 @@ class DownloadCandidate:
 
 ProgressCallback = Callable[[str, float, str], None]
 
+AUTH_RETRY_PLATFORMS = {"instagram", "tiktok", "facebook", "x"}
+AUTH_ERROR_MARKERS = (
+    "login required",
+    "cookies",
+    "rate-limit",
+    "rate limit",
+    "requested content is not available",
+    "not available",
+)
+
 
 def _get_yt_dlp_class():
     try:
@@ -69,6 +80,67 @@ def _get_yt_dlp_class():
             "yt-dlp is not available. Install backend dependencies again to enable online imports."
         ) from exc
     return YoutubeDL
+
+
+def _should_auto_cookies() -> bool:
+    value = (os.environ.get("AMICO_YTDLP_AUTO_COOKIES", "1") or "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _cookie_browsers() -> list[str]:
+    raw = os.environ.get("AMICO_YTDLP_COOKIE_BROWSERS", "chrome,firefox,safari,edge")
+    browsers = [b.strip().lower() for b in raw.split(",") if b.strip()]
+    return browsers or ["chrome", "firefox", "safari", "edge"]
+
+
+def _is_auth_or_rate_limit_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in AUTH_ERROR_MARKERS)
+
+
+def _raise_with_helpful_message(source_url: str, platform: str, exc: Exception) -> None:
+    message = str(exc)
+    if platform in AUTH_RETRY_PLATFORMS and _is_auth_or_rate_limit_error(exc):
+        raise RuntimeError(
+            (
+                f"{platform.title()} access is currently restricted. "
+                "Please log into that platform in your browser and retry. "
+                "If this persists, set AMICO_YTDLP_COOKIE_BROWSERS to your browser list "
+                "(e.g. chrome,firefox,safari). "
+                f"Original error: {message}"
+            )
+        ) from exc
+    raise RuntimeError(message) from exc
+
+
+def _extract_info_with_retries(source_url: str, base_opts: dict, download: bool) -> dict:
+    """Run yt-dlp extraction and retry with browser cookies when platform requires auth."""
+    YoutubeDL = _get_yt_dlp_class()
+    platform = detect_source_platform(source_url)
+
+    attempts: list[str | None] = [None]
+    if _should_auto_cookies() and platform in AUTH_RETRY_PLATFORMS:
+        attempts.extend(_cookie_browsers())
+
+    last_error: Exception | None = None
+    for browser in attempts:
+        opts = dict(base_opts)
+        if browser:
+            opts["cookiesfrombrowser"] = (browser,)
+        try:
+            with YoutubeDL(opts) as ydl:
+                return ydl.extract_info(source_url, download=download)
+        except Exception as exc:
+            last_error = exc
+            if browser:
+                continue
+            if len(attempts) > 1 and _is_auth_or_rate_limit_error(exc):
+                continue
+            _raise_with_helpful_message(source_url, platform, exc)
+
+    if last_error is not None:
+        _raise_with_helpful_message(source_url, platform, last_error)
+    raise RuntimeError("Unable to fetch source URL")
 
 
 def detect_source_platform(url: str) -> str:
@@ -113,7 +185,6 @@ def resolve_source_candidates(source_url: str, include_playlist: bool = True) ->
     if not is_supported_source_url(source_url):
         raise RuntimeError("Unsupported source URL")
 
-    YoutubeDL = _get_yt_dlp_class()
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -121,9 +192,7 @@ def resolve_source_candidates(source_url: str, include_playlist: bool = True) ->
         "skip_download": True,
         "noplaylist": not include_playlist,
     }
-
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(source_url, download=False)
+    info = _extract_info_with_retries(source_url, opts, download=False)
 
     if not info:
         return []
@@ -160,7 +229,6 @@ def download_source_audio(source_url: str, out_dir: Path, on_progress: ProgressC
     if not is_supported_source_url(source_url):
         raise RuntimeError("Unsupported source URL")
 
-    YoutubeDL = _get_yt_dlp_class()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     def _emit(status: str, progress: float, message: str) -> None:
@@ -188,15 +256,17 @@ def download_source_audio(source_url: str, out_dir: Path, on_progress: ProgressC
         "progress_hooks": [_hook],
     }
 
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(source_url, download=True)
-        requested = (info or {}).get("requested_downloads") if isinstance(info, dict) else None
-        title = str((info or {}).get("title") or "Online audio") if isinstance(info, dict) else "Online audio"
+    info = _extract_info_with_retries(source_url, opts, download=True)
+    requested = (info or {}).get("requested_downloads") if isinstance(info, dict) else None
+    title = str((info or {}).get("title") or "Online audio") if isinstance(info, dict) else "Online audio"
 
-        if isinstance(requested, list) and requested:
-            path_str = requested[0].get("filepath")
-            if path_str:
-                return Path(path_str), title
+    if isinstance(requested, list) and requested:
+        path_str = requested[0].get("filepath")
+        if path_str:
+            return Path(path_str), title
 
-        prepared = ydl.prepare_filename(info)
-        return Path(prepared), title
+    fallback_path = str((info or {}).get("_filename") or "") if isinstance(info, dict) else ""
+    if fallback_path:
+        return Path(fallback_path), title
+
+    raise RuntimeError("Downloaded media path not returned by source extractor")

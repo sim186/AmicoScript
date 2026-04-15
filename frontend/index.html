@@ -562,6 +562,7 @@
     .inner-tab-panel {
       display: none;
     }
+
     .inner-tab-panel.active {
       display: flex;
       flex-direction: column;
@@ -573,21 +574,27 @@
        MOBILE RESPONSIVE (< 768px)
        ==================================================== */
     @media (max-width: 767px) {
+
       /* Sidebar: off-canvas overlay instead of inline flex sibling */
       #sidebar {
         position: fixed !important;
-        left: 0; top: 0; bottom: 0;
+        left: 0;
+        top: 0;
+        bottom: 0;
         width: min(20rem, 88vw);
         z-index: 50;
-        display: flex !important; /* always in DOM, never display:none */
+        display: flex !important;
+        /* always in DOM, never display:none */
         transform: translateX(-100%);
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: none;
       }
+
       #sidebar.mobile-open {
         transform: translateX(0);
         box-shadow: 8px 0 32px rgba(15, 23, 42, 0.18);
       }
+
       /* Backdrop behind open sidebar */
       #sidebar-backdrop {
         position: fixed;
@@ -598,15 +605,18 @@
         -webkit-backdrop-filter: blur(2px);
         display: none;
       }
+
       #sidebar-backdrop.active {
         display: block;
       }
+
       /* Shortcuts modal: full width */
       #shortcuts-card {
         max-width: calc(100vw - 2rem);
         border-radius: 16px;
         margin: 1rem;
       }
+
       /* Segment action buttons: always visible on touch (no hover) */
       .seg-actions-overlay {
         visibility: visible;
@@ -646,7 +656,8 @@
 
           <!-- Model -->
           <div>
-            <label for="model-select" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Model</label>
+            <label for="model-select"
+              class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Model</label>
             <select id="model-select" aria-label="Whisper model"
               class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"></select>
           </div>
@@ -748,7 +759,8 @@
 
           <!-- Cloud Power -->
           <div class="mt-6 border-t border-slate-100 pt-5">
-            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <h2
+              class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
               Cloud Power
               <span class="px-1.5 py-0.5 rounded-full bg-brand-muted/20 text-brand text-[10px] font-bold">BETA</span>
             </h2>
@@ -769,13 +781,16 @@
                 <label for="colab-url-input" class="block text-xs text-slate-500 mb-1">Colab Bridge URL</label>
                 <input type="url" id="colab-url-input" placeholder="https://...ngrok-free.app" autocomplete="off"
                   class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
-                <p class="mt-1 text-[10px] text-slate-400">The URL changes every session — re-paste it after restarting the notebook.</p>
+                <p class="mt-1 text-[10px] text-slate-400">The URL changes every session — re-paste it after restarting
+                  the notebook.</p>
                 <p class="mt-2 text-xs flex items-center justify-between">
                   <a href="https://colab.research.google.com/github/sim186/amico-script/blob/main/scripts/colab_bridge.ipynb"
                     target="_blank" rel="noopener"
                     class="text-brand hover:underline flex items-center gap-1 font-medium">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                     Open notebook in Colab ↗
                   </a>
@@ -806,7 +821,8 @@
           <!-- Audio player -->
           <div id="player-section">
             <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Player</h2>
-            <div id="waveform" class="w-full rounded-lg bg-slate-50 border border-slate-200" style="min-height:80px;" aria-label="Audio waveform"></div>
+            <div id="waveform" class="w-full rounded-lg bg-slate-50 border border-slate-200" style="min-height:80px;"
+              aria-label="Audio waveform"></div>
             <div id="waveform-loading" class="hidden text-xs text-center text-slate-400 py-2">Generating waveform…</div>
             <!-- Playback controls -->
             <div class="flex items-center gap-3 mt-2">
@@ -814,12 +830,14 @@
                 class="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1 disabled:opacity-40"
                 disabled>
                 <!-- Play icon (default) -->
-                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z"/>
+                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor"
+                  viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
                 </svg>
                 <!-- Pause icon (hidden while paused) -->
-                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 hidden" fill="currentColor"
+                  viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
               </button>
               <span id="player-time" class="text-xs text-slate-400 tabular-nums">0:00 / 0:00</span>
@@ -842,9 +860,12 @@
 
           <!-- LLM Settings -->
           <details id="llm-settings-details" class="group">
-            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
               <span>LLM Settings</span>
-              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </summary>
@@ -867,35 +888,44 @@
                   </button>
                 </div>
                 <!-- Model browser panel -->
-                <div id="llm-models-panel" class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                <div id="llm-models-panel"
+                  class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                   <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                     <span class="text-xs font-semibold text-slate-600">Models</span>
-                    <button id="llm-refresh-models-btn" type="button" class="text-xs text-slate-400 hover:text-brand transition">↻ Refresh</button>
+                    <button id="llm-refresh-models-btn" type="button"
+                      class="text-xs text-slate-400 hover:text-brand transition">↻ Refresh</button>
                   </div>
                   <div id="llm-installed-section" class="hidden">
-                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Installed</p>
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Installed</p>
                     <div id="llm-installed-list"></div>
                   </div>
                   <div>
-                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Popular</p>
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Popular</p>
                     <div id="llm-popular-list"></div>
                   </div>
                 </div>
               </div>
               <!-- API Key (optional) -->
               <div>
-                <label for="llm-api-key" class="block text-xs text-slate-500 mb-0.5">API Key <span class="font-normal">(optional)</span></label>
+                <label for="llm-api-key" class="block text-xs text-slate-500 mb-0.5">API Key <span
+                    class="font-normal">(optional)</span></label>
                 <div class="relative">
                   <input id="llm-api-key" type="password" placeholder="Leave empty for Ollama"
                     class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-brand" />
                   <button type="button" id="llm-key-eye"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
-                    <svg id="llm-key-eye-open" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    <svg id="llm-key-eye-open" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                      viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                    <svg id="llm-key-eye-closed" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"/>
+                    <svg id="llm-key-eye-closed" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
                     </svg>
                   </button>
                 </div>
@@ -963,7 +993,8 @@
           <a id="github-link" href="https://github.com/sim186/amico-script" target="_blank" rel="noopener"
             class="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+              <path
+                d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
             </svg>
             GitHub
           </a>
@@ -992,14 +1023,22 @@
   =================================================================== -->
     <div class="flex-1 flex flex-col min-w-0 h-full">
       <!-- Update banner (hidden by default). Populated by JS on startup if update available. -->
-      <div id="update-banner" class="hidden bg-yellow-50 border-b border-yellow-100 text-yellow-800 px-4 py-3 flex items-center justify-between">
+      <div id="update-banner"
+        class="hidden bg-yellow-50 border-b border-yellow-100 text-yellow-800 px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a10 10 0 100 20 10 10 0 000-20z"></path></svg>
+          <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 2a10 10 0 100 20 10 10 0 000-20z"></path>
+          </svg>
           <div id="update-banner-text" class="text-sm">A new version is available.</div>
         </div>
         <div class="flex items-center gap-2">
-          <a id="update-banner-link" class="text-sm font-semibold text-yellow-800 hover:underline" target="_blank" rel="noopener">View release</a>
-          <button id="update-banner-dismiss" class="text-sm text-yellow-700 bg-transparent border-0 px-2 py-1 rounded hover:bg-yellow-100">Dismiss</button>
+          <a id="update-banner-link" class="text-sm font-semibold text-yellow-800 hover:underline" target="_blank"
+            rel="noopener">View release</a>
+          <button id="update-banner-dismiss"
+            class="text-sm text-yellow-700 bg-transparent border-0 px-2 py-1 rounded hover:bg-yellow-100">Dismiss</button>
         </div>
       </div>
 
@@ -1008,8 +1047,9 @@
         <!-- Hamburger drawer toggle -->
         <button id="drawer-toggle" onclick="toggleDrawer()" aria-label="Toggle sidebar"
           class="flex items-center justify-center w-9 h-9 mb-1 rounded-lg text-slate-500 hover:text-brand hover:bg-brand-muted/30 transition focus:outline-none shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
         <button id="tab-btn-transcribe"
@@ -1045,13 +1085,15 @@
             </button>
           </div>
 
-          <button id="shortcuts-help-btn" onclick="toggleShortcutsOverlay(true)" 
+          <button id="shortcuts-help-btn" onclick="toggleShortcutsOverlay(true)"
             class="p-1.5 text-slate-400 hover:text-brand transition rounded-lg" title="Keyboard Shortcuts (?)">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
-          
+
           <div class="relative pr-1 hidden md:block">
             <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
               xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1075,283 +1117,337 @@
 
           <!-- Upload state -->
           <div id="upload-state">
-            <!-- Drop zone -->
-            <div id="drop-zone" role="button" tabindex="0" aria-label="Upload audio file"
-              class="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-8 py-14 text-center cursor-pointer transition hover:border-brand hover:bg-brand-muted/20 focus:outline-none focus:ring-2 focus:ring-brand">
-              <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.mkv,.opus" multiple class="hidden"
-                aria-hidden="true" />
-              <input type="file" id="folder-input" webkitdirectory multiple class="hidden"
-                aria-hidden="true" />
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              <div>
-                <p class="font-medium text-slate-700">Drop files or a folder here, or <span class="text-brand">browse files</span></p>
-                <p class="mt-1 text-xs text-slate-400">MP3 · WAV · M4A · OGG · FLAC · MP4 · MOV · MKV · OPUS</p>
-                <p class="mt-2 text-xs text-slate-400">or <button id="folder-btn" class="text-brand hover:underline focus:outline-none" type="button">select a folder</button> · <button id="paste-link-btn" class="text-brand hover:underline focus:outline-none" type="button">paste video link</button></p>
+            <!-- REPLACEMENT FOR DROP ZONE ONLY -->
+            <div id="drop-zone" role="button" tabindex="0" aria-label="Upload files"
+              class="group relative flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-8 py-16 text-center cursor-pointer transition-all duration-200 hover:border-brand hover:bg-brand-muted/20 focus:outline-none focus:ring-2 focus:ring-brand">
+
+              <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.mov,.mkv,.opus" multiple
+                class="hidden" />
+              <input type="file" id="folder-input" webkitdirectory multiple class="hidden" />
+
+              <!-- Drag overlay -->
+              <div id="drop-overlay"
+                class="pointer-events-none absolute inset-0 rounded-2xl border-2 border-brand bg-white/90 backdrop-blur-sm opacity-0 scale-[0.98] transition-all duration-200 flex items-center justify-center">
+                <span class="text-brand font-semibold text-sm">Drop to upload</span>
               </div>
-            </div>
 
-            <!-- Selected file -->
-            <div id="file-info"
-              class="hidden mt-4 flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-4 py-3">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand shrink-0" fill="none"
-                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M9 19V6.5A2.5 2.5 0 0114 4h0a2.5 2.5 0 012.5 2.5V10" />
-              </svg>
-              <span id="file-name" class="text-sm font-medium text-slate-700 truncate flex-1"></span>
-              <span id="file-size" class="text-xs text-slate-400 shrink-0"></span>
-              <button id="clear-file-btn" aria-label="Remove file"
-                class="text-slate-300 hover:text-red-400 transition focus:outline-none ml-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              <!-- Icon -->
+              <div
+                class="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 group-hover:bg-brand-muted/40 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400 group-hover:text-brand transition"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-3-3m3 3l3-3" />
                 </svg>
-              </button>
-            </div>
+              </div>
 
-            <!-- Batch queue panel (shown when multiple files are staged) -->
-            <div id="batch-panel" class="hidden mt-4">
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-semibold text-slate-700" id="batch-count-label">0 files queued</h3>
-                <button id="batch-clear-all-btn"
-                  class="text-xs text-slate-400 hover:text-red-400 transition focus:outline-none">
-                  Clear all
+              <!-- Primary -->
+              <div>
+                <p class="font-semibold text-slate-800">
+                  Drop files or folders
+                </p>
+                <p class="text-sm text-slate-500 mt-1">
+                  or <span class="text-brand font-medium">browse files</span>
+                </p>
+              </div>
+
+              <!-- Secondary -->
+              <div class="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400">
+                <span>Audio · Video · Multiple files · Folders</span>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex flex-wrap items-center justify-center gap-3 text-xs mt-1">
+                <button id="folder-btn" class="text-slate-500 hover:text-brand transition" type="button">
+                  Select folder
+                </button>
+                <span class="text-slate-300">·</span>
+                <button id="paste-link-btn" class="text-slate-500 hover:text-brand transition" type="button">
+                  Paste link
                 </button>
               </div>
-              <ul id="batch-list" class="space-y-1.5 max-h-72 overflow-y-auto pr-1" role="list" aria-label="Batch file queue"></ul>
+
+              <!-- Subtle integrations -->
+              <div class="mt-2 flex flex-wrap items-center justify-center gap-1 text-[10px] text-slate-300">
+                <span>Supports YouTube, TikTok, Instagram, and more</span>
+              </div>
             </div>
 
-            <!-- Batch summary panel (shown when all jobs complete) -->
-            <div id="batch-summary" class="hidden mt-4 bg-white rounded-xl border border-slate-200 px-4 py-4">
-              <h3 class="text-sm font-semibold text-slate-700 mb-3">Batch complete</h3>
-              <ul id="batch-summary-list" class="space-y-1.5 text-sm" role="list"></ul>
-              <button id="batch-new-btn"
-                class="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
-                Start new batch
-              </button>
-            </div>
-
-            <!-- Error -->
-            <div id="error-msg"
-              class="hidden mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
-
-            <!-- Start button -->
-            <button id="start-btn" disabled class="mt-6 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-white shadow-sm transition
-                         hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2
-                         disabled:opacity-40 disabled:cursor-not-allowed">
-              Start transcription
+          <!-- Selected file -->
+          <div id="file-info"
+            class="hidden mt-4 flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-4 py-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-brand shrink-0" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9 19V6.5A2.5 2.5 0 0114 4h0a2.5 2.5 0 012.5 2.5V10" />
+            </svg>
+            <span id="file-name" class="text-sm font-medium text-slate-700 truncate flex-1"></span>
+            <span id="file-size" class="text-xs text-slate-400 shrink-0"></span>
+            <button id="clear-file-btn" aria-label="Remove file"
+              class="text-slate-300 hover:text-red-400 transition focus:outline-none ml-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
-          <!-- Processing state (replaces upload while running) -->
-          <div id="processing-state" class="hidden" aria-live="polite">
-            <div class="bg-white rounded-2xl border border-slate-200 px-8 py-10 text-center max-w-md mx-auto">
-              <svg class="animate-spin w-9 h-9 text-brand mx-auto mb-5" xmlns="http://www.w3.org/2000/svg" fill="none"
-                viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-              <p id="proc-filename" class="text-xs text-slate-400 mb-1 truncate"></p>
-              <p id="proc-message" class="font-semibold text-slate-800 mb-5">Preparing…</p>
-              <div class="w-full bg-slate-100 rounded-full h-2 mb-1.5" role="progressbar" aria-label="Progress"
-                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-wrap">
-                <div id="progress-bar" class="bg-brand h-2 rounded-full transition-all duration-300" style="width:0%">
+          <!-- Batch queue panel (shown when multiple files are staged) -->
+          <div id="batch-panel" class="hidden mt-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-slate-700" id="batch-count-label">0 files queued</h3>
+              <button id="batch-clear-all-btn"
+                class="text-xs text-slate-400 hover:text-red-400 transition focus:outline-none">
+                Clear all
+              </button>
+            </div>
+            <ul id="batch-list" class="space-y-1.5 max-h-72 overflow-y-auto pr-1" role="list"
+              aria-label="Batch file queue"></ul>
+          </div>
+
+          <!-- Batch summary panel (shown when all jobs complete) -->
+          <div id="batch-summary" class="hidden mt-4 bg-white rounded-xl border border-slate-200 px-4 py-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Batch complete</h3>
+            <ul id="batch-summary-list" class="space-y-1.5 text-sm" role="list"></ul>
+            <button id="batch-new-btn"
+              class="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
+              Start new batch
+            </button>
+          </div>
+
+          <!-- Error -->
+          <div id="error-msg"
+            class="hidden mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+
+          <!-- Start button -->
+          <button id="start-btn" disabled class="mt-6 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-white shadow-sm transition
+                         hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2
+                         disabled:opacity-40 disabled:cursor-not-allowed">
+            Start transcription
+          </button>
+        </div>
+
+        <!-- Processing state (replaces upload while running) -->
+        <div id="processing-state" class="hidden" aria-live="polite">
+          <div class="bg-white rounded-2xl border border-slate-200 px-8 py-10 text-center max-w-md mx-auto">
+            <svg class="animate-spin w-9 h-9 text-brand mx-auto mb-5" xmlns="http://www.w3.org/2000/svg" fill="none"
+              viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <p id="proc-filename" class="text-xs text-slate-400 mb-1 truncate"></p>
+            <p id="proc-message" class="font-semibold text-slate-800 mb-5">Preparing…</p>
+            <div class="w-full bg-slate-100 rounded-full h-2 mb-1.5" role="progressbar" aria-label="Progress"
+              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-wrap">
+              <div id="progress-bar" class="bg-brand h-2 rounded-full transition-all duration-300" style="width:0%">
+              </div>
+            </div>
+            <p id="proc-percent" class="text-xs text-slate-400 mb-6">0%</p>
+            <button id="cancel-btn"
+              class="text-xs text-slate-400 hover:text-red-500 transition focus:outline-none focus:ring-2 focus:ring-red-400 rounded px-2 py-1"
+              aria-label="Cancel transcription">
+              Cancel
+            </button>
+
+          </div>
+        </div>
+
+      </div><!-- /tab-transcribe -->
+
+      <!-- ---------------------------------------------------------------
+           TAB: TRANSCRIPT
+      --------------------------------------------------------------- -->
+      <div id="tab-transcript" class="tab-panel overflow-hidden" role="tabpanel">
+        <div class="flex flex-col h-full">
+
+          <!-- Inner tab bar: Transcript / AI Analysis -->
+          <div class="bg-white border-b border-slate-200 px-0 flex items-end gap-0 shrink-0">
+            <button id="inner-tab-btn-transcript"
+              class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-brand text-brand -mb-px focus:outline-none transition"
+              aria-selected="true">Transcript</button>
+            <button id="inner-tab-btn-ai"
+              class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px focus:outline-none transition"
+              aria-selected="false">AI Analysis</button>
+          </div>
+
+          <!-- Inner panel: Transcript -->
+          <div id="inner-panel-transcript" class="inner-tab-panel">
+            <!-- Live transcription progress (hidden until transcription starts) -->
+            <div id="transcript-processing-header"
+              class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-3"
+              aria-live="polite">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                  <span id="tph-message" class="text-xs font-medium text-amber-800 truncate">Transcribing…</span>
+                  <span id="tph-percent" class="text-xs text-amber-600 ml-2 shrink-0">0%</span>
+                </div>
+                <div class="w-full bg-amber-200 rounded-full h-1" role="progressbar" aria-label="Transcription progress"
+                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="tph-bar-wrap">
+                  <div id="tph-bar" class="bg-amber-500 h-1 rounded-full transition-all duration-300" style="width:0%">
+                  </div>
                 </div>
               </div>
-              <p id="proc-percent" class="text-xs text-slate-400 mb-6">0%</p>
-              <button id="cancel-btn"
-                class="text-xs text-slate-400 hover:text-red-500 transition focus:outline-none focus:ring-2 focus:ring-red-400 rounded px-2 py-1"
+              <button id="tph-cancel-btn"
+                class="shrink-0 text-xs text-amber-700 hover:text-red-600 border border-amber-300 hover:border-red-400 rounded px-2 py-0.5 transition focus:outline-none focus:ring-2 focus:ring-red-400"
                 aria-label="Cancel transcription">
                 Cancel
               </button>
-
             </div>
-          </div>
-
-        </div><!-- /tab-transcribe -->
-
-        <!-- ---------------------------------------------------------------
-           TAB: TRANSCRIPT
-      --------------------------------------------------------------- -->
-        <div id="tab-transcript" class="tab-panel overflow-hidden" role="tabpanel">
-          <div class="flex flex-col h-full">
-
-            <!-- Inner tab bar: Transcript / AI Analysis -->
-            <div class="bg-white border-b border-slate-200 px-0 flex items-end gap-0 shrink-0">
-              <button id="inner-tab-btn-transcript"
-                class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-brand text-brand -mb-px focus:outline-none transition"
-                aria-selected="true">Transcript</button>
-              <button id="inner-tab-btn-ai"
-                class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px focus:outline-none transition"
-                aria-selected="false">AI Analysis</button>
+            <div
+              class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between gap-4">
+              <div class="relative flex-1 max-w-lg">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+                </svg>
+                <input id="search-input" type="search" placeholder="Search transcript…" aria-label="Search transcript"
+                  class="w-full pl-10 pr-24 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
+                <span id="search-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
+              </div>
+              <button id="translate-all-btn" class="translate-all-btn hidden"
+                title="Translate all segments directly to English">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                </svg>
+                Translate all
+              </button>
             </div>
-
-            <!-- Inner panel: Transcript -->
-            <div id="inner-panel-transcript" class="inner-tab-panel">
-              <!-- Live transcription progress (hidden until transcription starts) -->
-              <div id="transcript-processing-header"
-                   class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-3"
-                   aria-live="polite">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between mb-1">
-                    <span id="tph-message" class="text-xs font-medium text-amber-800 truncate">Transcribing…</span>
-                    <span id="tph-percent" class="text-xs text-amber-600 ml-2 shrink-0">0%</span>
-                  </div>
-                  <div class="w-full bg-amber-200 rounded-full h-1" role="progressbar"
-                       aria-label="Transcription progress" aria-valuemin="0" aria-valuemax="100"
-                       aria-valuenow="0" id="tph-bar-wrap">
-                    <div id="tph-bar" class="bg-amber-500 h-1 rounded-full transition-all duration-300" style="width:0%"></div>
-                  </div>
-                </div>
-                <button id="tph-cancel-btn"
-                        class="shrink-0 text-xs text-amber-700 hover:text-red-600 border border-amber-300 hover:border-red-400 rounded px-2 py-0.5 transition focus:outline-none focus:ring-2 focus:ring-red-400"
-                        aria-label="Cancel transcription">
-                  Cancel
-                </button>
-              </div>
-              <div class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between gap-4">
-                <div class="relative flex-1 max-w-lg">
-                  <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-                  </svg>
-                  <input id="search-input" type="search" placeholder="Search transcript…" aria-label="Search transcript"
-                    class="w-full pl-10 pr-24 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
-                  <span id="search-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
-                </div>
-                <button id="translate-all-btn" class="translate-all-btn hidden"
-                  title="Translate all segments directly to English">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                  </svg>
-                  Translate all
-                </button>
-              </div>
-              <!-- Segments -->
-              <div class="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-4">
-                <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5"></div>
-                <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
-              </div>
-            </div><!-- /inner-panel-transcript -->
-
-            <!-- Inner panel: AI Analysis -->
-            <div id="inner-panel-ai" class="inner-tab-panel overflow-y-auto">
-              <div class="w-full px-4 py-4 md:px-6 md:py-6 space-y-4">
-
-                <!-- Output language -->
-                <div>
-                  <label for="ai-output-lang" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Output Language</label>
-                  <select id="ai-output-lang"
-                    class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
-                    <option value="">Same as transcript</option>
-                    <option value="English">English</option>
-                    <option value="Italian">Italian</option>
-                    <option value="Spanish">Spanish</option>
-                    <option value="French">French</option>
-                    <option value="German">German</option>
-                    <option value="Portuguese">Portuguese</option>
-                    <option value="Dutch">Dutch</option>
-                    <option value="Polish">Polish</option>
-                    <option value="Russian">Russian</option>
-                    <option value="Japanese">Japanese</option>
-                    <option value="Chinese">Chinese</option>
-                    <option value="Korean">Korean</option>
-                    <option value="Arabic">Arabic</option>
-                    <option value="Turkish">Turkish</option>
-                    <option value="Swedish">Swedish</option>
-                    <option value="Danish">Danish</option>
-                    <option value="Finnish">Finnish</option>
-                    <option value="Norwegian">Norwegian</option>
-                    <option value="Ukrainian">Ukrainian</option>
-                  </select>
-                </div>
-
-                <!-- Type selector -->
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Analysis Type</label>
-                  <div class="flex flex-wrap gap-2" role="group" aria-label="Analysis type">
-                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="summary">Summary</button>
-                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="action_items">Action Items</button>
-                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="translate">Translate</button>
-                    <button class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition" data-type="custom">Custom</button>
-                  </div>
-                </div>
-
-                <!-- Target language (translate only) -->
-                <div id="ai-lang-row" class="hidden">
-                  <label class="block text-xs text-slate-500 mb-1">Target language</label>
-                  <input id="ai-target-lang" type="text" placeholder="e.g. Italian, French…"
-                    class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand" />
-                </div>
-
-                <!-- Custom prompt (custom only) -->
-                <div id="ai-custom-row" class="hidden">
-                  <label class="block text-xs text-slate-500 mb-1">Custom instructions</label>
-                  <textarea id="ai-custom-prompt" rows="4" placeholder="Your instructions for the LLM…"
-                    class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
-                </div>
-
-                <!-- Run / Stop button -->
-                <button id="ai-run-btn"
-                  class="w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition disabled:opacity-40">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
-                  Run Analysis
-                </button>
-
-                <!-- Streaming result -->
-                <div id="ai-result-area" class="hidden">
-                  <div class="flex items-center justify-between mb-2">
-                    <span id="ai-result-label" class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Result</span>
-                    <button id="ai-result-copy" class="text-xs text-brand hover:underline">Copy</button>
-                  </div>
-                  <div id="ai-result-text"
-                    class="text-sm text-slate-700 bg-slate-50 rounded-lg border border-slate-200 p-4 whitespace-pre-wrap min-h-[120px] leading-relaxed"></div>
-                  <div id="ai-result-spinner" class="hidden flex items-center gap-1.5 mt-2 text-xs text-slate-400">
-                    <svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                    </svg>
-                    Generating…
-                  </div>
-                </div>
-
-                <!-- Past analyses -->
-                <div id="ai-past-analyses" class="hidden">
-                  <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Previous Analyses</h3>
-                  <div id="ai-past-list" class="space-y-2"></div>
-                </div>
-
-              </div>
+            <!-- Segments -->
+            <div class="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-4">
+              <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5"></div>
               <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
-            </div><!-- /inner-panel-ai -->
+            </div>
+          </div><!-- /inner-panel-transcript -->
 
-          </div>
-        </div><!-- /tab-transcript -->
+          <!-- Inner panel: AI Analysis -->
+          <div id="inner-panel-ai" class="inner-tab-panel overflow-y-auto">
+            <div class="w-full px-4 py-4 md:px-6 md:py-6 space-y-4">
 
-        <!-- ---------------------------------------------------------------
+              <!-- Output language -->
+              <div>
+                <label for="ai-output-lang"
+                  class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Output
+                  Language</label>
+                <select id="ai-output-lang"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                  <option value="">Same as transcript</option>
+                  <option value="English">English</option>
+                  <option value="Italian">Italian</option>
+                  <option value="Spanish">Spanish</option>
+                  <option value="French">French</option>
+                  <option value="German">German</option>
+                  <option value="Portuguese">Portuguese</option>
+                  <option value="Dutch">Dutch</option>
+                  <option value="Polish">Polish</option>
+                  <option value="Russian">Russian</option>
+                  <option value="Japanese">Japanese</option>
+                  <option value="Chinese">Chinese</option>
+                  <option value="Korean">Korean</option>
+                  <option value="Arabic">Arabic</option>
+                  <option value="Turkish">Turkish</option>
+                  <option value="Swedish">Swedish</option>
+                  <option value="Danish">Danish</option>
+                  <option value="Finnish">Finnish</option>
+                  <option value="Norwegian">Norwegian</option>
+                  <option value="Ukrainian">Ukrainian</option>
+                </select>
+              </div>
+
+              <!-- Type selector -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Analysis
+                  Type</label>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Analysis type">
+                  <button
+                    class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition"
+                    data-type="summary">Summary</button>
+                  <button
+                    class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition"
+                    data-type="action_items">Action Items</button>
+                  <button
+                    class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition"
+                    data-type="translate">Translate</button>
+                  <button
+                    class="ai-type-btn px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition"
+                    data-type="custom">Custom</button>
+                </div>
+              </div>
+
+              <!-- Target language (translate only) -->
+              <div id="ai-lang-row" class="hidden">
+                <label class="block text-xs text-slate-500 mb-1">Target language</label>
+                <input id="ai-target-lang" type="text" placeholder="e.g. Italian, French…"
+                  class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand" />
+              </div>
+
+              <!-- Custom prompt (custom only) -->
+              <div id="ai-custom-row" class="hidden">
+                <label class="block text-xs text-slate-500 mb-1">Custom instructions</label>
+                <textarea id="ai-custom-prompt" rows="4" placeholder="Your instructions for the LLM…"
+                  class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
+              </div>
+
+              <!-- Run / Stop button -->
+              <button id="ai-run-btn"
+                class="w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition disabled:opacity-40">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-9l6 4.5-6 4.5z" />
+                </svg>
+                Run Analysis
+              </button>
+
+              <!-- Streaming result -->
+              <div id="ai-result-area" class="hidden">
+                <div class="flex items-center justify-between mb-2">
+                  <span id="ai-result-label"
+                    class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Result</span>
+                  <button id="ai-result-copy" class="text-xs text-brand hover:underline">Copy</button>
+                </div>
+                <div id="ai-result-text"
+                  class="text-sm text-slate-700 bg-slate-50 rounded-lg border border-slate-200 p-4 whitespace-pre-wrap min-h-[120px] leading-relaxed">
+                </div>
+                <div id="ai-result-spinner" class="hidden flex items-center gap-1.5 mt-2 text-xs text-slate-400">
+                  <svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  Generating…
+                </div>
+              </div>
+
+              <!-- Past analyses -->
+              <div id="ai-past-analyses" class="hidden">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Previous Analyses</h3>
+                <div id="ai-past-list" class="space-y-2"></div>
+              </div>
+
+            </div>
+            <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
+          </div><!-- /inner-panel-ai -->
+
+        </div>
+      </div><!-- /tab-transcript -->
+
+      <!-- ---------------------------------------------------------------
            TAB: LIBRARY
       --------------------------------------------------------------- -->
-        <div id="tab-library" class="tab-panel overflow-hidden" role="tabpanel">
-          <div class="flex flex-col h-full">
-            <!-- Library toolbar -->
-            <div class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center gap-3">
-              <!-- Select-all checkbox -->
-              <input type="checkbox" id="lib-select-all"
-                class="rounded border-slate-300 text-brand focus:ring-brand cursor-pointer shrink-0"
-                title="Select all"
-                onchange="toggleSelectAll(this.checked)" />
-              <span id="library-folder-label" class="text-sm font-semibold text-slate-700 flex-1">All recordings</span>
+      <div id="tab-library" class="tab-panel overflow-hidden" role="tabpanel">
+        <div class="flex flex-col h-full">
+          <!-- Library toolbar -->
+          <div class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center gap-3">
+            <!-- Select-all checkbox -->
+            <input type="checkbox" id="lib-select-all"
+              class="rounded border-slate-300 text-brand focus:ring-brand cursor-pointer shrink-0" title="Select all"
+              onchange="toggleSelectAll(this.checked)" />
+            <span id="library-folder-label" class="text-sm font-semibold text-slate-700 flex-1">All recordings</span>
 
-              <!-- Normal toolbar (sort + tag filter) -->
-              <div id="lib-normal-toolbar" class="flex items-center gap-3">
+            <!-- Normal toolbar (sort + tag filter) -->
+            <div id="lib-normal-toolbar" class="flex items-center gap-3">
               <div class="flex items-center gap-1.5 text-xs text-slate-500">
                 <label for="lib-sort-select">Sort</label>
                 <select id="lib-sort-select"
@@ -1379,99 +1475,115 @@
                 <span class="text-slate-400">Tag:</span>
                 <span id="lib-tag-filter-name" class="font-semibold text-slate-700"></span>
                 <button onclick="clearTagFilter()" class="text-slate-300 hover:text-red-400 transition">×</button>
-                </div>
-              </div>
-
-              <!-- Bulk action toolbar (shown when ≥1 selected) -->
-              <div id="lib-bulk-toolbar" class="hidden items-center gap-2">
-                <span id="lib-bulk-count" class="text-xs text-slate-500 mr-1"></span>
-
-                <!-- Move to folder -->
-                <div class="relative">
-                  <button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
-                    title="Move selected to folder"
-                    onclick="window.togglePopover(this)">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                    </svg>
-                    Move
-                  </button>
-                  <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
-                    <p class="text-xs text-slate-400 px-1 mb-1">Move to folder</p>
-                    <select id="lib-bulk-folder-select"
-                      class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white"
-                      onchange="bulkMoveToFolder(this.value)">
-                      <option value="">— No folder —</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Assign tags -->
-                <div class="relative">
-                  <button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
-                    title="Assign tags to selected"
-                    onclick="window.togglePopover(this)">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 014-4z"/>
-                    </svg>
-                    Tags
-                  </button>
-                  <div id="lib-bulk-tag-popover" class="popover hidden absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[180px]">
-                    <p class="text-xs text-slate-400 px-3 py-1">Toggle tag on all selected</p>
-                    <div id="lib-bulk-tag-list" class="max-h-48 overflow-y-auto"></div>
-                    <p id="lib-bulk-tag-empty" class="hidden px-3 py-2 text-xs text-slate-400">No tags yet — create one in the sidebar</p>
-                  </div>
-                </div>
-
-                <!-- Export -->
-                <div class="relative">
-                  <button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
-                    title="Export selected"
-                    onclick="window.togglePopover(this)">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
-                    </svg>
-                    Export
-                  </button>
-                  <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[120px]">
-                    <p class="text-xs text-slate-400 px-3 py-1">Format</p>
-                    <button onclick="event.stopPropagation(); bulkExport('json')" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">JSON</button>
-                    <button onclick="event.stopPropagation(); bulkExport('srt')"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">SRT</button>
-                    <button onclick="event.stopPropagation(); bulkExport('txt')"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">TXT</button>
-                    <button onclick="event.stopPropagation(); bulkExport('md')"   class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">Markdown</button>
-                  </div>
-                </div>
-
-                <!-- Delete -->
-                <button onclick="bulkDelete()"
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-xs font-medium text-red-600 transition focus:outline-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
-                  Delete
-                </button>
               </div>
             </div>
 
-            <!-- Recording cards -->
-            <div class="flex-1 overflow-y-auto px-6 py-5">
-              <div id="library-empty" class="hidden text-center py-16 text-slate-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none"
-                  viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                </svg>
-                <p class="text-sm font-medium">No recordings yet</p>
-                <p class="text-xs mt-1">Transcribed files will appear here</p>
+            <!-- Bulk action toolbar (shown when ≥1 selected) -->
+            <div id="lib-bulk-toolbar" class="hidden items-center gap-2">
+              <span id="lib-bulk-count" class="text-xs text-slate-500 mr-1"></span>
+
+              <!-- Move to folder -->
+              <div class="relative">
+                <button
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
+                  title="Move selected to folder" onclick="window.togglePopover(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                  </svg>
+                  Move
+                </button>
+                <div
+                  class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
+                  <p class="text-xs text-slate-400 px-1 mb-1">Move to folder</p>
+                  <select id="lib-bulk-folder-select"
+                    class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+                    onchange="bulkMoveToFolder(this.value)">
+                    <option value="">— No folder —</option>
+                  </select>
+                </div>
               </div>
-              <div id="library-list" class="space-y-2.5"></div>
-              <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
+
+              <!-- Assign tags -->
+              <div class="relative">
+                <button
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
+                  title="Assign tags to selected" onclick="window.togglePopover(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 014-4z" />
+                  </svg>
+                  Tags
+                </button>
+                <div id="lib-bulk-tag-popover"
+                  class="popover hidden absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                  <p class="text-xs text-slate-400 px-3 py-1">Toggle tag on all selected</p>
+                  <div id="lib-bulk-tag-list" class="max-h-48 overflow-y-auto"></div>
+                  <p id="lib-bulk-tag-empty" class="hidden px-3 py-2 text-xs text-slate-400">No tags yet — create one
+                    in the sidebar</p>
+                </div>
+              </div>
+
+              <!-- Export -->
+              <div class="relative">
+                <button
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none"
+                  title="Export selected" onclick="window.togglePopover(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                  Export
+                </button>
+                <div
+                  class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[120px]">
+                  <p class="text-xs text-slate-400 px-3 py-1">Format</p>
+                  <button onclick="event.stopPropagation(); bulkExport('json')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">JSON</button>
+                  <button onclick="event.stopPropagation(); bulkExport('srt')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">SRT</button>
+                  <button onclick="event.stopPropagation(); bulkExport('txt')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">TXT</button>
+                  <button onclick="event.stopPropagation(); bulkExport('md')"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">Markdown</button>
+                </div>
+              </div>
+
+              <!-- Delete -->
+              <button onclick="bulkDelete()"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-xs font-medium text-red-600 transition focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
             </div>
           </div>
-        </div><!-- /tab-library -->
 
-      </div><!-- /tab panels -->
-    </div><!-- /main panel -->
+          <!-- Recording cards -->
+          <div class="flex-1 overflow-y-auto px-6 py-5">
+            <div id="library-empty" class="hidden text-center py-16 text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              </svg>
+              <p class="text-sm font-medium">No recordings yet</p>
+              <p class="text-xs mt-1">Transcribed files will appear here</p>
+            </div>
+            <div id="library-list" class="space-y-2.5"></div>
+            <div aria-hidden="true" style="height:var(--console-h,36px)"></div>
+          </div>
+        </div>
+      </div><!-- /tab-library -->
+
+    </div><!-- /tab panels -->
+  </div><!-- /main panel -->
 
   </div><!-- /layout -->
 
@@ -1601,7 +1713,7 @@
     };
 
     // Color palette constant and helpers
-    const PALETTE = ['#6c63ff', '#f59e0b', '#10b981', '#f472b6', '#60a5fa', '#fb7185', '#a78bfa', '#fbbf24', '#16a34a', '#ef4444'];
+    const PALETTE = ['#6c63ff', '#f59e0b', '#10b981', '#f472b6', '#60a5fa', '#fb7185', '#a78bfa', '#fbbf24', '#16a34a', '#ef4444', '#ff0000', '#111111', '#1877f2', '#e1306c', '#25f4ee', '#1ab7ea', '#9146ff'];
 
     // Map of palette attachments: inputId -> {container, hidden, wrap}
     window.__paletteMap = window.__paletteMap || {};
@@ -1960,6 +2072,7 @@
     function initDropZone() {
       const zone = document.getElementById('drop-zone');
       const input = document.getElementById('file-input');
+      const overlay = document.getElementById('drop-overlay');
 
       zone.addEventListener('click', () => input.click());
       zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
@@ -1972,14 +2085,35 @@
       zone.addEventListener('dragover', e => {
         e.preventDefault();
         zone.classList.add('border-brand', 'bg-brand-muted/20');
+
+        if (overlay) {
+          overlay.style.opacity = '1';
+          overlay.style.transform = 'scale(1)';
+        }
       });
       zone.addEventListener('dragleave', e => {
-        if (!zone.contains(e.relatedTarget))
+        if (!zone.contains(e.relatedTarget)) {
           zone.classList.remove('border-brand', 'bg-brand-muted/20');
+
+          if (overlay) {
+            overlay.style.opacity = '0';
+            overlay.style.transform = 'scale(0.98)';
+          }
+        }
       });
       zone.addEventListener('drop', async e => {
         e.preventDefault();
         zone.classList.remove('border-brand', 'bg-brand-muted/20');
+
+        if (overlay) {
+          overlay.style.opacity = '0';
+          overlay.style.transform = 'scale(0.98)';
+        }
+
+        zone.classList.add('ring-2', 'ring-green-400');
+        setTimeout(() => {
+          zone.classList.remove('ring-2', 'ring-green-400');
+        }, 300);
 
         const droppedText = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
         if (!e.dataTransfer.files.length && isLikelyUrl(droppedText)) {
@@ -2133,12 +2267,12 @@
       label.textContent = `${total} file${total !== 1 ? 's' : ''} \u00b7 ${pending} pending`;
 
       const statusColors = {
-        pending:    'bg-slate-100 text-slate-500',
-        uploading:  'bg-blue-100 text-blue-600',
-        queued:     'bg-amber-100 text-amber-700',
+        pending: 'bg-slate-100 text-slate-500',
+        uploading: 'bg-blue-100 text-blue-600',
+        queued: 'bg-amber-100 text-amber-700',
         processing: 'bg-brand-muted text-brand',
-        done:       'bg-emerald-100 text-emerald-700',
-        error:      'bg-red-100 text-red-600',
+        done: 'bg-emerald-100 text-emerald-700',
+        error: 'bg-red-100 text-red-600',
       };
 
       const frag = document.createDocumentFragment();
@@ -2147,7 +2281,7 @@
         const uploadPct = item.status === 'uploading' ? Math.round((item.progress / 0.05)) : 0;
         const label = item.status === 'processing' ? `${pct}%` :
           item.status === 'uploading' ? `↑ ${uploadPct}%` :
-          item.status.charAt(0).toUpperCase() + item.status.slice(1);
+            item.status.charAt(0).toUpperCase() + item.status.slice(1);
         const li = document.createElement('li');
         li.className = 'flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-3 py-2 text-sm';
         li.innerHTML = `
@@ -2406,7 +2540,7 @@
       document.getElementById('start-btn').disabled = true;
 
       const dest = state.cloudPower ? `Colab (${state.colabUrl})` : 'local';
-      clientLog(`Uploading ${file.name} → ${dest} [model=${state.selectedModel}, lang=${state.selectedLanguage||'auto'}, diarize=${state.diarize}]`);
+      clientLog(`Uploading ${file.name} → ${dest} [model=${state.selectedModel}, lang=${state.selectedLanguage || 'auto'}, diarize=${state.diarize}]`);
       hideError();
 
       const fd = new FormData();
@@ -2649,7 +2783,7 @@
             const payload = await res.json();
             const name = item.file?.name || item.jobId;
             (payload.logs || []).forEach(e => rawLogs.push({ ...e, _name: name }));
-          } catch (_) {}
+          } catch (_) { }
         }));
         rawLogs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
         state.jobLogs = rawLogs.map(e => {
@@ -2926,8 +3060,8 @@
             : '';
           const tagsHtml = tags.length
             ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map(t =>
-                `<span class="tag-pill" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>`
-              ).join('')}</div>`
+              `<span class="tag-pill" style="background:${escHtml(t.color_code)}">${escHtml(t.name)}</span>`
+            ).join('')}</div>`
             : '';
           recMetaEl.innerHTML = (folderHtml || tagsHtml)
             ? `<div class="space-y-1">${folderHtml}${tagsHtml}</div>`
@@ -4820,7 +4954,7 @@
       // Copy result
       document.getElementById('ai-result-copy').addEventListener('click', () => {
         const text = document.getElementById('ai-result-text').textContent;
-        if (text) navigator.clipboard.writeText(text).catch(() => {});
+        if (text) navigator.clipboard.writeText(text).catch(() => { });
       });
 
       // LLM Settings: eye toggle for API key
@@ -4969,7 +5103,7 @@
     async function stopAnalysis() {
       if (state.analysisEventSource) { state.analysisEventSource.close(); state.analysisEventSource = null; }
       if (state.analysisJobId) {
-        fetch(`/api/jobs/${state.analysisJobId}/cancel`, { method: 'POST' }).catch(() => {});
+        fetch(`/api/jobs/${state.analysisJobId}/cancel`, { method: 'POST' }).catch(() => { });
         state.analysisJobId = null;
       }
       document.getElementById('ai-result-spinner').classList.add('hidden');
@@ -5032,7 +5166,7 @@
       } catch { /* silently ignore */ }
     }
 
-    window._showAnalysisResult = async function(analysisId, recordingId) {
+    window._showAnalysisResult = async function (analysisId, recordingId) {
       try {
         const res = await fetch(`/api/recordings/${recordingId}/analyses/${analysisId}`);
         if (!res.ok) return;
@@ -5045,7 +5179,7 @@
       } catch { /* ignore */ }
     };
 
-    window._deleteAnalysis = async function(analysisId, recordingId) {
+    window._deleteAnalysis = async function (analysisId, recordingId) {
       if (!confirm('Delete this analysis result?')) return;
       try {
         await fetch(`/api/recordings/${recordingId}/analyses/${analysisId}`, { method: 'DELETE' });
@@ -5433,8 +5567,11 @@
         <!-- Docker tip -->
         <div class="rounded-lg bg-slate-50 border border-slate-200 p-4">
           <h4 class="font-semibold text-slate-800 mb-1">Running in Docker?</h4>
-          <p class="text-xs text-slate-500 mb-2">Use <code class="bg-slate-100 px-1 rounded font-mono">host.docker.internal</code> instead of <code class="bg-slate-100 px-1 rounded font-mono">localhost</code> as the LLM base URL.</p>
-          <button type="button" onclick="document.getElementById('llm-base-url').value='http://host.docker.internal:11434'; saveLlmSettings(); document.getElementById('help-modal').classList.add('hidden');"
+          <p class="text-xs text-slate-500 mb-2">Use <code
+              class="bg-slate-100 px-1 rounded font-mono">host.docker.internal</code> instead of <code
+              class="bg-slate-100 px-1 rounded font-mono">localhost</code> as the LLM base URL.</p>
+          <button type="button"
+            onclick="document.getElementById('llm-base-url').value='http://host.docker.internal:11434'; saveLlmSettings(); document.getElementById('help-modal').classList.add('hidden');"
             class="text-xs px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition">
             Set host.docker.internal
           </button>
@@ -5443,17 +5580,29 @@
         <div class="space-y-2">
           <a href="https://github.com/sim186/amico-script#readme" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
             README — setup &amp; usage guide ↗
           </a>
           <a href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
             CHANGELOG — version history ↗
           </a>
           <a href="https://github.com/sim186/amico-script/issues" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
             Report an issue on GitHub ↗
           </a>
         </div>
@@ -5479,7 +5628,8 @@
         <p id="entity-edit-sub" class="text-sm text-slate-400">Change the appearance of your folder.</p>
         <p id="entity-edit-parent-info" class="hidden text-xs text-slate-400"></p>
         <div>
-          <label id="entity-edit-name-label" for="entity-edit-name" class="block text-xs text-slate-500 mb-1">Name</label>
+          <label id="entity-edit-name-label" for="entity-edit-name"
+            class="block text-xs text-slate-500 mb-1">Name</label>
           <input id="entity-edit-name" type="text"
             class="w-full entity-input rounded-full border-0 px-6 py-4 text-lg focus:outline-none" />
         </div>
@@ -5503,13 +5653,16 @@
   <!-- ===================================================================
        Fixed console panel (collapsed by default)
   ==================================================================== -->
-  <div id="console-panel" class="fixed bottom-0 right-0 z-50 bg-slate-800 border-t border-slate-700 shadow-2xl" style="left: var(--console-left, 0); transition: left 220ms ease;">
+  <div id="console-panel" class="fixed bottom-0 right-0 z-50 bg-slate-800 border-t border-slate-700 shadow-2xl"
+    style="left: var(--console-left, 0); transition: left 220ms ease;">
     <!-- Toggle bar — always visible -->
     <div id="console-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="console-body"
       class="flex items-center gap-2 px-4 h-9 cursor-pointer select-none bg-slate-700 text-slate-50 transition focus:outline-none focus:ring-inset focus:ring-1 focus:ring-brand">
       <!-- Terminal icon -->
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-50 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-50 shrink-0" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
       <span class="text-xs font-semibold text-slate-50 uppercase tracking-wider">Console</span>
       <!-- Live activity dot -->
@@ -5527,8 +5680,10 @@
         </button>
       </div>
       <!-- Chevron -->
-      <svg id="console-chevron" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/>
+      <svg id="console-chevron" xmlns="http://www.w3.org/2000/svg"
+        class="w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
       </svg>
     </div>
     <!-- Log body -->

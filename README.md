@@ -29,6 +29,7 @@ AmicoScript keeps everything local.
 ## 🚀 Features
 
 - 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, AAC, MP4, MOV, MKV)
+- 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
 - 🤖 AI analysis (summary, action items, translation, custom prompts)
@@ -37,6 +38,7 @@ AmicoScript keeps everything local.
 - 🌍 Real-time translation to English
 - 🔍 Global search across transcripts
 - 🗂️ Organize with folders and tags
+- 🏷️ Automatic platform tags for URL imports (for example: youtube, tiktok, instagram)
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)
 - ✏️ Edit individual segments
@@ -52,6 +54,8 @@ AmicoScript is a personal project and not affiliated with OpenAI. It uses OpenAI
 ## ⚡ Example
 
 Upload a meeting recording → get a structured, time-stamped transcript you can search, edit, and export.
+
+Paste a supported video URL in the drop area → AmicoScript fetches the audio and starts transcription automatically.
 
 ---
 

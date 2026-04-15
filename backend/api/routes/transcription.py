@@ -29,6 +29,16 @@ router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".mp4", ".mov", ".mkv", ".opus"}
 
+PLATFORM_TAG_COLORS = {
+    "youtube": "#ff0000",
+    "x": "#111111",
+    "facebook": "#1877f2",
+    "instagram": "#e1306c",
+    "tiktok": "#25f4ee",
+    "vimeo": "#1ab7ea",
+    "twitch": "#9146ff",
+}
+
 
 def _get_job(job_id: str) -> dict:
     job = state.jobs.get(job_id)
@@ -157,12 +167,17 @@ def _ensure_recording_platform_tag(recording_id: str, platform: str) -> None:
 
     try:
         with new_session() as session:
+            desired_color = PLATFORM_TAG_COLORS.get(platform_name, "#60a5fa")
             tag = session.exec(select(Tag).where(Tag.name == platform_name)).first()
             if not tag:
-                tag = Tag(name=platform_name, color_code="#60a5fa")
+                tag = Tag(name=platform_name, color_code=desired_color)
                 session.add(tag)
                 session.commit()
                 session.refresh(tag)
+            elif tag.color_code != desired_color and platform_name in PLATFORM_TAG_COLORS:
+                tag.color_code = desired_color
+                session.add(tag)
+                session.commit()
 
             existing = session.get(RecordingTag, (recording_id, tag.id))
             if not existing:
