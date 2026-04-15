@@ -6,6 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.7.0] - 2026-04-15
 ### ✨ Improvements
 
 - Backend API modularization: split the monolithic FastAPI routes into dedicated router modules under `backend/api/routes/` (`settings`, `llm`, `analyses`, `releases`, `transcription`, `library`, `folders_tags`) and reduced `backend/main.py` to startup, worker orchestration, and static mounts.
@@ -26,7 +29,7 @@ Keep a Changelog format.
 ### 🐛 Fixes
 
 - Fixed DB sync retry handling regression by allowing transient `RuntimeError` to be retried in `_sync_job_to_db`.
-
+- No change details provided.
 
 ## [1.6.0] - 2026-04-14
 ### ✨ Improvements
