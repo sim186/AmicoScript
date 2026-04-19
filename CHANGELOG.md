@@ -6,6 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.10.1] - 2026-04-19
 ### 🔒 Security
 
 - **CORS restricted to localhost:** `allow_origins` changed from `["*"]` to explicit localhost origins, preventing cross-origin requests from arbitrary websites.
@@ -50,6 +53,7 @@ Keep a Changelog format.
 - Added `test_translation_chunk.py`: `mkstemp` used, temp file cleaned up on error.
 - Added `test_db_session.py`: session commits on success, rolls back on exception.
 - Added `test_transcription_options.py`: valid ints, negative → default, non-numeric → default, zero → default.
+- No change details provided.
 
 ## [1.10.0] - 2026-04-19
 ### ✨ Improvements
