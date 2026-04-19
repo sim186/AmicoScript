@@ -8,9 +8,7 @@
 
 **AmicoScript** is a privacy-focused, local-first transcription tool built on OpenAI's Whisper models. It allows you to transform audio recordings into structured, searchable transcripts without your data ever leaving your repository or machine. Whether you need speaker identification (diarization), translation, or simple subtitles, AmicoScript provides a fast, free, and secure alternative to cloud services.
 
-<video src="./images/demo.webm" controls="controls" style="max-width: 100%;">
-  Your browser does not support the video tag.
-</video>
+![AmicoScript Demo](images/amicoscript-demo.gif)
 
 AmicoScript is perfect for journalists, researchers, students, or anyone who wants control over their audio data and transcripts. It supports batch processing, multiple export formats, and optional AI analysis features — all running locally on your hardware.
 
