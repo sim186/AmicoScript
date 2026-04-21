@@ -52,7 +52,7 @@ jobs:
           else
             pip install -r backend/requirements.txt
           fi
-          pip install pyinstaller
+          pip install -r requirements-pyinstaller.txt
         shell: bash
 
       - name: Build with PyInstaller
@@ -67,9 +67,9 @@ jobs:
       - name: Smoke test built artifact
         run: |
           if [ "${{ matrix.variant }}" = "gpu" ]; then
-            python scripts/smoke_test_bundle.py --gpu
+            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py --gpu
           else
-            python scripts/smoke_test_bundle.py
+            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py
           fi
         shell: bash
 

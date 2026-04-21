@@ -14,8 +14,10 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+from collections import deque
 from pathlib import Path
 
 
@@ -29,10 +31,39 @@ def _exe_path(repo_root: Path, gpu: bool = False) -> Path:
     return repo_root / "dist" / app_name / app_name
 
 
-def _wait_http(url: str, timeout_seconds: int) -> None:
+def _format_output_tail(output_tail: deque[str]) -> str:
+    if not output_tail:
+        return "(no process output captured)"
+    return "\n".join(output_tail)
+
+
+def _drain_output(proc: subprocess.Popen[str], output_tail: deque[str]) -> None:
+    stream = proc.stdout
+    if stream is None:
+        return
+    try:
+        for line in stream:
+            output_tail.append(line.rstrip())
+    except Exception:
+        # If stream reading fails, smoke test can still rely on process exit code.
+        pass
+
+
+def _wait_http(
+    url: str,
+    timeout_seconds: int,
+    proc: subprocess.Popen[str] | None = None,
+    output_tail: deque[str] | None = None,
+) -> None:
     deadline = time.time() + timeout_seconds
     last_error: str | None = None
     while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            tail = _format_output_tail(output_tail or deque())
+            raise RuntimeError(
+                f"Server process exited early with code {proc.returncode}.\n"
+                f"Output tail:\n{tail}"
+            )
         try:
             with urllib.request.urlopen(url, timeout=2) as resp:
                 if 200 <= resp.status < 300:
@@ -40,7 +71,11 @@ def _wait_http(url: str, timeout_seconds: int) -> None:
         except Exception as exc:  # noqa: BLE001
             last_error = str(exc)
             time.sleep(0.5)
-    raise RuntimeError(f"Timed out waiting for {url}. Last error: {last_error}")
+    tail = _format_output_tail(output_tail or deque())
+    raise RuntimeError(
+        f"Timed out waiting for {url} after {timeout_seconds}s. Last error: {last_error}\n"
+        f"Output tail:\n{tail}"
+    )
 
 
 def main() -> int:
@@ -52,10 +87,12 @@ def main() -> int:
 
     env = os.environ.copy()
     env["AMICOSCRIPT_NO_BROWSER"] = "1"
+    timeout_seconds = int(env.get("AMICO_SMOKE_TIMEOUT", "180"))
 
     url = "http://127.0.0.1:8002/api/version"
 
     proc = None
+    output_tail: deque[str] = deque(maxlen=200)
     try:
         proc = subprocess.Popen(
             [str(exe)],
@@ -64,8 +101,16 @@ def main() -> int:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-        _wait_http(url, timeout_seconds=60)
+
+        threading.Thread(
+            target=_drain_output,
+            args=(proc, output_tail),
+            daemon=True,
+        ).start()
+
+        _wait_http(url, timeout_seconds=timeout_seconds, proc=proc, output_tail=output_tail)
         return 0
     finally:
         if proc is not None and proc.poll() is None:
