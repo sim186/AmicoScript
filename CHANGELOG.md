@@ -6,6 +6,12 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.10.3] - 2026-04-21
+- Fix GPU release build
+- No change details provided.
+
 ## [1.10.2] - 2026-04-19
 
 - Creating distributable with GPU enabled;
