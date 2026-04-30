@@ -8,6 +8,10 @@ Keep a Changelog format.
 
 
 
+## [1.10.2] - 2026-04-30
+## Error in transcription.py #22 (thanks for @nyfon for reporting it)
+- No change details provided.
+
 ## [1.10.1] - 2026-04-19
 ### 🔒 Security
 
