@@ -7,12 +7,18 @@ Keep a Changelog format.
 ## [Unreleased]
 
 
+## [1.10.4] - 2026-04-30
+- Error in transcription.py #22 (thanks for @nyfon for reporting it)
 
-## [1.10.2] - 2026-04-30
-## Error in transcription.py #22 (thanks for @nyfon for reporting it)
+## [1.10.3] - 2026-04-21
+- Fix GPU release build
 - No change details provided.
 
+## [1.10.2] - 2026-04-19
+- Creating distributable with GPU enabled;
+
 ## [1.10.1] - 2026-04-19
+
 ### 🔒 Security
 
 - **CORS restricted to localhost:** `allow_origins` changed from `["*"]` to explicit localhost origins, preventing cross-origin requests from arbitrary websites.
@@ -60,13 +66,16 @@ Keep a Changelog format.
 - No change details provided.
 
 ## [1.10.0] - 2026-04-19
+
 ### ✨ Improvements
+
 - **Microphone recording:** Added "Record mic" button to the upload area. Opens a dialog to record directly from your microphone, with pause/resume support and a live timer. On stop, the recording is queued into the normal batch transcription flow — no backend changes required.
 - No change details provided.
 
 ## [1.9.0] - 2026-04-19
 
 ### ✨ Improvements
+
 - **README:** Added badges (stars, release, license, Python version), competitor comparison table, Telegram community link, and roadmap section.
 - **Community:** Added `CONTRIBUTING.md` with contribution guide and AI-code disclosure note.
 - **Community:** Added GitHub issue templates for Bug Report, Feature Request, and Documentation.
@@ -76,10 +85,12 @@ Keep a Changelog format.
 ## [1.8.0] - 2026-04-18
 
 ### ✨ Improvements
+
 - URL source support in the downloader flow to include YouTube, TikTok, Instagram, Facebook, X, Vimeo, and Twitch (through `yt-dlp` resolution).
 - Automatic platform tagging: recordings imported from URLs now receive a source tag (for example `youtube`, `tiktok`, `instagram`) for easier filtering in the library.
 
 ## [1.7.0] - 2026-04-15
+
 ### ✨ Improvements
 
 - Backend API modularization: split the monolithic FastAPI routes into dedicated router modules under `backend/api/routes/` (`settings`, `llm`, `analyses`, `releases`, `transcription`, `library`, `folders_tags`) and reduced `backend/main.py` to startup, worker orchestration, and static mounts.
@@ -103,6 +114,7 @@ Keep a Changelog format.
 - No change details provided.
 
 ## [1.6.0] - 2026-04-14
+
 ### ✨ Improvements
 
 - Backend: Refactored the monolithic transcription pipeline into focused modules under `backend/core/` (`transcription`, `diarization`, `analysis`, `translation`, `audio_utils`, `job_helpers`, `colab_proxy`) and kept `backend/pipeline.py` as a compatibility shim.
@@ -115,6 +127,7 @@ Keep a Changelog format.
 - No change details provided.
 
 ## [1.5.1] - 2026-04-13
+
 - **Update check**: Added a new feature to check for updates by querying GitHub Releases. The frontend will display a banner if a newer release is available, with a link to view the release notes..
 
 ## [1.5.0] - 2026-04-12
@@ -126,6 +139,7 @@ Keep a Changelog format.
 - **Load or Drop Directory:** Added the ability to load or drop a directory of audio files for batch transcription.
 
 ### 🐛 Fixes
+
 - **Clean batched file list** before processing to avoid issues with empty or invalid entries.
 - **UI minor improvements** console log being shown over the transcript content and some mobile layout issues.
 
@@ -143,9 +157,9 @@ Keep a Changelog format.
 - **Docker:** Production deployment now supports Traefik reverse proxy with automatic Let's Encrypt HTTPS via TLS-ALPN-01 challenge. Configure via `.env` (see `.env.example`).
 
 ### 🐛 Fixes
+
 - **Docker build:** Fixed an issue where the `backend/` directory was copied into the image with an extra nesting level, causing import errors. The `COPY` instruction now correctly places the backend files at the root of the image filesystem.
 - **Versioning:** Updated the `VERSION` file to `1.4.1` to reflect the latest patch release.
-
 
 ---
 
@@ -172,10 +186,12 @@ Keep a Changelog format.
 ---
 
 ## [1.3.1] - 2026-04-04
+
 - UI: Remove the inline folder/tag creation in favor of dialog (similar to edit)
 - Re-enabled MacOs release workflow
 
 ## [1.3.0] - 2026-04-04
+
 - UI: Added `waveform` player with interactive seeking and segment highlighting.
 - UI: Moved the console log to a collapsible bottom panel with timestamps (hidden by default).
 - Backend: Added the possibility to upload multiple files at once.
@@ -192,22 +208,23 @@ Keep a Changelog format.
 - Feature: Automated platform-specific FFmpeg download upon first application startup.
 
 ## [1.1.1] - 2026-04-01
+
 - Improve library color dropbox
 
 ## [1.1.0] - 2026-03-31
 
 - UI: Introduced a fixed 10-color palette for tags and folders and server-side
-	validation to ensure consistent colors across clients.
+  validation to ensure consistent colors across clients.
 - UI: Folder tree and tag sidebar now show per-folder and per-tag counts.
 - UI: Replaced free-form color pickers with compact palette popovers (rendered
-	as top-level overlays to avoid clipping) and added a folder rename popover to
-	avoid expanding the sidebar during edits.
+  as top-level overlays to avoid clipping) and added a folder rename popover to
+  avoid expanding the sidebar during edits.
 - UI: Tag-click filtering is now scoped to the selected folder; tags absent in
-	the current folder render as disabled with counts.
+  the current folder render as disabled with counts.
 - UI: Live accent preview applied when editing a folder color so changes appear
-	immediately before saving.
+  immediately before saving.
 - Backend: Added `ALLOWED_COLORS` palette, color validation for tag/folder
-	create/update, and endpoints return aggregated counts for folders and tags.
+  create/update, and endpoints return aggregated counts for folders and tags.
 
 ## [1.0.0] - 2026-03-30
 
@@ -217,4 +234,5 @@ Keep a Changelog format.
 - Initial stable release.
 
 ## [1.5.2] - 2026-04-13
+
 - Changelog entry

@@ -10,11 +10,31 @@ permissions:
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build ${{ matrix.variant }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            variant: cpu
+            dist_name: AmicoScript
+            artifact_os: linux
+          - os: windows-latest
+            variant: cpu
+            dist_name: AmicoScript
+            artifact_os: windows
+          - os: macos-latest
+            variant: cpu
+            dist_name: AmicoScript
+            artifact_os: macos
+          - os: windows-latest
+            variant: gpu
+            dist_name: AmicoScript-GPU
+            artifact_os: windows-gpu
+          - os: ubuntu-latest
+            variant: gpu
+            dist_name: AmicoScript-GPU
+            artifact_os: linux-gpu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,24 +47,36 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
-          pip install pyinstaller
+          if [ "${{ matrix.variant }}" = "gpu" ]; then
+            pip install -r backend/requirements-gpu.txt
+          else
+            pip install -r backend/requirements.txt
+          fi
+          pip install -r requirements-pyinstaller.txt
         shell: bash
 
       - name: Build with PyInstaller
         run: |
-          python package.py
+          if [ "${{ matrix.variant }}" = "gpu" ]; then
+            python package.py --gpu
+          else
+            python package.py
+          fi
         shell: bash
 
       - name: Smoke test built artifact
         run: |
-          python scripts/smoke_test_bundle.py
+          if [ "${{ matrix.variant }}" = "gpu" ]; then
+            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py --gpu
+          else
+            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py
+          fi
         shell: bash
 
       - name: Create zip artifact (Windows)
         if: runner.os == 'Windows'
         run: |
-          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/AmicoScript/*' -DestinationPath "build\artifacts\AmicoScript-${{ github.ref_name }}-windows.zip" -Force"
+          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/${{ matrix.dist_name }}/*' -DestinationPath 'build\artifacts\AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip' -Force"
 
       - name: Create zip artifact (macOS)
         if: runner.os == 'macOS'
@@ -58,7 +90,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           mkdir -p build/artifacts
-          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-linux.zip" dist/AmicoScript || true
+          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip" dist/${{ matrix.dist_name }} || true
         shell: bash
 
       - name: Create GitHub Release and upload artifacts

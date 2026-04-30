@@ -13,7 +13,9 @@ def _add_data_arg(src: str, dest: str) -> str:
     """
     return f"--add-data={src}{os.pathsep}{dest}"
 
-def build():
+def build(gpu: bool = False):
+    app_name = "AmicoScript-GPU" if gpu else "AmicoScript"
+
     # Detect OS
     is_windows = sys.platform.startswith('win')
     is_macos = sys.platform == 'darwin'
@@ -32,7 +34,7 @@ def build():
     # PyInstaller arguments
     args = [
         'run.py',                          # Entry point
-        '--name=AmicoScript',              # Output name
+        f'--name={app_name}',              # Output name
         '--onedir',                        # Better for large apps (faster launch/debug)
         '--paths=backend',                 # Make backend modules importable during analysis/runtime
         _add_data_arg('frontend', 'frontend'),   # Include frontend files
@@ -146,12 +148,12 @@ VSVersionInfo(
                     '040904B0',
                     [
                         StringStruct('CompanyName', ''),
-                        StringStruct('FileDescription', 'AmicoScript'),
+                        StringStruct('FileDescription', '%s'),
                         StringStruct('FileVersion', '%s'),
-                        StringStruct('InternalName', 'AmicoScript'),
+                        StringStruct('InternalName', '%s'),
                         StringStruct('LegalCopyright', ''),
-                        StringStruct('OriginalFilename', 'AmicoScript.exe'),
-                        StringStruct('ProductName', 'AmicoScript'),
+                        StringStruct('OriginalFilename', '%s'),
+                        StringStruct('ProductName', '%s'),
                         StringStruct('ProductVersion', '%s')
                     ]
                 )
@@ -160,7 +162,7 @@ VSVersionInfo(
         VarFileInfo([VarStruct('Translation', [1033, 1200])])
     ]
 )
-''' % (str(filevers), str(filevers), ver_text, ver_text))
+''' % (str(filevers), str(filevers), app_name, ver_text, app_name, f'{app_name}.exe', app_name, ver_text))
             args.append('--version-file=%s' % version_file_path)
         except Exception:
             pass
@@ -201,4 +203,4 @@ VSVersionInfo(
     print("\nNote: You may need to manually bundle ffmpeg binaries in the dist folder if not in system path.")
 
 if __name__ == "__main__":
-    build()
+    build(gpu='--gpu' in sys.argv)
