@@ -6,7 +6,13 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ✨ UI
 
+- **Transcript tab decluttered:** Collapsed inner tab bar, separate search bar, and segment selection bar into a single compact toolbar — reducing pre-content chrome from 5 bands to 2.
+- **AI Analysis slide-over:** AI Analysis moved from a sub-tab to a slide-over panel (lightbulb icon), keeping the transcript always visible.
+- **Contextual bulk toolbar:** Toolbar switches from search mode to speaker-assign mode when segments are selected; search and bulk controls no longer stack vertically.
+- **Edited segment indicator:** Replaced text badge with amber left border already present on the segment card.
+- **Bulk speaker assignment:** Select multiple segments and assign a speaker name in one action via the contextual toolbar.
 
 ## [1.10.5] - 2026-05-05
 - Fix torch/torchaudio dependency caps for Python 3.13 and lightning compatibility

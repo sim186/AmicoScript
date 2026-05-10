@@ -283,3 +283,54 @@ async def rename_recording_speaker(
     session.add(tr)
     session.commit()
     return {"ok": True, "new_name": new_name}
+
+
+@router.post("/api/recordings/{recording_id}/transcript/assign-speaker")
+async def assign_speaker(
+    recording_id: str,
+    segment_indices: str = Form(...),
+    speaker_name: str = Form(...),
+    session: Session = Depends(get_session),
+) -> dict:
+    tr = session.exec(select(Transcript).where(Transcript.recording_id == recording_id)).first()
+    if not tr:
+        raise HTTPException(404, "Transcript not found")
+
+    data = json.loads(tr.json_data)
+    segments = data.get("segments", [])
+
+    indices = []
+    for part in segment_indices.split(","):
+        part = part.strip()
+        if part:
+            try:
+                idx = int(part)
+                if 0 <= idx < len(segments):
+                    indices.append(idx)
+            except ValueError:
+                continue
+
+    if not indices:
+        raise HTTPException(400, "No valid segment indices provided")
+
+    speaker_name = speaker_name.strip()
+    if not speaker_name:
+        raise HTTPException(400, "Speaker name is required")
+
+    for idx in indices:
+        segments[idx]["speaker"] = speaker_name
+
+    speakers = data.get("speakers", [])
+    if speaker_name not in speakers:
+        speakers.append(speaker_name)
+        speakers.sort()
+    data["speakers"] = speakers
+
+    data["segments"] = segments
+    tr.json_data = json.dumps(data)
+    tr.full_text = " ".join(s.get("text", "") for s in segments)
+    tr.updated_at = time.time()
+
+    session.add(tr)
+    session.commit()
+    return {"ok": True, "speakers": speakers}

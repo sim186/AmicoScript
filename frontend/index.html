@@ -162,18 +162,6 @@
       border-left-color: #f59e0b;
     }
 
-    .segment-edited-badge {
-      display: inline-block;
-      font-size: 10px;
-      padding: 0 4px;
-      border-radius: 3px;
-      background: #fef3c7;
-      color: #92400e;
-      font-weight: 600;
-      margin-left: 4px;
-      vertical-align: middle;
-    }
-
     /* segment inline edit */
     .segment-edit-area {
       width: 100%;
@@ -558,16 +546,36 @@
     /* The sidebar is part of the flex layout. It can be hidden by toggling the
        `hidden` class on the #sidebar element so the main panel resizes naturally. */
 
-    /* Inner tabs (Transcript / AI Analysis) */
-    .inner-tab-panel {
-      display: none;
-    }
-
-    .inner-tab-panel.active {
+    /* Transcript inner panel — always fills remaining space */
+    #inner-panel-transcript {
       display: flex;
       flex-direction: column;
       flex: 1;
       min-height: 0;
+    }
+
+    /* AI Analysis slide-over panel */
+    #inner-panel-ai {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: min(400px, 100%);
+      background: #fff;
+      border-left: 1px solid #e2e8f0;
+      box-shadow: -4px 0 24px rgba(15,23,42,.08);
+      transform: translateX(100%);
+      transition: transform .22s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 20;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #inner-panel-ai.active {
+      transform: translateX(0);
+    }
+
+    #tab-transcript > div {
+      position: relative;
     }
 
     /* ====================================================
@@ -1271,18 +1279,8 @@
       <div id="tab-transcript" class="tab-panel overflow-hidden" role="tabpanel">
         <div class="flex flex-col h-full">
 
-          <!-- Inner tab bar: Transcript / AI Analysis -->
-          <div class="bg-white border-b border-slate-200 px-0 flex items-end gap-0 shrink-0">
-            <button id="inner-tab-btn-transcript"
-              class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-brand text-brand -mb-px focus:outline-none transition"
-              aria-selected="true">Transcript</button>
-            <button id="inner-tab-btn-ai"
-              class="inner-tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px focus:outline-none transition"
-              aria-selected="false">AI Analysis</button>
-          </div>
-
           <!-- Inner panel: Transcript -->
-          <div id="inner-panel-transcript" class="inner-tab-panel">
+          <div id="inner-panel-transcript">
             <!-- Live transcription progress (hidden until transcription starts) -->
             <div id="transcript-processing-header"
               class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-3"
@@ -1304,27 +1302,43 @@
                 Cancel
               </button>
             </div>
-            <div
-              class="px-3 py-2 md:px-6 md:py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between gap-4">
-              <div class="relative flex-1 max-w-lg">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+            <!-- Combined toolbar: search / bulk-assign / AI toggle -->
+            <div class="px-3 py-2 bg-white border-b border-slate-100 shrink-0 flex items-center gap-2">
+              <input type="checkbox" id="select-all-segments" class="hidden rounded border-slate-300 text-brand focus:ring-brand shrink-0 cursor-pointer" title="Select all visible" />
+              <!-- Search mode (default) -->
+              <div id="toolbar-search" class="relative flex-1">
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
                 </svg>
                 <input id="search-input" type="search" placeholder="Search transcript…" aria-label="Search transcript"
-                  class="w-full pl-10 pr-24 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white transition" />
-                <span id="search-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
+                  class="w-full pl-8 pr-16 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:bg-white transition" />
+                <span id="search-count" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400"></span>
               </div>
+              <!-- Bulk-assign mode (shown when segments selected) -->
+              <div id="toolbar-bulk" class="hidden flex-1 flex items-center gap-2">
+                <span id="selection-count" class="text-xs text-slate-500 shrink-0">0 selected</span>
+                <input type="text" id="assign-speaker-input" placeholder="Speaker name…" class="text-xs rounded border border-slate-200 px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-brand" list="speaker-suggestions" />
+                <datalist id="speaker-suggestions"></datalist>
+                <button onclick="assignSpeakerToSelected()" class="px-2.5 py-0.5 text-xs rounded bg-brand text-white hover:bg-brand-hover transition shrink-0">Assign</button>
+                <button onclick="clearSegmentSelection()" class="px-2.5 py-0.5 text-xs rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition shrink-0">Clear</button>
+              </div>
+              <!-- Translate all (shown when non-English transcript) -->
               <button id="translate-all-btn" class="translate-all-btn hidden"
                 title="Translate all segments directly to English">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  stroke-width="2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round"
                     d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
                 </svg>
                 Translate all
+              </button>
+              <!-- AI Analysis toggle -->
+              <button id="ai-panel-btn" onclick="toggleAiPanel()"
+                class="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-brand hover:bg-slate-50 transition focus:outline-none"
+                title="AI Analysis">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
               </button>
             </div>
             <!-- Segments -->
@@ -1334,9 +1348,17 @@
             </div>
           </div><!-- /inner-panel-transcript -->
 
-          <!-- Inner panel: AI Analysis -->
-          <div id="inner-panel-ai" class="inner-tab-panel overflow-y-auto">
-            <div class="w-full px-4 py-4 md:px-6 md:py-6 space-y-4">
+          <!-- AI Analysis slide-over panel -->
+          <div id="inner-panel-ai">
+            <div class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <span class="text-sm font-semibold text-slate-700">AI Analysis</span>
+              <button onclick="toggleAiPanel()" class="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition focus:outline-none" title="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="w-full px-4 py-4 space-y-4">
 
               <!-- Output language -->
               <div>
@@ -1698,6 +1720,8 @@
       searchQuery: '',
       filteredSegments: [],
       activeSpeakerFilter: null,
+      selectedSegmentIds: new Set(),
+      lastSelectedSegmentId: null,
 
       // Library mode — set when opening a recording from the library
       activeRecordingId: null,
@@ -2010,33 +2034,21 @@
       });
 
       document.getElementById('export-bar').classList.toggle('hidden', name !== 'transcript');
-      // translate-all-btn: hide when leaving transcript tab; inner tab manages it when on transcript
+      // Close AI panel when leaving transcript tab
       if (name !== 'transcript') {
-        document.getElementById('translate-all-btn').classList.add('hidden');
-      } else {
-        // Restore translate-all-btn based on current inner tab state
-        const innerTranscriptActive = document.getElementById('inner-panel-transcript')?.classList.contains('active');
-        document.getElementById('translate-all-btn').classList.toggle('hidden', !innerTranscriptActive);
+        document.getElementById('inner-panel-ai').classList.remove('active');
+        document.getElementById('ai-panel-btn')?.classList.remove('text-brand', 'bg-slate-100');
       }
       if (name === 'library') fetchLibrary();
     }
 
-    function switchInnerTab(name) {
-      // name: 'transcript' or 'ai'
-      document.querySelectorAll('.inner-tab-btn').forEach(btn => {
-        const active = btn.id === `inner-tab-btn-${name}`;
-        btn.setAttribute('aria-selected', String(active));
-        btn.classList.toggle('border-brand', active);
-        btn.classList.toggle('text-brand', active);
-        btn.classList.toggle('border-transparent', !active);
-        btn.classList.toggle('text-slate-500', !active);
-      });
-      document.querySelectorAll('.inner-tab-panel').forEach(panel => {
-        panel.classList.toggle('active', panel.id === `inner-panel-${name}`);
-      });
-      // translate-all-btn only visible on transcript inner tab
-      document.getElementById('translate-all-btn').classList.toggle('hidden', name !== 'transcript');
-      if (name === 'ai') clientLog('AI Analysis panel opened');
+    function toggleAiPanel() {
+      const panel = document.getElementById('inner-panel-ai');
+      const btn = document.getElementById('ai-panel-btn');
+      const active = panel.classList.toggle('active');
+      btn.classList.toggle('text-brand', active);
+      btn.classList.toggle('bg-slate-100', active);
+      if (active) clientLog('AI Analysis panel opened');
     }
 
     document.getElementById('tab-btn-transcribe').addEventListener('click', () => switchTab('transcribe'));
@@ -2718,7 +2730,7 @@
         state.result = null;
         document.getElementById('segments-list').innerHTML = '';
         tph.classList.remove('hidden');
-        switchInnerTab('transcript');
+        switchTab('transcript');
         resetJobLogs();
         startLogPolling();
       } else {
@@ -3011,6 +3023,8 @@
         state.activeSpeakerFilter = null;
         state.currentSegmentId = null;
         state.searchQuery = '';
+        state.selectedSegmentIds.clear();
+        state.lastSelectedSegmentId = null;
 
         renderResults();
         setProcessing(false);
@@ -3186,6 +3200,7 @@
       }
       state.filteredSegments = segs;
       renderSegments(segs, state.searchQuery);
+      updateSelectionBar();
       const count = document.getElementById('search-count');
       count.textContent = (q || state.activeSpeakerFilter) ? `${segs.length} shown` : '';
     }
@@ -3205,6 +3220,8 @@
       const frag = document.createDocumentFragment();
       const hasSpeakers = state.result.speakers.length > 0;
       const q = query.toLowerCase().trim();
+      const showActions = !!(state.activeRecordingId || state.recordingId);
+      document.getElementById('select-all-segments').classList.toggle('hidden', !showActions);
 
       segments.forEach(seg => {
         const spkIdx = hasSpeakers ? (state.result.speakers.indexOf(seg.speaker) % 8) : -1;
@@ -3223,12 +3240,12 @@
           div.classList.add('edited');
         }
 
-        const spkBadge = hasSpeakers && seg.speaker
-          ? `<span class="text-xs font-semibold spk-text-${spkIdx} mr-2 cursor-pointer hover:underline" title="Rename speaker" onclick="event.stopPropagation(); promptRenameSpeaker('${escHtml(seg.speaker)}')">${escHtml(seg.speaker)}</span>`
+        const checkboxHtml = showActions
+          ? `<input type="checkbox" class="segment-checkbox mr-1.5 rounded border-slate-300 text-brand focus:ring-brand shrink-0 cursor-pointer" data-seg-id="${seg.id}" ${state.selectedSegmentIds.has(seg.id) ? 'checked' : ''} onclick="event.stopPropagation(); toggleSegmentSelection(${seg.id}, event.shiftKey)" />`
           : '';
 
-        const editedBadge = seg.edited
-          ? `<span class="segment-edited-badge" title="This segment has been manually edited">edited</span>`
+        const spkBadge = hasSpeakers && seg.speaker
+          ? `<span class="text-xs font-semibold spk-text-${spkIdx} mr-2 cursor-pointer hover:underline" title="Rename speaker" onclick="event.stopPropagation(); promptRenameSpeaker('${escHtml(seg.speaker)}')">${escHtml(seg.speaker)}</span>`
           : '';
 
         const translationHtml = seg.translation
@@ -3236,7 +3253,6 @@
           : '';
 
         // Action buttons
-        const showActions = !!(state.activeRecordingId || state.recordingId);
         let actionsHtml = '';
         if (showActions) {
           const resetBtn = seg.edited
@@ -3264,9 +3280,9 @@
 
         div.innerHTML = `
       <div class="flex items-baseline gap-1 mb-0.5">
+        ${checkboxHtml}
         ${spkBadge}
         <span class="text-xs text-slate-400 font-mono">${fmtDur(seg.start)}</span>
-        ${editedBadge}
         ${actionsHtml}
       </div>
       <p class="text-sm text-slate-700 leading-relaxed seg-text">${highlightText(seg.text, q)}</p>
@@ -3278,6 +3294,109 @@
       list.innerHTML = '';
       list.appendChild(frag);
     }
+
+    // =========================================================================
+    // Segment selection & speaker assignment
+    // =========================================================================
+    function toggleSegmentSelection(segId, shiftKey) {
+      if (shiftKey && state.lastSelectedSegmentId !== null) {
+        const ids = state.filteredSegments.map(s => s.id);
+        const lastIdx = ids.indexOf(state.lastSelectedSegmentId);
+        const currIdx = ids.indexOf(segId);
+        if (lastIdx !== -1 && currIdx !== -1) {
+          const [start, end] = lastIdx < currIdx ? [lastIdx, currIdx] : [currIdx, lastIdx];
+          for (let i = start; i <= end; i++) {
+            state.selectedSegmentIds.add(ids[i]);
+          }
+        }
+      } else {
+        if (state.selectedSegmentIds.has(segId)) {
+          state.selectedSegmentIds.delete(segId);
+        } else {
+          state.selectedSegmentIds.add(segId);
+        }
+      }
+      state.lastSelectedSegmentId = segId;
+      updateSelectionBar();
+      document.querySelectorAll('.segment-checkbox').forEach(cb => {
+        cb.checked = state.selectedSegmentIds.has(parseInt(cb.dataset.segId, 10));
+      });
+    }
+
+    function updateSelectionBar() {
+      const n = state.selectedSegmentIds.size;
+      const bulkMode = n > 0;
+      document.getElementById('toolbar-search').classList.toggle('hidden', bulkMode);
+      document.getElementById('toolbar-bulk').classList.toggle('hidden', !bulkMode);
+      document.getElementById('selection-count').textContent = `${n} selected`;
+      const datalist = document.getElementById('speaker-suggestions');
+      if (datalist && state.result) {
+        datalist.innerHTML = (state.result.speakers || []).map(s => `<option value="${escHtml(s)}"></option>`).join('');
+      }
+      const selectAllCb = document.getElementById('select-all-segments');
+      if (selectAllCb) {
+        const visibleIds = state.filteredSegments.map(s => s.id);
+        selectAllCb.checked = visibleIds.length > 0 && visibleIds.every(id => state.selectedSegmentIds.has(id));
+      }
+    }
+
+    function clearSegmentSelection() {
+      state.selectedSegmentIds.clear();
+      state.lastSelectedSegmentId = null;
+      document.querySelectorAll('.segment-checkbox').forEach(cb => cb.checked = false);
+      updateSelectionBar();
+    }
+
+    async function assignSpeakerToSelected() {
+      const input = document.getElementById('assign-speaker-input');
+      const speakerName = (input.value || '').trim();
+      if (!speakerName) return;
+      if (state.selectedSegmentIds.size === 0) return;
+
+      const recId = state.activeRecordingId || state.recordingId;
+      if (!recId) return;
+
+      const indices = Array.from(state.selectedSegmentIds).join(',');
+      const fd = new FormData();
+      fd.append('segment_indices', indices);
+      fd.append('speaker_name', speakerName);
+
+      try {
+        const res = await fetch(`/api/recordings/${recId}/transcript/assign-speaker`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Failed to assign speaker');
+        const data = await res.json();
+
+        state.selectedSegmentIds.forEach(segId => {
+          const seg = state.result.segments.find(s => s.id === segId);
+          if (seg) seg.speaker = speakerName;
+        });
+        if (data.speakers) {
+          state.result.speakers = data.speakers;
+        } else if (!state.result.speakers.includes(speakerName)) {
+          state.result.speakers.push(speakerName);
+          state.result.speakers.sort();
+        }
+
+        clearSegmentSelection();
+        input.value = '';
+        renderSpeakerLegend(state.result.speakers);
+        applyFilters();
+      } catch (err) {
+        alert(`Assign speaker failed: ${err.message}`);
+      }
+    }
+
+    document.getElementById('select-all-segments').addEventListener('change', e => {
+      if (e.target.checked) {
+        state.filteredSegments.forEach(s => state.selectedSegmentIds.add(s.id));
+      } else {
+        state.filteredSegments.forEach(s => state.selectedSegmentIds.delete(s.id));
+      }
+      document.querySelectorAll('.segment-checkbox').forEach(cb => {
+        cb.checked = state.selectedSegmentIds.has(parseInt(cb.dataset.segId, 10));
+      });
+      updateSelectionBar();
+    });
 
     // =========================================================================
     // Segment Interactions (v1.2)
@@ -4621,6 +4740,8 @@
         state.activeSpeakerFilter = null;
         state.currentSegmentId = null;
         state.searchQuery = '';
+        state.selectedSegmentIds.clear();
+        state.lastSelectedSegmentId = null;
 
         // Fetch fresh recording metadata (folder, tags) so the transcript sidebar is accurate
         try {
@@ -5623,11 +5744,7 @@
       });
       initAiAnalysis();
 
-      // Inner tabs: Transcript / AI Analysis
-      document.getElementById('inner-tab-btn-transcript').addEventListener('click', () => switchInnerTab('transcript'));
-      document.getElementById('inner-tab-btn-ai').addEventListener('click', () => switchInnerTab('ai'));
-      // Activate transcript inner tab by default
-      switchInnerTab('transcript');
+      // AI panel closed by default
 
       document.getElementById('new-btn').addEventListener('click', () => {
         state.result = null;
