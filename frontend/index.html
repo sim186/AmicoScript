@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -553,6 +554,30 @@
       flex: 1;
       min-height: 0;
     }
+
+    /* Markdown prose styles for AI result */
+    #ai-result-text h1,#ai-result-text h2,#ai-result-text h3,#ai-result-text h4 {
+      font-weight: 600; margin-top: 1em; margin-bottom: .4em; color: #1e293b;
+    }
+    #ai-result-text h1 { font-size: 1.15em; }
+    #ai-result-text h2 { font-size: 1.05em; }
+    #ai-result-text h3 { font-size: .95em; }
+    #ai-result-text p { margin-bottom: .6em; }
+    #ai-result-text ul,#ai-result-text ol { padding-left: 1.4em; margin-bottom: .6em; }
+    #ai-result-text ul { list-style-type: disc; }
+    #ai-result-text ol { list-style-type: decimal; }
+    #ai-result-text li { margin-bottom: .2em; }
+    #ai-result-text strong { font-weight: 600; }
+    #ai-result-text em { font-style: italic; }
+    #ai-result-text code { background: #f1f5f9; border-radius: 3px; padding: .1em .3em; font-size: .85em; font-family: ui-monospace,monospace; }
+    #ai-result-text pre { background: #f1f5f9; border-radius: 6px; padding: .75em 1em; overflow-x: auto; margin-bottom: .6em; }
+    #ai-result-text pre code { background: none; padding: 0; }
+    #ai-result-text blockquote { border-left: 3px solid #6c63ff; padding-left: .75em; color: #64748b; margin-bottom: .6em; }
+    #ai-result-text hr { border: none; border-top: 1px solid #e2e8f0; margin: .8em 0; }
+    #ai-result-text a { color: #6c63ff; text-decoration: underline; }
+    #ai-result-text table { border-collapse: collapse; width: 100%; margin-bottom: .6em; font-size: .9em; }
+    #ai-result-text th,#ai-result-text td { border: 1px solid #e2e8f0; padding: .3em .6em; text-align: left; }
+    #ai-result-text th { background: #f8fafc; font-weight: 600; }
 
     /* AI Analysis slide-over panel */
     #inner-panel-ai {
@@ -1441,7 +1466,7 @@
                   <button id="ai-result-copy" class="text-xs text-brand hover:underline">Copy</button>
                 </div>
                 <div id="ai-result-text"
-                  class="text-sm text-slate-700 bg-slate-50 rounded-lg border border-slate-200 p-4 whitespace-pre-wrap min-h-[120px] leading-relaxed">
+                  class="text-sm text-slate-700 bg-slate-50 rounded-lg border border-slate-200 p-4 min-h-[120px] leading-relaxed">
                 </div>
                 <div id="ai-result-spinner" class="hidden flex items-center gap-1.5 mt-2 text-xs text-slate-400">
                   <svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none"
@@ -1729,6 +1754,7 @@
       // AI Analysis
       analysisJobId: null,
       analysisEventSource: null,
+      rawAiText: '',
 
       // Library data
       library: {
@@ -4753,7 +4779,8 @@
 
         // Reset AI analysis panel and inputs
         document.getElementById('ai-result-area').classList.add('hidden');
-        document.getElementById('ai-result-text').textContent = '';
+        document.getElementById('ai-result-text').innerHTML = '';
+        state.rawAiText = '';
         document.getElementById('ai-past-analyses').classList.add('hidden');
         const customInp = document.getElementById('ai-custom-prompt'); if (customInp) customInp.value = '';
         const targ = document.getElementById('ai-target-lang'); if (targ) targ.value = '';
@@ -5264,8 +5291,7 @@
 
       // Copy result
       document.getElementById('ai-result-copy').addEventListener('click', () => {
-        const text = document.getElementById('ai-result-text').textContent;
-        if (text) navigator.clipboard.writeText(text).catch(() => { });
+        if (state.rawAiText) navigator.clipboard.writeText(state.rawAiText).catch(() => { });
       });
 
       // LLM Settings: eye toggle for API key
@@ -5361,6 +5387,7 @@
       const resultArea = document.getElementById('ai-result-area');
 
       resultDiv.textContent = '';
+      state.rawAiText = '';
       resultArea.classList.remove('hidden');
       spinner.classList.remove('hidden');
       runBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg> Stop`;
@@ -5374,13 +5401,15 @@
         if (data.heartbeat) return;
 
         if (data.status === 'streaming' && data.data?.chunk) {
-          resultDiv.textContent += data.data.chunk;
+          state.rawAiText += data.data.chunk;
+          resultDiv.textContent = state.rawAiText;
           resultDiv.scrollTop = resultDiv.scrollHeight;
         } else if (data.status === 'done') {
           es.close();
           state.analysisJobId = null;
           state.analysisEventSource = null;
           spinner.classList.add('hidden');
+          resultDiv.innerHTML = marked.parse(state.rawAiText);
           _resetAnalysisBtn();
           clientLog('AI analysis complete');
           const typeLabel = getSelectedAnalysisType();
@@ -5393,12 +5422,16 @@
           spinner.classList.add('hidden');
           _resetAnalysisBtn();
           clientLog(`AI analysis error: ${data.message || 'unknown'}`, 'ERROR');
-          if (data.message) resultDiv.textContent += `\n\n[Error: ${data.message}]`;
+          if (data.message) {
+            state.rawAiText += `\n\n[Error: ${data.message}]`;
+            resultDiv.innerHTML = marked.parse(state.rawAiText);
+          }
         } else if (data.status === 'cancelled') {
           es.close();
           state.analysisJobId = null;
           state.analysisEventSource = null;
           spinner.classList.add('hidden');
+          if (state.rawAiText) resultDiv.innerHTML = marked.parse(state.rawAiText);
           _resetAnalysisBtn();
         }
       };
@@ -5483,7 +5516,8 @@
         if (!res.ok) return;
         const a = await res.json();
         const resultDiv = document.getElementById('ai-result-text');
-        resultDiv.textContent = a.result_text;
+        state.rawAiText = a.result_text;
+        resultDiv.innerHTML = marked.parse(a.result_text);
         const label = a.analysis_type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
         document.getElementById('ai-result-label').textContent = label;
         document.getElementById('ai-result-area').classList.remove('hidden');

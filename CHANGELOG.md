@@ -13,6 +13,7 @@ Keep a Changelog format.
 - **Contextual bulk toolbar:** Toolbar switches from search mode to speaker-assign mode when segments are selected; search and bulk controls no longer stack vertically.
 - **Edited segment indicator:** Replaced text badge with amber left border already present on the segment card.
 - **Bulk speaker assignment:** Select multiple segments and assign a speaker name in one action via the contextual toolbar.
+- **AI result markdown rendering:** AI Analysis output now renders as formatted markdown (headings, lists, code blocks, tables, blockquotes) instead of plain text.
 
 ## [1.10.5] - 2026-05-05
 - Fix torch/torchaudio dependency caps for Python 3.13 and lightning compatibility
