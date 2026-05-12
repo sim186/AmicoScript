@@ -7,6 +7,7 @@
 <p align="center"><strong>AmicoScript local audio transcription tool.</strong></p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/downloads/sim186/AmicoScript/total?style=flat-square" alt="Downloads" />
   <img src="https://img.shields.io/github/stars/sim186/AmicoScript?style=flat-square" alt="Stars" />
   <img src="https://img.shields.io/github/v/release/sim186/AmicoScript?style=flat-square" alt="Latest Release" />
   <img src="https://img.shields.io/github/license/sim186/AmicoScript?style=flat-square" alt="License" />
@@ -14,7 +15,7 @@
 </p>
 
 <p align="center">
-  ⭐ <strong><a href="https://github.com/sim186/AmicoScript">Star if useful</a></strong> · 💬 <strong><a href="https://t.me/amicoscript">Telegram @amicoscript</a></strong> · 🐛 <strong><a href="https://github.com/sim186/AmicoScript/issues">Issues welcome</a></strong>
+  🌐 <strong><a href="https://sim186.github.io/AmicoScript/">Website</a></strong> · ⭐ <strong><a href="https://github.com/sim186/AmicoScript">Star if useful</a></strong> · 💬 <strong><a href="https://t.me/amicoscript">Telegram @amicoscript</a></strong> · 🐛 <strong><a href="https://github.com/sim186/AmicoScript/issues">Issues welcome</a></strong>
 </p>
 
 **AmicoScript** is a privacy-focused, local-first transcription tool built on OpenAI's Whisper models. It allows you to transform audio recordings into structured, searchable transcripts without your data ever leaving your repository or machine. Whether you need speaker identification (diarization), translation, or simple subtitles, AmicoScript provides a fast, free, and secure alternative to cloud services.
