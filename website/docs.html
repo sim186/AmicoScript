@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs — AmicoScript</title>
+  <meta name="description" content="AmicoScript documentation — setup, API reference, diarization, LLM integration." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { DEFAULT: '#6366f1', dark: '#4f46e5' } } } }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .prose h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2.5rem; margin-bottom: 0.75rem; color: #f1f5f9; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+    .prose h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #e2e8f0; }
+    .prose h4 { font-size: 1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; color: #cbd5e1; }
+    .prose p { color: #94a3b8; line-height: 1.75; margin-bottom: 0.75rem; }
+    .prose ul { list-style: disc; padding-left: 1.5rem; color: #94a3b8; margin-bottom: 0.75rem; }
+    .prose li { margin-bottom: 0.3rem; line-height: 1.7; }
+    .prose ol { list-style: decimal; padding-left: 1.5rem; color: #94a3b8; margin-bottom: 0.75rem; }
+    .prose pre { background: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+    .prose code { font-family: ui-monospace, monospace; font-size: 0.875rem; color: #a5b4fc; }
+    .prose pre code { color: #e2e8f0; }
+    .prose a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+    .prose strong { color: #e2e8f0; font-weight: 600; }
+    .prose hr { border-color: #1e293b; margin: 2rem 0; }
+    .nav-link { display: block; padding: 0.3rem 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; color: #94a3b8; transition: all 0.15s; }
+    .nav-link:hover { background: #1e293b; color: #f1f5f9; }
+    .nav-section { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; color: #475569; text-transform: uppercase; padding: 0.5rem 0.75rem 0.25rem; margin-top: 1rem; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans antialiased">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-semibold text-white">
+        <img src="assets/logo.svg" alt="AmicoScript" class="w-7 h-7" />
+        <span>AmicoScript</span>
+      </a>
+      <div class="flex items-center gap-5 text-sm text-gray-400">
+        <a href="docs.html" class="text-white font-medium">Docs</a>
+        <a href="changelog.html" class="hover:text-white transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-4 pt-24 pb-20 flex gap-10">
+
+    <!-- Sidebar -->
+    <aside class="hidden lg:block w-56 shrink-0 sticky top-24 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
+      <div class="nav-section">Getting Started</div>
+      <a href="#overview" class="nav-link">Overview</a>
+      <a href="#quick-start" class="nav-link">Quick Start</a>
+      <a href="#docker" class="nav-link">Docker</a>
+
+      <div class="nav-section">Features</div>
+      <a href="#diarization" class="nav-link">Speaker Diarization</a>
+      <a href="#ai-analysis" class="nav-link">AI Analysis & LLM</a>
+      <a href="#gpu" class="nav-link">GPU Support</a>
+
+      <div class="nav-section">API Reference</div>
+      <a href="#api-models" class="nav-link">Models</a>
+      <a href="#api-settings" class="nav-link">Settings</a>
+      <a href="#api-transcribe" class="nav-link">Transcription</a>
+      <a href="#api-jobs" class="nav-link">Jobs</a>
+      <a href="#api-export" class="nav-link">Export</a>
+      <a href="#api-llm" class="nav-link">LLM</a>
+    </aside>
+
+    <!-- Content -->
+    <main class="min-w-0 flex-1 prose max-w-none">
+      <h1 class="text-4xl font-bold text-white mb-2">Documentation</h1>
+      <p class="text-gray-400 text-lg mb-10">Everything you need to set up and use AmicoScript.</p>
+
+      <hr />
+
+      <h2 id="overview">Overview</h2>
+      <p>AmicoScript is a local-first audio transcription tool powered by Whisper. It provides:</p>
+      <ul>
+        <li>Audio transcription (Whisper tiny → large-v3)</li>
+        <li>Optional speaker diarization</li>
+        <li>Transcript management and full-text search</li>
+        <li>AI analysis via local LLM (Ollama)</li>
+        <li>Export in JSON, SRT, TXT, and Markdown</li>
+      </ul>
+
+      <h2 id="quick-start">Quick Start</h2>
+
+      <h3 id="docker">Docker <span class="text-indigo-400 text-sm font-normal">(Recommended)</span></h3>
+      <pre><code>docker compose up --build</code></pre>
+      <p>Then open <strong>http://localhost:8002</strong>.</p>
+
+      <h4>Production deployment with HTTPS (Traefik)</h4>
+      <pre><code>cp .env.example .env
+# Edit .env: set APP_DOMAIN, TRAEFIK_NETWORK, TRAEFIK_CERTRESOLVER
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d</code></pre>
+      <p><code>docker-compose.prod.yml</code> adds Traefik labels and joins the Traefik Docker network. TLS termination and Let's Encrypt certificates are handled automatically.</p>
+
+      <h3>Local Python</h3>
+      <pre><code>pip install -r backend/requirements.txt
+python run.py</code></pre>
+      <p>Requires Python 3.10+. <code>ffmpeg</code> is downloaded automatically on first run.</p>
+
+      <h3>Desktop App</h3>
+      <p>Download the standalone app from the <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener">Releases page</a> — no Python required.</p>
+      <p><strong>macOS unsigned app:</strong> After downloading, go to <em>System Settings → Privacy &amp; Security</em> and click "Open Anyway" to allow the unidentified developer app to run.</p>
+
+      <hr />
+
+      <h2 id="diarization">Speaker Diarization</h2>
+      <p>Speaker diarization identifies who said what. It uses <code>pyannote</code> and requires a Hugging Face token.</p>
+      <ol>
+        <li>Create a free account at <a href="https://huggingface.co" target="_blank" rel="noopener">huggingface.co</a></li>
+        <li>Accept the model licenses for pyannote speaker diarization models</li>
+        <li>Generate a <code>hf_</code> access token in your HF settings</li>
+        <li>Paste the token in AmicoScript's Settings panel</li>
+      </ol>
+
+      <hr />
+
+      <h2 id="ai-analysis">AI Analysis &amp; LLM Integration</h2>
+      <p>AmicoScript can call a locally hosted LLM to produce higher-level analyses from transcripts.</p>
+      <p>Supported analysis types:</p>
+      <ul>
+        <li><strong>Summary</strong> — concise meeting summary highlighting topics and decisions</li>
+        <li><strong>Action items</strong> — extracted tasks, owners, and deadlines</li>
+        <li><strong>Translation</strong> — translate the full transcript via LLM</li>
+        <li><strong>Custom prompt</strong> — run arbitrary instructions against the transcript</li>
+      </ul>
+
+      <h3>Setting up Ollama</h3>
+      <p><strong>macOS / Windows:</strong> Download from <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a> and run the installer. Ollama starts as a background service automatically.</p>
+      <p><strong>Linux:</strong></p>
+      <pre><code>curl -fsSL https://ollama.ai/install.sh | sh
+ollama serve</code></pre>
+
+      <h4>Pull a model</h4>
+      <pre><code>ollama pull mistral       # Fast, good for summaries
+ollama pull neural-chat   # Smaller, lighter weight
+ollama pull llama2        # More capable (~4 GB)</code></pre>
+
+      <h4>Configure AmicoScript</h4>
+      <ol>
+        <li>Open AmicoScript → <strong>LLM Settings</strong> (sidebar)</li>
+        <li>Set Base URL: <code>http://localhost:11434</code></li>
+        <li>Set Model Name: your chosen model (e.g., <code>mistral</code>)</li>
+        <li>Click <strong>Test Connection</strong></li>
+      </ol>
+      <p><strong>Docker note:</strong> If running AmicoScript in Docker and Ollama on your host, use <code>http://host.docker.internal:11434</code> as the base URL.</p>
+
+      <hr />
+
+      <h2 id="gpu">GPU Support</h2>
+      <p>To enable GPU acceleration:</p>
+      <ol>
+        <li>Use a CUDA-enabled PyTorch base image</li>
+        <li>Update the Dockerfile accordingly</li>
+        <li>Enable GPU support in docker-compose</li>
+      </ol>
+      <p>Performance scales with model size and hardware. Larger models = better accuracy; smaller = faster.</p>
+
+      <hr />
+
+      <h2>API Reference</h2>
+
+      <h3 id="api-models">Models</h3>
+      <p><code>GET /api/models</code> — Returns available Whisper models.</p>
+
+      <h3 id="api-settings">Settings</h3>
+      <p><code>GET /api/settings</code> — Retrieve saved settings (HF token, LLM config).</p>
+      <p><code>POST /api/settings</code> — Save settings.</p>
+
+      <h3 id="api-transcribe">Transcription</h3>
+      <p><code>POST /api/transcribe</code> — Upload an audio file and start a transcription job.</p>
+      <pre><code>// Response
+{
+  "job_id": "string"
+}</code></pre>
+
+      <h3 id="api-jobs">Jobs</h3>
+      <p><code>GET /api/jobs/{id}/stream</code> — Server-Sent Events stream for real-time progress.</p>
+      <p><code>POST /api/jobs/{id}/cancel</code> — Cancel a running job.</p>
+      <p><code>GET /api/jobs/{id}/result</code> — Full transcription result as JSON.</p>
+
+      <h3 id="api-export">Export</h3>
+      <p><code>GET /api/jobs/{id}/export/{fmt}</code> — Download transcript in <code>json</code>, <code>srt</code>, <code>txt</code>, or <code>md</code> format.</p>
+
+      <h3 id="api-llm">LLM</h3>
+      <p><code>GET /api/llm/settings</code> — Current LLM configuration.</p>
+      <p><code>POST /api/llm/settings</code> — Save LLM settings (<code>llm_base_url</code>, <code>llm_model_name</code>, <code>llm_api_key</code>).</p>
+      <p><code>POST /api/llm/test-connection</code> — Quick connectivity test.</p>
+      <p><code>GET /api/llm/models</code> — List models exposed by the LLM server.</p>
+      <p><code>POST /api/llm/models/pull</code> — Trigger model pull (Ollama-style).</p>
+      <p><code>POST /api/recordings/{id}/analyses</code> — Create a new analysis job.</p>
+      <p><code>GET /api/recordings/{id}/analyses</code> — List past analyses for a recording.</p>
+      <p><code>GET /api/recordings/{id}/analyses/{analysis_id}</code> — Fetch a specific analysis result.</p>
+
+      <h4>Example: start an analysis</h4>
+      <pre><code>curl -X POST "http://localhost:8002/api/recordings/&lt;RECORDING_ID&gt;/analyses" \
+  -F analysis_type=summary \
+  -F output_language=English</code></pre>
+
+      <h4>Example: test LLM connection</h4>
+      <pre><code>curl -X POST "http://localhost:8002/api/llm/test-connection"</code></pre>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800 py-8 px-4 text-center text-sm text-gray-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="" class="w-5 h-5 opacity-60" />
+        <span>AmicoScript — MIT License</span>
+      </div>
+      <div class="flex items-center gap-5">
+        <a href="index.html" class="hover:text-gray-300 transition-colors">Home</a>
+        <a href="changelog.html" class="hover:text-gray-300 transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
