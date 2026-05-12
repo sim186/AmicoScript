@@ -6,6 +6,11 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 📤 Export
+
+- **Enhanced Markdown export:** Speaker runs merged into paragraphs, timestamp only at start of each speaker turn, metadata header includes duration, language, speaker list, and date.
+- **Bulk Markdown export:** Selecting multiple recordings and exporting as MD now produces a single combined file with a table of contents and `---` separators between recordings (previously downloaded N separate files).
+
 ### ✨ UI
 
 - **Transcript tab decluttered:** Collapsed inner tab bar, separate search bar, and segment selection bar into a single compact toolbar — reducing pre-content chrome from 5 bands to 2.

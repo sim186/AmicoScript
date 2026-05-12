@@ -1,12 +1,15 @@
 """Library, recording, and transcript editing endpoints."""
 
+import datetime
 import json
 import time
 from pathlib import Path
 
 from db import get_session
-from exports import _format_json, _format_md, _format_srt, _format_txt
+
+from exports import _format_json, _format_md, _format_md_bulk, _format_srt, _format_txt
 from fastapi import APIRouter, Depends, Form, HTTPException
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
 from sqlmodel import Session, select
@@ -185,13 +188,20 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
         raise HTTPException(500, f"Transcript data is corrupt: {exc}") from exc
 
     filename = Path(rec.filename).stem
+    date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
     formatters = {
         "json": (_format_json, "application/json", "json"),
         "srt": (_format_srt, "text/plain", "srt"),
         "txt": (_format_txt, "text/plain", "txt"),
-        "md": (_format_md, "text/markdown", "md"),
     }
+    if fmt == "md":
+        content = _format_md(result, title=filename, date=date_str)
+        return StreamingResponse(
+            iter([content.encode("utf-8")]),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+        )
     if fmt not in formatters:
         raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
 
@@ -201,6 +211,42 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
         iter([content.encode("utf-8")]),
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
+    )
+
+
+class BulkExportRequest(BaseModel):
+    ids: list[str]
+
+
+@router.post("/api/recordings/bulk-export/md")
+def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_session)):
+    recordings = []
+    for rec_id in body.ids:
+        rec = session.get(Recording, rec_id)
+        if not rec:
+            continue
+        tr = session.exec(select(Transcript).where(Transcript.recording_id == rec_id)).first()
+        if not tr:
+            continue
+        try:
+            result = json.loads(tr.json_data)
+            if not isinstance(result, dict):
+                continue
+        except (json.JSONDecodeError, ValueError):
+            continue
+        recordings.append({
+            "title": Path(rec.filename).stem,
+            "date": datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d"),
+            "result": result,
+        })
+    if not recordings:
+        raise HTTPException(404, "No valid transcripts found for provided IDs")
+    content = _format_md_bulk(recordings)
+    filename = "transcripts" if len(recordings) > 1 else recordings[0]["title"]
+    return StreamingResponse(
+        iter([content.encode("utf-8")]),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
     )
 
 

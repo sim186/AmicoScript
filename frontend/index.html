@@ -4585,6 +4585,27 @@
       document.querySelectorAll('.popover').forEach(p => p.classList.add('hidden'));
       const ids = [...state.library.selectedIds];
       if (!ids.length) return;
+
+      if (fmt === 'md') {
+        try {
+          const res = await fetch('/api/recordings/bulk-export/md', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+          });
+          if (!res.ok) { alert(`Export failed: HTTP ${res.status}`); return; }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const filename = ids.length === 1
+            ? (state.library.recordings.find(r => r.id === ids[0])?.filename || 'transcript').replace(/\.[^.]+$/, '')
+            : 'transcripts';
+          a.href = url; a.download = `${filename}.md`; a.click();
+          URL.revokeObjectURL(url);
+        } catch (err) { alert(`Export failed: ${err.message}`); }
+        return;
+      }
+
       for (const id of ids) {
         try {
           const rec = state.library.recordings.find(r => r.id === id);
@@ -4596,7 +4617,6 @@
           const a = document.createElement('a');
           a.href = url; a.download = `${baseName}.${fmt}`; a.click();
           URL.revokeObjectURL(url);
-          // small delay to avoid overwhelming the browser with simultaneous downloads
           await new Promise(r => setTimeout(r, 150));
         } catch (err) { alert(`Export failed: ${err.message}`); }
       }

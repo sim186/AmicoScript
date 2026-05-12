@@ -65,25 +65,71 @@ def _format_txt(result: dict) -> str:
     return "\n".join(lines)
 
 
-def _format_md(result: dict) -> str:
+def _format_md(result: dict, title: str = "Transcript", date: str = "") -> str:
     lang = result.get("language", "").upper()
     dur = _ts(result.get("duration", 0))
+
+    meta_parts = [f"**Duration:** {dur}", f"**Language:** {lang or 'auto'}"]
+
+    # Collect unique speakers for metadata line
+    speakers = []
+    for seg in result.get("segments", []):
+        sp = seg.get("speaker", "")
+        if sp and sp not in speakers:
+            speakers.append(sp)
+    if speakers:
+        meta_parts.append(f"**Speakers:** {', '.join(speakers)}")
+    if date:
+        meta_parts.append(f"**Date:** {date}")
+
     lines = [
-        "# AmicoScript Transcript",
+        f"# {title}",
         "",
-        f"**Language:** {lang or 'auto'} | **Duration:** {dur} | **Segments:** {result.get('num_segments', 0)}",
+        " | ".join(meta_parts),
         "",
         "---",
         "",
     ]
-    prev_speaker = None
+
+    # Group consecutive same-speaker segments into runs
+    runs = []
     for seg in result.get("segments", []):
         speaker = seg.get("speaker", "")
-        if speaker and speaker != prev_speaker:
-            lines.append(f"**{speaker}**")
-            prev_speaker = speaker
-        ts_start = _ts(seg["start"])
-        ts_end = _ts(seg["end"])
-        lines.append(f"> `{ts_start} – {ts_end}` {seg['text']}")
+        text = seg.get("text", "").strip()
+        if not text:
+            continue
+        if runs and runs[-1]["speaker"] == speaker:
+            runs[-1]["text"] += " " + text
+        else:
+            runs.append({"speaker": speaker, "start": seg["start"], "text": text})
+
+    for run in runs:
+        speaker = run["speaker"]
+        ts = _ts(run["start"])
+        if speaker:
+            lines.append(f"**{speaker}** · `{ts}`")
+        else:
+            lines.append(f"`{ts}`")
         lines.append("")
+        lines.append(run["text"])
+        lines.append("")
+
     return "\n".join(lines)
+
+
+def _format_md_bulk(recordings: list[dict]) -> str:
+    """Combine multiple transcripts into a single markdown document."""
+    sections = []
+
+    if len(recordings) > 1:
+        toc_lines = ["# Table of Contents", ""]
+        for i, rec in enumerate(recordings, 1):
+            anchor = rec["title"].lower().replace(" ", "-").replace("/", "").replace(".", "")
+            toc_lines.append(f"{i}. [{rec['title']}](#{anchor})")
+        toc_lines.extend(["", "---", ""])
+        sections.append("\n".join(toc_lines))
+
+    for rec in recordings:
+        sections.append(_format_md(rec["result"], title=rec["title"], date=rec.get("date", "")))
+
+    return "\n\n---\n\n".join(sections)
