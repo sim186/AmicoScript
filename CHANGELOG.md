@@ -6,10 +6,13 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.12.0] - 2026-05-12
 ### ⚡ Performance
 
 - **Benchmark tool:** New **Benchmark** section in the transcribe sidebar. Runs tiny/small/medium Whisper models against a standard 11 s reference clip and reports load time, inference time, and RTF (real-time factor) for each. Results can be shared to the community via a pre-filled GitHub issue. See [BENCHMARKS.md](BENCHMARKS.md) for community results.
-
+- No change details provided.
 
 ## [1.11.0] - 2026-05-12
 ### ✨ UI
