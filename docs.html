@@ -41,9 +41,9 @@
         <img src="assets/logo.svg" alt="AmicoScript" class="w-7 h-7" />
         <span>AmicoScript</span>
       </a>
-      <div class="flex items-center gap-5 text-sm text-gray-400">
+      <div class="flex items-center gap-3 sm:gap-5 text-sm text-gray-400">
         <a href="docs.html" class="text-white font-medium">Docs</a>
-        <a href="changelog.html" class="hover:text-white transition-colors">Changelog</a>
+        <a href="changelog.html" class="hidden sm:block hover:text-white transition-colors">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
       </div>
     </div>
@@ -74,7 +74,29 @@
 
     <!-- Content -->
     <main class="min-w-0 flex-1 prose max-w-none">
-      <h1 class="text-4xl font-bold text-white mb-2">Documentation</h1>
+      <!-- Mobile section nav -->
+      <details class="lg:hidden mb-6 bg-gray-900 border border-gray-800 rounded-xl not-prose">
+        <summary class="px-4 py-3 text-sm font-semibold text-gray-200 cursor-pointer select-none">On this page</summary>
+        <div class="px-4 pb-3">
+          <div class="nav-section">Getting Started</div>
+          <a href="#overview" class="nav-link">Overview</a>
+          <a href="#quick-start" class="nav-link">Quick Start</a>
+          <a href="#docker" class="nav-link">Docker</a>
+          <div class="nav-section">Features</div>
+          <a href="#diarization" class="nav-link">Speaker Diarization</a>
+          <a href="#ai-analysis" class="nav-link">AI Analysis & LLM</a>
+          <a href="#gpu" class="nav-link">GPU Support</a>
+          <div class="nav-section">API Reference</div>
+          <a href="#api-models" class="nav-link">Models</a>
+          <a href="#api-settings" class="nav-link">Settings</a>
+          <a href="#api-transcribe" class="nav-link">Transcription</a>
+          <a href="#api-jobs" class="nav-link">Jobs</a>
+          <a href="#api-export" class="nav-link">Export</a>
+          <a href="#api-llm" class="nav-link">LLM</a>
+        </div>
+      </details>
+
+      <h1 class="text-3xl sm:text-4xl font-bold text-white mb-2">Documentation</h1>
       <p class="text-gray-400 text-lg mb-10">Everything you need to set up and use AmicoScript.</p>
 
       <hr />
