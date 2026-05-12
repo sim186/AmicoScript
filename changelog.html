@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Changelog — AmicoScript</title>
+  <meta name="description" content="AmicoScript release history and changelog." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { DEFAULT: '#6366f1', dark: '#4f46e5' } } } }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .release { border-left: 2px solid #1e293b; padding-left: 1.5rem; margin-bottom: 2.5rem; position: relative; }
+    .release::before { content: ''; position: absolute; left: -5px; top: 0.4rem; width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+    .release.latest::before { background: #6366f1; }
+    .release h2 { font-size: 1.25rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.25rem; }
+    .release .date { font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem; }
+    .badge { display: inline-flex; align-items: center; padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-right: 0.4rem; margin-bottom: 0.75rem; }
+    .badge-ui { background: #1e293b; color: #818cf8; }
+    .badge-fix { background: #1c1917; color: #fb923c; }
+    .badge-feat { background: #14532d; color: #4ade80; }
+    .badge-sec { background: #450a0a; color: #f87171; }
+    .badge-test { background: #1e293b; color: #94a3b8; }
+    .change-item { font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.4rem; padding-left: 1rem; position: relative; line-height: 1.6; }
+    .change-item::before { content: '–'; position: absolute; left: 0; color: #475569; }
+    .change-item strong { color: #e2e8f0; font-weight: 600; }
+    .change-item a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans antialiased">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-semibold text-white">
+        <img src="assets/logo.svg" alt="AmicoScript" class="w-7 h-7" />
+        <span>AmicoScript</span>
+      </a>
+      <div class="flex items-center gap-5 text-sm text-gray-400">
+        <a href="docs.html" class="hover:text-white transition-colors">Docs</a>
+        <a href="changelog.html" class="text-white font-medium">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-4 pt-24 pb-20">
+
+    <h1 class="text-4xl font-bold text-white mb-2">Changelog</h1>
+    <p class="text-gray-400 text-lg mb-12">All notable changes to AmicoScript. Follows <a href="https://semver.org/" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">Semantic Versioning</a>.</p>
+
+    <!-- v1.11.0 -->
+    <div class="release latest">
+      <div class="flex items-center gap-3 flex-wrap">
+        <h2>v1.11.0</h2>
+        <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-900/60 text-indigo-300 rounded-full">Latest</span>
+      </div>
+      <div class="date">May 12, 2026</div>
+      <div>
+        <span class="badge badge-ui">✨ UI</span>
+        <span class="badge badge-feat">📤 Export</span>
+      </div>
+      <div class="change-item"><strong>Recording alias:</strong> Rename any recording with a display name independent of the source filename. Used as title in Markdown exports.</div>
+      <div class="change-item"><strong>Transcript tab decluttered:</strong> Collapsed inner tab bar, search bar, and segment selection bar into a single compact toolbar.</div>
+      <div class="change-item"><strong>AI Analysis slide-over:</strong> Moved from a sub-tab to a slide-over panel (lightbulb icon), keeping the transcript always visible.</div>
+      <div class="change-item"><strong>Bulk speaker assignment:</strong> Select multiple segments and assign a speaker name in one action via the contextual toolbar.</div>
+      <div class="change-item"><strong>AI result markdown rendering:</strong> AI Analysis output now renders as formatted markdown instead of plain text.</div>
+      <div class="change-item"><strong>Enhanced Markdown export:</strong> Speaker runs merged into paragraphs, timestamp only at start of each speaker turn, metadata header with duration, language, speaker list, and date.</div>
+      <div class="change-item"><strong>Bulk Markdown export:</strong> Multiple recordings export as a single combined file with a table of contents and separators.</div>
+    </div>
+
+    <!-- v1.10.5 -->
+    <div class="release">
+      <h2>v1.10.5</h2>
+      <div class="date">May 5, 2026</div>
+      <span class="badge badge-fix">🐛 Fix</span>
+      <div class="change-item">Fix torch/torchaudio dependency caps for Python 3.13 and lightning compatibility.</div>
+    </div>
+
+    <!-- v1.10.4 -->
+    <div class="release">
+      <h2>v1.10.4</h2>
+      <div class="date">April 30, 2026</div>
+      <span class="badge badge-fix">🐛 Fix</span>
+      <div class="change-item">Error in transcription.py <a href="https://github.com/sim186/AmicoScript/issues/22" target="_blank" rel="noopener">#22</a> (thanks @nyfon).</div>
+    </div>
+
+    <!-- v1.10.3 -->
+    <div class="release">
+      <h2>v1.10.3</h2>
+      <div class="date">April 21, 2026</div>
+      <span class="badge badge-fix">🐛 Fix</span>
+      <div class="change-item">Fix GPU release build.</div>
+    </div>
+
+    <!-- v1.10.2 -->
+    <div class="release">
+      <h2>v1.10.2</h2>
+      <div class="date">April 19, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item">Create distributable with GPU enabled.</div>
+    </div>
+
+    <!-- v1.10.1 -->
+    <div class="release">
+      <h2>v1.10.1</h2>
+      <div class="date">April 19, 2026</div>
+      <span class="badge badge-sec">🔒 Security</span>
+      <span class="badge badge-fix">🐛 Fix</span>
+      <span class="badge badge-test">🧪 Tests</span>
+      <div class="change-item"><strong>CORS restricted to localhost:</strong> Prevent cross-origin requests from arbitrary websites.</div>
+      <div class="change-item"><strong>Exit endpoint CSRF token:</strong> <code>/api/exit</code> now requires a per-session token, blocking DNS-rebinding attacks.</div>
+      <div class="change-item"><strong>Audio path bounds check:</strong> Path traversal prevention in <code>/api/audio/{job_id}</code>.</div>
+      <div class="change-item"><strong>Frontend XSS fix:</strong> Folder/tag menus rebuilt with DOM API, eliminating injection via names containing <code>'</code> or <code>&lt;/script&gt;</code>.</div>
+      <div class="change-item"><strong>Chunked file upload:</strong> 1 MB streaming chunks prevent OOM on large audio files.</div>
+      <div class="change-item"><strong>Atomic settings write:</strong> Writes to <code>.tmp</code> then renames atomically, preventing corrupt settings on crash.</div>
+      <div class="change-item">9 new test files added covering exports, settings, search escaping, session lifecycle, and more.</div>
+    </div>
+
+    <!-- v1.10.0 -->
+    <div class="release">
+      <h2>v1.10.0</h2>
+      <div class="date">April 19, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item"><strong>Microphone recording:</strong> Record directly from your microphone with pause/resume support and a live timer. Auto-queued into the batch transcription flow.</div>
+    </div>
+
+    <!-- v1.9.0 -->
+    <div class="release">
+      <h2>v1.9.0</h2>
+      <div class="date">April 19, 2026</div>
+      <span class="badge badge-ui">✨ UI</span>
+      <div class="change-item">README: badges, competitor comparison table, Telegram community link, roadmap section.</div>
+      <div class="change-item"><code>CONTRIBUTING.md</code> and GitHub issue templates added.</div>
+      <div class="change-item">Feedback link in sidebar footer.</div>
+    </div>
+
+    <!-- v1.8.0 -->
+    <div class="release">
+      <h2>v1.8.0</h2>
+      <div class="date">April 18, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item">URL import from YouTube, TikTok, Instagram, Facebook, X, Vimeo, and Twitch via <code>yt-dlp</code>.</div>
+      <div class="change-item">Automatic platform tagging on URL imports (e.g., <code>youtube</code>, <code>tiktok</code>).</div>
+    </div>
+
+    <!-- v1.7.0 -->
+    <div class="release">
+      <h2>v1.7.0</h2>
+      <div class="date">April 15, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <span class="badge badge-test">🧪 Tests</span>
+      <div class="change-item">Backend API modularized into dedicated router modules under <code>backend/api/routes/</code>.</div>
+      <div class="change-item">Centralized status strings in <code>backend/core/messages.py</code>.</div>
+      <div class="change-item">Unit tests for diarization, audio normalization, Whisper model cache, CUDA/VAD error classifiers.</div>
+    </div>
+
+    <!-- v1.6.0 -->
+    <div class="release">
+      <h2>v1.6.0</h2>
+      <div class="date">April 14, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item">Transcription pipeline split into focused modules under <code>backend/core/</code>.</div>
+      <div class="change-item">Worker replaced with asyncio background task using <code>asyncio.Queue</code>.</div>
+      <div class="change-item">New <code>TranscriptionConfig</code> model with configurable <code>compute_type</code>, <code>device</code>, <code>vad_filter</code>, <code>word_timestamps</code>, and more.</div>
+      <div class="change-item">DB indexes added for frequently queried fields.</div>
+    </div>
+
+    <!-- v1.5.x -->
+    <div class="release">
+      <h2>v1.5.1 / v1.5.2</h2>
+      <div class="date">April 13, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item"><strong>Update check:</strong> Frontend displays a banner when a newer GitHub Release is available.</div>
+    </div>
+
+    <!-- v1.5.0 -->
+    <div class="release">
+      <h2>v1.5.0</h2>
+      <div class="date">April 12, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item"><strong>Google Colab integration:</strong> Offload transcription to a free Colab GPU while keeping files local.</div>
+      <div class="change-item"><strong>Bulk actions:</strong> Select multiple recordings and apply bulk move, tag, or delete operations.</div>
+      <div class="change-item"><strong>Batch directory import:</strong> Drop a folder of audio files for batch transcription.</div>
+    </div>
+
+    <!-- v1.4.1 -->
+    <div class="release">
+      <h2>v1.4.1</h2>
+      <div class="date">April 11, 2026</div>
+      <span class="badge badge-ui">✨ UI</span>
+      <div class="change-item"><strong>Mobile UI:</strong> Off-canvas sidebar overlay, always-visible segment action buttons on touch devices.</div>
+      <div class="change-item"><strong>Docker:</strong> Compose split into base, dev override, and production overlay. Traefik HTTPS support.</div>
+    </div>
+
+    <!-- v1.4.0 -->
+    <div class="release">
+      <h2>v1.4.0</h2>
+      <div class="date">April 6, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item"><strong>AI Analysis Engine:</strong> Per-recording LLM-powered analyses — summaries, action items, translation, custom prompts — with streaming results.</div>
+      <div class="change-item"><strong>LLM Settings:</strong> Configure base URL, model name, and API key from the UI. List and pull models.</div>
+      <div class="change-item"><strong>Drawer sidebar</strong>, inner tab panels, client-side action logs, and Help modal.</div>
+    </div>
+
+    <!-- v1.3.x -->
+    <div class="release">
+      <h2>v1.3.0 / v1.3.1</h2>
+      <div class="date">April 4, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item"><strong>Waveform player</strong> with interactive seeking and segment highlighting.</div>
+      <div class="change-item">Collapsible console log panel with timestamps.</div>
+      <div class="change-item">Multiple file upload; video file support via <code>ffmpeg</code> audio extraction.</div>
+      <div class="change-item">macOS release added.</div>
+    </div>
+
+    <!-- v1.2.0 -->
+    <div class="release">
+      <h2>v1.2.0</h2>
+      <div class="date">April 1, 2026</div>
+      <span class="badge badge-feat">✨ Feature</span>
+      <div class="change-item">Global search with live filtering.</div>
+      <div class="change-item">Server-side Hugging Face token persistence.</div>
+      <div class="change-item">Automated platform-specific ffmpeg download on first run.</div>
+    </div>
+
+    <!-- v1.1.x -->
+    <div class="release">
+      <h2>v1.1.0 / v1.1.1</h2>
+      <div class="date">March 31, 2026</div>
+      <span class="badge badge-ui">✨ UI</span>
+      <div class="change-item">Fixed 10-color palette for tags and folders with server-side validation.</div>
+      <div class="change-item">Per-folder and per-tag counts in sidebar.</div>
+      <div class="change-item">Tag-click filtering scoped to selected folder.</div>
+    </div>
+
+    <!-- v1.0.0 -->
+    <div class="release">
+      <h2>v1.0.0</h2>
+      <div class="date">March 30, 2026</div>
+      <span class="badge badge-fix">🐛 Fix</span>
+      <div class="change-item">Initial stable release.</div>
+      <div class="change-item">PyInstaller packaging fixed for speaker diarization.</div>
+      <div class="change-item">Windowed runtime crash fixed during diarization.</div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800 py-8 px-4 text-center text-sm text-gray-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="" class="w-5 h-5 opacity-60" />
+        <span>AmicoScript — MIT License</span>
+      </div>
+      <div class="flex items-center gap-5">
+        <a href="index.html" class="hover:text-gray-300 transition-colors">Home</a>
+        <a href="docs.html" class="hover:text-gray-300 transition-colors">Docs</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

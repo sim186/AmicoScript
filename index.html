@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AmicoScript — Local-First Audio Transcription</title>
+  <meta name="description" content="Privacy-focused, local-first audio transcription powered by Whisper. Your audio never leaves your machine." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#6366f1', dark: '#4f46e5', light: '#a5b4fc' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .gradient-text { background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-bg { background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.15), transparent); }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans antialiased">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-semibold text-white">
+        <img src="assets/logo.svg" alt="AmicoScript" class="w-7 h-7" />
+        <span>AmicoScript</span>
+      </a>
+      <div class="flex items-center gap-6 text-sm text-gray-400">
+        <a href="docs.html" class="hover:text-white transition-colors">Docs</a>
+        <a href="changelog.html" class="hover:text-white transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
+        <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener"
+          class="px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors font-medium">
+          Download
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero-bg pt-32 pb-20 px-4 text-center">
+    <div class="max-w-3xl mx-auto">
+      <img src="assets/logo.svg" alt="AmicoScript" class="w-16 h-16 mx-auto mb-6" />
+      <h1 class="text-5xl sm:text-6xl font-bold tracking-tight mb-5">
+        <span class="gradient-text">Privacy-first</span><br />audio transcription
+      </h1>
+      <p class="text-xl text-gray-400 mb-4 leading-relaxed">
+        Powered by OpenAI's Whisper. Runs entirely on your machine.<br />
+        Your audio never leaves your device.
+      </p>
+      <p class="text-sm text-gray-500 mb-10">
+        Open Source &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; No cloud &nbsp;·&nbsp; No subscriptions
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors text-base shadow-lg shadow-indigo-500/20">
+          Download for Mac / Windows
+        </a>
+        <a href="docs.html" class="inline-flex items-center justify-center gap-2 px-6 py-3 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors text-base">
+          Read the docs
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo -->
+  <section class="py-12 px-4">
+    <div class="max-w-5xl mx-auto">
+      <div class="rounded-2xl overflow-hidden border border-gray-800 shadow-2xl shadow-black/50">
+        <img src="assets/amicoscript-demo.gif" alt="AmicoScript demo" class="w-full" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="py-20 px-4">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-3">Everything you need</h2>
+      <p class="text-gray-400 text-center mb-12">No compromises. Full control.</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🎧</div>
+          <h3 class="font-semibold mb-1">All audio & video formats</h3>
+          <p class="text-sm text-gray-400">MP3, WAV, M4A, OGG, FLAC, AAC, MP4, MOV, MKV and more.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🗣️</div>
+          <h3 class="font-semibold mb-1">Speaker diarization</h3>
+          <p class="text-sm text-gray-400">Know who said what. Powered by pyannote with local HF models.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🤖</div>
+          <h3 class="font-semibold mb-1">AI analysis with Ollama</h3>
+          <p class="text-sm text-gray-400">Summaries, action items, translations, custom prompts — all via local LLM.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🔗</div>
+          <h3 class="font-semibold mb-1">URL import</h3>
+          <p class="text-sm text-gray-400">Paste a YouTube, TikTok, Instagram, Facebook, X, Vimeo, or Twitch link — done.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">📚</div>
+          <h3 class="font-semibold mb-1">Batch processing</h3>
+          <p class="text-sm text-gray-400">Drop a folder of files and let it run. Multi-select, bulk export, bulk actions.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">📤</div>
+          <h3 class="font-semibold mb-1">Rich export formats</h3>
+          <p class="text-sm text-gray-400">JSON, SRT, TXT, and Markdown with speaker runs, metadata, and table of contents.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🎙️</div>
+          <h3 class="font-semibold mb-1">Mic recording</h3>
+          <p class="text-sm text-gray-400">Record directly from your microphone with pause/resume and auto-transcription.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🔍</div>
+          <h3 class="font-semibold mb-1">Full-text search</h3>
+          <p class="text-sm text-gray-400">Search across all transcripts instantly with SQLite FTS5.</p>
+        </div>
+
+        <div class="p-5 rounded-xl bg-gray-900 border border-gray-800">
+          <div class="text-2xl mb-3">🖥️</div>
+          <h3 class="font-semibold mb-1">Mac, Windows & Docker</h3>
+          <p class="text-sm text-gray-400">Standalone desktop app or self-hosted via Docker — no Python required for the app.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison table -->
+  <section class="py-20 px-4 bg-gray-900/40">
+    <div class="max-w-5xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-3">How it compares</h2>
+      <p class="text-gray-400 text-center mb-10 text-sm">Based on official READMEs as of April 2026.</p>
+      <div class="overflow-x-auto rounded-xl border border-gray-800">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-800/80 text-left">
+              <th class="px-4 py-3 font-semibold text-gray-200">Feature</th>
+              <th class="px-4 py-3 font-semibold text-indigo-400 text-center">AmicoScript</th>
+              <th class="px-4 py-3 font-medium text-gray-400 text-center">Buzz</th>
+              <th class="px-4 py-3 font-medium text-gray-400 text-center">WhisperX</th>
+              <th class="px-4 py-3 font-medium text-gray-400 text-center">Whisper WebUI</th>
+              <th class="px-4 py-3 font-medium text-gray-400 text-center">IFW</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-800">
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Local-only (no cloud)</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Speaker diarization</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+            </tr>
+            <tr class="bg-indigo-950/20 hover:bg-indigo-950/30 transition-colors">
+              <td class="px-4 py-3 text-gray-200 font-medium">Ollama / LLM integration</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">URL import (7 platforms)</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500 text-xs">YouTube only</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500 text-xs">YouTube only</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Batch processing</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Desktop app (no Python needed)</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Docker support</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+            </tr>
+            <tr class="hover:bg-gray-800/30 transition-colors">
+              <td class="px-4 py-3 text-gray-300">Web UI</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+              <td class="px-4 py-3 text-center">✅</td>
+              <td class="px-4 py-3 text-center text-gray-500">❌</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick start -->
+  <section class="py-20 px-4">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-3">Get started in seconds</h2>
+      <p class="text-gray-400 text-center mb-10">Docker is the easiest path. Or download the desktop app.</p>
+      <div class="grid sm:grid-cols-2 gap-6">
+        <div class="p-6 rounded-xl bg-gray-900 border border-gray-800">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <span class="text-lg">🐳</span> Docker
+            <span class="ml-auto text-xs text-indigo-400 font-medium">Recommended</span>
+          </h3>
+          <pre class="text-sm text-gray-300 bg-gray-950 rounded-lg p-3 overflow-x-auto"><code>docker compose up --build</code></pre>
+          <p class="text-xs text-gray-500 mt-3">Open <span class="text-gray-300">http://localhost:8002</span></p>
+        </div>
+        <div class="p-6 rounded-xl bg-gray-900 border border-gray-800">
+          <h3 class="font-semibold mb-3 flex items-center gap-2"><span class="text-lg">🐍</span> Local Python</h3>
+          <pre class="text-sm text-gray-300 bg-gray-950 rounded-lg p-3 overflow-x-auto"><code>pip install -r backend/requirements.txt
+python run.py</code></pre>
+          <p class="text-xs text-gray-500 mt-3">Requires Python 3.10+</p>
+        </div>
+      </div>
+      <p class="text-center mt-8 text-sm text-gray-400">
+        Or skip Python entirely —
+        <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener"
+          class="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">download the desktop app</a>
+        for Mac or Windows.
+      </p>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-20 px-4 text-center">
+    <div class="max-w-xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4">Ready to try it?</h2>
+      <p class="text-gray-400 mb-8">Free, open source, and runs entirely on your machine.</p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center px-6 py-3 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-lg shadow-indigo-500/20">
+          Download latest release
+        </a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center px-6 py-3 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors">
+          View on GitHub
+        </a>
+      </div>
+      <p class="mt-6 text-sm text-gray-500">
+        Questions? Join the community on
+        <a href="https://t.me/amicoscript" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">Telegram @amicoscript</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800 py-8 px-4 text-center text-sm text-gray-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="" class="w-5 h-5 opacity-60" />
+        <span>AmicoScript — MIT License</span>
+      </div>
+      <div class="flex items-center gap-5">
+        <a href="docs.html" class="hover:text-gray-300 transition-colors">Docs</a>
+        <a href="changelog.html" class="hover:text-gray-300 transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
+        <a href="https://t.me/amicoscript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">Telegram</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
