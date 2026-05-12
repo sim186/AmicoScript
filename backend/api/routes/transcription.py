@@ -1,6 +1,7 @@
 """Transcription and job endpoints."""
 
 import asyncio
+import datetime
 import json
 import os
 import threading
@@ -470,8 +471,15 @@ def export_job(job_id: str, fmt: str):
         "json": (_format_json, "application/json", "json"),
         "srt": (_format_srt, "text/plain", "srt"),
         "txt": (_format_txt, "text/plain", "txt"),
-        "md": (_format_md, "text/markdown", "md"),
     }
+    if fmt == "md":
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        content = _format_md(result, title=filename, date=date_str)
+        return StreamingResponse(
+            iter([content.encode("utf-8")]),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+        )
     if fmt not in formatters:
         raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
 

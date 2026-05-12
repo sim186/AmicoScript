@@ -4490,11 +4490,32 @@
                onclick="event.stopPropagation()"
                onchange="toggleCardSelection('${rec.id}', this.checked, this.closest('.rec-card'))" />
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-slate-800 truncate">${escHtml(rec.filename)}</p>
-          <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}${folderName ? ' · ' + escHtml(folderName) : ''}</p>
+          <p class="text-sm font-semibold text-slate-800 truncate" title="${escHtml(rec.filename)}">${escHtml(rec.alias || rec.filename)}</p>
+          <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}${folderName ? ' · ' + escHtml(folderName) : ''}${rec.alias ? ' · ' + escHtml(rec.filename) : ''}</p>
           ${tagPills ? `<div class="flex flex-wrap gap-1 mt-2">${tagPills}</div>` : ''}
         </div>
         <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
+
+          <!-- Rename / alias -->
+          <div class="relative">
+            <button class="p-1.5 rounded-lg text-slate-300 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                    title="Rename" onclick="window.togglePopover(this)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 3.487a2.25 2.25 0 113.182 3.182L7.5 19.213l-4 1 1-4 12.362-12.726z"/>
+              </svg>
+            </button>
+            <div class="popover hidden absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-3 min-w-[220px]">
+              <p class="text-xs text-slate-400 mb-2">Display name (alias)</p>
+              <input type="text" class="w-full text-xs rounded border border-slate-200 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand"
+                     placeholder="${escHtml(rec.filename)}"
+                     value="${escHtml(rec.alias || '')}"
+                     onkeydown="if(event.key==='Enter'){saveAlias('${rec.id}',this);}" />
+              <div class="flex justify-end gap-2 mt-2">
+                <button class="text-xs text-slate-400 hover:text-slate-600" onclick="this.closest('.popover').classList.add('hidden')">Cancel</button>
+                <button class="text-xs font-medium text-brand hover:text-brand/80" onclick="saveAlias('${rec.id}',this.closest('.popover').querySelector('input'))">Save</button>
+              </div>
+            </div>
+          </div>
 
           <!-- Move to folder -->
           <div class="relative">
@@ -4620,6 +4641,21 @@
           await new Promise(r => setTimeout(r, 150));
         } catch (err) { alert(`Export failed: ${err.message}`); }
       }
+    }
+
+    async function saveAlias(recId, input) {
+      const alias = input.value.trim();
+      try {
+        const fd = new FormData();
+        fd.append('alias', alias);
+        const res = await fetch(`/api/recordings/${recId}`, { method: 'PATCH', body: fd });
+        if (!res.ok) { alert(`Rename failed: HTTP ${res.status}`); return; }
+        const updated = await res.json();
+        const rec = state.library.recordings.find(r => r.id === recId);
+        if (rec) rec.alias = updated.alias;
+        input.closest('.popover').classList.add('hidden');
+        renderLibrary();
+      } catch (err) { alert(`Rename failed: ${err.message}`); }
     }
 
     async function bulkMoveToFolder(folderId) {

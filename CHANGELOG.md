@@ -6,19 +6,20 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
-### 📤 Export
-
-- **Enhanced Markdown export:** Speaker runs merged into paragraphs, timestamp only at start of each speaker turn, metadata header includes duration, language, speaker list, and date.
-- **Bulk Markdown export:** Selecting multiple recordings and exporting as MD now produces a single combined file with a table of contents and `---` separators between recordings (previously downloaded N separate files).
-
 ### ✨ UI
 
+- **Recording alias** ([#7](https://github.com/sim186/amico-script/issues/7))**:** Rename any recording with a display name independent of the source filename. Alias shown in library card title; original filename visible as subtitle. Used as title in Markdown exports.
 - **Transcript tab decluttered:** Collapsed inner tab bar, separate search bar, and segment selection bar into a single compact toolbar — reducing pre-content chrome from 5 bands to 2.
 - **AI Analysis slide-over:** AI Analysis moved from a sub-tab to a slide-over panel (lightbulb icon), keeping the transcript always visible.
 - **Contextual bulk toolbar:** Toolbar switches from search mode to speaker-assign mode when segments are selected; search and bulk controls no longer stack vertically.
 - **Edited segment indicator:** Replaced text badge with amber left border already present on the segment card.
 - **Bulk speaker assignment:** Select multiple segments and assign a speaker name in one action via the contextual toolbar.
 - **AI result markdown rendering:** AI Analysis output now renders as formatted markdown (headings, lists, code blocks, tables, blockquotes) instead of plain text.
+
+### 📤 Export
+
+- **Enhanced Markdown export** ([#12](https://github.com/sim186/amico-script/issues/12))**:** Speaker runs merged into paragraphs, timestamp only at start of each speaker turn, metadata header includes duration, language, speaker list, and date.
+- **Bulk Markdown export** ([#12](https://github.com/sim186/amico-script/issues/12))**:** Selecting multiple recordings and exporting as MD now produces a single combined file with a table of contents and `---` separators between recordings (previously downloaded N separate files).
 
 ## [1.10.5] - 2026-05-05
 - Fix torch/torchaudio dependency caps for Python 3.13 and lightning compatibility

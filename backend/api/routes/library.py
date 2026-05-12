@@ -37,6 +37,7 @@ def _recording_with_tags(recording: Recording, session: Session) -> dict:
     return {
         "id": recording.id,
         "filename": recording.filename,
+        "alias": recording.alias,
         "file_path": recording.file_path,
         "duration": recording.duration,
         "folder_id": recording.folder_id,
@@ -87,6 +88,7 @@ def get_recording(recording_id: str, session: Session = Depends(get_session)) ->
 async def update_recording(
     recording_id: str,
     filename: str = Form(""),
+    alias: str = Form("__unset__"),
     folder_id: str = Form("__unset__"),
     session: Session = Depends(get_session),
 ) -> dict:
@@ -95,6 +97,8 @@ async def update_recording(
         raise HTTPException(404, "Recording not found")
     if filename:
         rec.filename = filename
+    if alias != "__unset__":
+        rec.alias = alias.strip() or None
     if folder_id != "__unset__":
         rec.folder_id = folder_id or None
     session.add(rec)
@@ -188,6 +192,7 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
         raise HTTPException(500, f"Transcript data is corrupt: {exc}") from exc
 
     filename = Path(rec.filename).stem
+    title = rec.alias or filename
     date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
     formatters = {
@@ -196,7 +201,7 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
         "txt": (_format_txt, "text/plain", "txt"),
     }
     if fmt == "md":
-        content = _format_md(result, title=filename, date=date_str)
+        content = _format_md(result, title=title, date=date_str)
         return StreamingResponse(
             iter([content.encode("utf-8")]),
             media_type="text/markdown",
@@ -235,7 +240,7 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
         except (json.JSONDecodeError, ValueError):
             continue
         recordings.append({
-            "title": Path(rec.filename).stem,
+            "title": rec.alias or Path(rec.filename).stem,
             "date": datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d"),
             "result": result,
         })

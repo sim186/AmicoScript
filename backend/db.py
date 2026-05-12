@@ -44,7 +44,15 @@ def init_db() -> None:
             if "color_code" not in col_names:
                 conn.execute(text("ALTER TABLE folder ADD COLUMN color_code TEXT DEFAULT '#6c63ff'"))
         except Exception:
-            # Ignore any PRAGMA/ALTER failures — init should be best-effort.
+            pass
+
+        # Ensure `recording` table has an alias column for older DBs.
+        try:
+            rows = conn.execute(text("PRAGMA table_info('recording')")).fetchall()
+            col_names = [r[1] for r in rows]
+            if "alias" not in col_names:
+                conn.execute(text("ALTER TABLE recording ADD COLUMN alias TEXT"))
+        except Exception:
             pass
         # FTS5 content table — does NOT duplicate full_text; reads from
         # the transcript table via the triggers defined below.

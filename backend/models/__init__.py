@@ -17,6 +17,7 @@ class Folder(SQLModel, table=True):
 class Recording(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     filename: str
+    alias: Optional[str] = None
     file_path: str
     duration: Optional[float] = None
     folder_id: Optional[str] = Field(default=None, foreign_key="folder.id")
