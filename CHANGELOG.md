@@ -6,6 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.11.0] - 2026-05-12
 ### ✨ UI
 
 - **Recording alias** ([#7](https://github.com/sim186/amico-script/issues/7))**:** Rename any recording with a display name independent of the source filename. Alias shown in library card title; original filename visible as subtitle. Used as title in Markdown exports.
@@ -20,6 +23,7 @@ Keep a Changelog format.
 
 - **Enhanced Markdown export** ([#12](https://github.com/sim186/amico-script/issues/12))**:** Speaker runs merged into paragraphs, timestamp only at start of each speaker turn, metadata header includes duration, language, speaker list, and date.
 - **Bulk Markdown export** ([#12](https://github.com/sim186/amico-script/issues/12))**:** Selecting multiple recordings and exporting as MD now produces a single combined file with a table of contents and `---` separators between recordings (previously downloaded N separate files).
+- No change details provided.
 
 ## [1.10.5] - 2026-05-05
 - Fix torch/torchaudio dependency caps for Python 3.13 and lightning compatibility
