@@ -832,6 +832,64 @@
             </div>
           </div>
 
+          <!-- Benchmark -->
+          <details id="benchmark-details" class="group">
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>Benchmark</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-3 space-y-3">
+              <p class="text-xs text-slate-500 leading-relaxed">
+                Measure Whisper inference speed on your machine using a standard 11 s reference clip. Results can be shared to the community benchmark.
+              </p>
+              <button id="benchmark-run-btn" type="button"
+                class="w-full flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg id="benchmark-run-icon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
+                  viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <svg id="benchmark-spin-icon" xmlns="http://www.w3.org/2000/svg"
+                  class="w-4 h-4 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span id="benchmark-run-label">Run Benchmark</span>
+              </button>
+              <p id="benchmark-status" class="text-xs text-slate-400 text-center hidden"></p>
+              <!-- Results (hidden until run) -->
+              <div id="benchmark-results" class="hidden space-y-3">
+                <div id="benchmark-sys-info" class="text-xs text-slate-500 space-y-0.5"></div>
+                <table class="w-full text-xs border-collapse">
+                  <thead>
+                    <tr class="text-left text-slate-400 border-b border-slate-100">
+                      <th class="pb-1 font-medium">Model</th>
+                      <th class="pb-1 font-medium">Load</th>
+                      <th class="pb-1 font-medium">Inference</th>
+                      <th class="pb-1 font-medium">RTF</th>
+                    </tr>
+                  </thead>
+                  <tbody id="benchmark-table-body" class="divide-y divide-slate-50"></tbody>
+                </table>
+                <button id="benchmark-share-btn" type="button"
+                  class="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:border-brand hover:text-brand transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Share to Community ↗
+                </button>
+              </div>
+            </div>
+          </details>
+
         </div><!-- /sidebar-transcribe -->
 
         <!-- SIDEBAR: Transcript tab -->
@@ -5392,6 +5450,127 @@
 
       // Test connection button
       document.getElementById('llm-test-btn').addEventListener('click', testLlmConnection);
+
+      // Benchmark button
+      document.getElementById('benchmark-run-btn').addEventListener('click', runBenchmark);
+      document.getElementById('benchmark-share-btn').addEventListener('click', shareBenchmark);
+    }
+
+    let _benchmarkData = null;
+
+    async function runBenchmark() {
+      const btn = document.getElementById('benchmark-run-btn');
+      const label = document.getElementById('benchmark-run-label');
+      const runIcon = document.getElementById('benchmark-run-icon');
+      const spinIcon = document.getElementById('benchmark-spin-icon');
+      const status = document.getElementById('benchmark-status');
+      const results = document.getElementById('benchmark-results');
+
+      btn.disabled = true;
+      runIcon.classList.add('hidden');
+      spinIcon.classList.remove('hidden');
+      label.textContent = 'Running… (1–3 min)';
+      status.textContent = 'Downloading reference audio and running tiny → small → medium…';
+      status.classList.remove('hidden');
+      results.classList.add('hidden');
+      _benchmarkData = null;
+      clientLog('Benchmark started');
+
+      try {
+        const resp = await fetch('/api/benchmark/run', {
+          method: 'POST',
+          signal: AbortSignal.timeout ? AbortSignal.timeout(300000) : undefined,
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+          throw new Error(err.detail || resp.statusText);
+        }
+        const data = await resp.json();
+        _benchmarkData = data;
+        _renderBenchmarkResults(data);
+        clientLog('Benchmark complete');
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        clientLog('Benchmark error: ' + e.message, 'ERROR');
+      } finally {
+        btn.disabled = false;
+        runIcon.classList.remove('hidden');
+        spinIcon.classList.add('hidden');
+        label.textContent = 'Run Benchmark';
+      }
+    }
+
+    function _renderBenchmarkResults(data) {
+      const status = document.getElementById('benchmark-status');
+      const results = document.getElementById('benchmark-results');
+      const sysInfo = document.getElementById('benchmark-sys-info');
+      const tbody = document.getElementById('benchmark-table-body');
+
+      const s = data.system || {};
+      const gpuLine = s.cuda ? (s.gpu || 'GPU (CUDA)') : 'CPU only';
+      sysInfo.innerHTML = [
+        `<div><span class="font-medium text-slate-600">CPU:</span> ${s.cpu || '—'} (${s.cpu_cores || '?'} cores)</div>`,
+        `<div><span class="font-medium text-slate-600">RAM:</span> ${s.ram_gb != null ? s.ram_gb + ' GB' : '—'}</div>`,
+        `<div><span class="font-medium text-slate-600">GPU:</span> ${gpuLine}</div>`,
+        `<div><span class="font-medium text-slate-600">OS:</span> ${s.os || '—'} (${s.arch || '—'})</div>`,
+      ].join('');
+
+      tbody.innerHTML = (data.results || []).map(r => {
+        if (r.error) {
+          return `<tr><td class="py-1 font-medium">${r.model}</td><td colspan="3" class="py-1 text-red-500">${r.error}</td></tr>`;
+        }
+        const rtfClass = r.rtf < 1 ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium';
+        return `<tr>
+          <td class="py-1 font-medium">${r.model}</td>
+          <td class="py-1 text-slate-500">${r.load_time_s}s</td>
+          <td class="py-1 text-slate-500">${r.transcribe_time_s}s</td>
+          <td class="py-1 ${rtfClass}">${r.rtf}x</td>
+        </tr>`;
+      }).join('');
+
+      status.classList.add('hidden');
+      results.classList.remove('hidden');
+    }
+
+    function shareBenchmark() {
+      if (!_benchmarkData) return;
+      const d = _benchmarkData;
+      const s = d.system || {};
+      const gpuLine = s.cuda ? (s.gpu || 'GPU (CUDA)') : 'CPU only';
+      const machineLabel = `${s.cpu || 'unknown'} / ${gpuLine}`;
+
+      const tableRows = (d.results || []).map(r =>
+        r.error
+          ? `| ${r.model} | — | — | error |`
+          : `| ${r.model} | ${r.load_time_s}s | ${r.transcribe_time_s}s | ${r.rtf}x |`
+      ).join('\n');
+
+      const body = [
+        `## Benchmark Results`,
+        ``,
+        `**Date:** ${d.date}`,
+        `**OS:** ${s.os || '—'} (${s.arch || '—'})`,
+        `**CPU:** ${s.cpu || '—'}`,
+        `**Cores:** ${s.cpu_cores || '—'}`,
+        `**RAM:** ${s.ram_gb != null ? s.ram_gb + ' GB' : '—'}`,
+        `**GPU:** ${gpuLine}`,
+        `**Reference audio:** ${d.reference_audio || 'jfk.flac'}`,
+        ``,
+        `| Model | Load | Inference | RTF |`,
+        `|-------|------|-----------|-----|`,
+        tableRows,
+        ``,
+        `> RTF < 1.0 = faster than real-time`,
+        ``,
+        `<!-- benchmark-data`,
+        JSON.stringify(d),
+        `-->`,
+      ].join('\n');
+
+      const title = encodeURIComponent(`[Benchmark] ${machineLabel} — ${d.date}`);
+      const bodyEnc = encodeURIComponent(body);
+      const url = `https://github.com/sim186/amico-script/issues/new?labels=benchmark-result&title=${title}&body=${bodyEnc}`;
+      window.open(url, '_blank', 'noopener');
     }
 
     function getSelectedAnalysisType() {

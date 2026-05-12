@@ -42,6 +42,7 @@ from sqlmodel import select
 
 import state
 from api.routes.analyses import router as analyses_router
+from api.routes.benchmark import router as benchmark_router
 from api.routes.folders_tags import router as folders_tags_router
 from api.routes.library import router as library_router
 from api.routes.llm import router as llm_router
@@ -91,6 +92,7 @@ app.include_router(releases_router)
 app.include_router(transcription_router)
 app.include_router(library_router)
 app.include_router(folders_tags_router)
+app.include_router(benchmark_router)
 
 
 @app.on_event("startup")

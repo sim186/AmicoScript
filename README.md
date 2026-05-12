@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  🌐 <strong><a href="https://sim186.github.io/AmicoScript/">Website</a></strong> · ⭐ <strong><a href="https://github.com/sim186/AmicoScript">Star if useful</a></strong> · 💬 <strong><a href="https://t.me/amicoscript">Telegram @amicoscript</a></strong> · 🐛 <strong><a href="https://github.com/sim186/AmicoScript/issues">Issues welcome</a></strong>
+  🌐 <strong><a href="https://sim186.github.io/AmicoScript/">Website</a></strong> · ⭐ <strong><a href="https://github.com/sim186/AmicoScript">Star if useful</a></strong> · 💬 <strong><a href="https://t.me/amicoscript">Telegram @amicoscript</a></strong> · 📊 <strong><a href="BENCHMARKS.md">Benchmarks</a></strong> · 🐛 <strong><a href="https://github.com/sim186/AmicoScript/issues">Issues welcome</a></strong>
 </p>
 
 **AmicoScript** is a privacy-focused, local-first transcription tool built on OpenAI's Whisper models. It allows you to transform audio recordings into structured, searchable transcripts without your data ever leaving your repository or machine. Whether you need speaker identification (diarization), translation, or simple subtitles, AmicoScript provides a fast, free, and secure alternative to cloud services.
@@ -148,9 +148,9 @@ Performance depends on your hardware (CPU/GPU) and selected model size.
 - Larger models → better accuracy
 - Smaller models → faster processing
 
-Feedback and benchmarks are welcome.
+**Run the built-in benchmark** from the transcribe sidebar to measure inference speed on your machine (RTF across tiny/small/medium models). Results can be shared to the community — see [BENCHMARKS.md](BENCHMARKS.md) for real-world numbers from different hardware.
 
-If the performance on your machine are not acceptable and you are fine with releasing a bit of local-first philosophy take a look to the Google Colab section.
+If performance on your machine is not acceptable and you are fine with releasing a bit of local-first philosophy, take a look at the Google Colab section.
 
 ---
 
