@@ -6,7 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ⚡ Performance
 
+- **Benchmark elapsed time:** Each model result now includes an **Elapsed** column (load + inference combined). Total wall-clock time for the full benchmark run shown below the table and included in shared results.
 
 ## [1.12.0] - 2026-05-12
 ### ⚡ Performance
