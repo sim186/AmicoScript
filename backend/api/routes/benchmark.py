@@ -161,10 +161,12 @@ def _benchmark_model(model_name: str, audio_path: Path) -> dict:
     transcribe_time = time.perf_counter() - t1
 
     audio_duration = info.duration or 1.0
+    elapsed = load_time + transcribe_time
     return {
         "model": model_name,
         "load_time_s": round(load_time, 3),
         "transcribe_time_s": round(transcribe_time, 3),
+        "elapsed_s": round(elapsed, 3),
         "audio_duration_s": round(audio_duration, 3),
         "rtf": round(transcribe_time / audio_duration, 4),
     }
@@ -194,11 +196,13 @@ def run_benchmark() -> dict:
     system_info = _collect_system_info()
     results: list[dict] = []
 
+    t_total_start = time.perf_counter()
     for model_name in _BENCHMARK_MODELS:
         try:
             results.append(_benchmark_model(model_name, audio_path))
         except Exception as exc:
             results.append({"model": model_name, "error": str(exc)})
+    total_elapsed_s = round(time.perf_counter() - t_total_start, 3)
 
     # Evict after benchmark so normal transcription starts fresh
     _evict_model_cache()
@@ -206,6 +210,7 @@ def run_benchmark() -> dict:
     return {
         "system": system_info,
         "results": results,
+        "total_elapsed_s": total_elapsed_s,
         "reference_audio": _REFERENCE_FILENAME,
         "date": datetime.date.today().isoformat(),
     }

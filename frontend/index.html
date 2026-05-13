@@ -872,11 +872,13 @@
                       <th class="pb-1 font-medium">Model</th>
                       <th class="pb-1 font-medium">Load</th>
                       <th class="pb-1 font-medium">Inference</th>
+                      <th class="pb-1 font-medium">Elapsed</th>
                       <th class="pb-1 font-medium">RTF</th>
                     </tr>
                   </thead>
                   <tbody id="benchmark-table-body" class="divide-y divide-slate-50"></tbody>
                 </table>
+                <p id="benchmark-total-elapsed" class="text-xs text-slate-400 text-right hidden"></p>
                 <button id="benchmark-share-btn" type="button"
                   class="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:border-brand hover:text-brand transition">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
@@ -5517,16 +5519,25 @@
 
       tbody.innerHTML = (data.results || []).map(r => {
         if (r.error) {
-          return `<tr><td class="py-1 font-medium">${r.model}</td><td colspan="3" class="py-1 text-red-500">${r.error}</td></tr>`;
+          return `<tr><td class="py-1 font-medium">${r.model}</td><td colspan="4" class="py-1 text-red-500">${r.error}</td></tr>`;
         }
         const rtfClass = r.rtf < 1 ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium';
         return `<tr>
           <td class="py-1 font-medium">${r.model}</td>
           <td class="py-1 text-slate-500">${r.load_time_s}s</td>
           <td class="py-1 text-slate-500">${r.transcribe_time_s}s</td>
+          <td class="py-1 text-slate-500">${r.elapsed_s}s</td>
           <td class="py-1 ${rtfClass}">${r.rtf}x</td>
         </tr>`;
       }).join('');
+
+      const totalEl = document.getElementById('benchmark-total-elapsed');
+      if (data.total_elapsed_s != null) {
+        totalEl.textContent = `Total benchmark time: ${data.total_elapsed_s}s`;
+        totalEl.classList.remove('hidden');
+      } else {
+        totalEl.classList.add('hidden');
+      }
 
       status.classList.add('hidden');
       results.classList.remove('hidden');
@@ -5541,8 +5552,8 @@
 
       const tableRows = (d.results || []).map(r =>
         r.error
-          ? `| ${r.model} | — | — | error |`
-          : `| ${r.model} | ${r.load_time_s}s | ${r.transcribe_time_s}s | ${r.rtf}x |`
+          ? `| ${r.model} | — | — | — | error |`
+          : `| ${r.model} | ${r.load_time_s}s | ${r.transcribe_time_s}s | ${r.elapsed_s}s | ${r.rtf}x |`
       ).join('\n');
 
       const body = [
@@ -5556,10 +5567,11 @@
         `**GPU:** ${gpuLine}`,
         `**Reference audio:** ${d.reference_audio || 'jfk.flac'}`,
         ``,
-        `| Model | Load | Inference | RTF |`,
-        `|-------|------|-----------|-----|`,
+        `| Model | Load | Inference | Elapsed | RTF |`,
+        `|-------|------|-----------|---------|-----|`,
         tableRows,
         ``,
+        d.total_elapsed_s != null ? `**Total benchmark time:** ${d.total_elapsed_s}s` : '',
         `> RTF < 1.0 = faster than real-time`,
         ``,
         `<!-- benchmark-data`,
