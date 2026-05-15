@@ -1,0 +1,6 @@
+textual>=0.70
+httpx>=0.27
+httpx-sse>=0.4
+pyperclip>=1.8
+numpy>=1.24
+soundfile>=0.12
