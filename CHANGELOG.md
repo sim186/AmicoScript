@@ -6,7 +6,10 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🐛 Fixes
 
+- **Diarization compatibility with pyannote.audio 3.4+** ([#24](https://github.com/sim186/amico-script/issues/24)): `Pipeline.from_pretrained` is now called with the auth kwarg supported by the installed pyannote version (`token` or `use_auth_token`), fixing `TypeError: Pipeline.from_pretrained() got an unexpected keyword argument 'token'`. Thanks to [@Tiritibambix](https://github.com/Tiritibambix) for the detailed report and analysis.
+- **Export filenames with non-latin-1 characters** ([#25](https://github.com/sim186/amico-script/issues/25)): Export endpoints now emit RFC 5987 `Content-Disposition` headers, so filenames containing curly apostrophes (`’`), accented letters, CJK, etc. no longer trigger `UnicodeEncodeError: 'latin-1' codec can't encode character`. Thanks again to [@Tiritibambix](https://github.com/Tiritibambix) for spotting it.
 
 ## [1.12.1] - 2026-05-13
 ### ⚡ Performance
