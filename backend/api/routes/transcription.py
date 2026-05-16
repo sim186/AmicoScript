@@ -10,6 +10,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from http_utils import content_disposition_attachment as _content_disposition
+
 import aiofiles
 import state
 from core.job_helpers import _append_job_log
@@ -478,7 +480,7 @@ def export_job(job_id: str, fmt: str):
         return StreamingResponse(
             iter([content.encode("utf-8")]),
             media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
         )
     if fmt not in formatters:
         raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
@@ -488,7 +490,7 @@ def export_job(job_id: str, fmt: str):
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
+        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )
 
 
