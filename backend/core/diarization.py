@@ -57,9 +57,12 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
 
     from pyannote.audio import Pipeline as _Pipeline
 
+    import inspect as _inspect
+    _sig = _inspect.signature(_Pipeline.from_pretrained)
+    _token_kw = "token" if "token" in _sig.parameters else "use_auth_token"
     pipeline = _Pipeline.from_pretrained(
         "pyannote/speaker-diarization-3.1",
-        token=opts["hf_token"],
+        **{_token_kw: opts["hf_token"]},
     )
 
     diarization_input = _convert_audio_for_diarization(job_id, job["file_path"], force=True)
