@@ -28,6 +28,7 @@ All results use the same 11 s English speech clip (JFK, public domain) from the 
 
 | Date | CPU | GPU | OS | tiny RTF | small RTF | medium RTF |
 |------|-----|-----|----|----------|-----------|------------|
+| 2026-05-17 | - | CPU only | Linux | 0.0698x | 0.293x | 0.8183x |
 | 2026-05-12 | Apple M4 | CPU only | macOS | 0.0586x | 0.292x | 0.9289x |
 
 ---

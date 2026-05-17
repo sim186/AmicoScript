@@ -315,7 +315,7 @@ def _finalize_transcription_result(
     return result
 
 
-def _run_download_phase(job_id: str) -> None:
+def _run_download_phase(job_id: str) -> bool:
     """Download source audio and materialize it into managed recording storage."""
     job = state.jobs[job_id]
     source_url = (job.get("source_url") or "").strip()
@@ -335,7 +335,22 @@ def _run_download_phase(job_id: str) -> None:
         elif status == "postprocessing":
             _push_event(job_id, "downloading", 0.19, DOWNLOAD_PREPARING)
 
-    downloaded_path, detected_title = download_source_audio(source_url, download_dir, on_progress=_progress)
+    cancel_flag = job.get("cancel_flag")
+
+    def _should_cancel() -> bool:
+        return bool(cancel_flag and cancel_flag.is_set())
+
+    try:
+        downloaded_path, detected_title = download_source_audio(
+            source_url, download_dir, on_progress=_progress, should_cancel=_should_cancel,
+        )
+    except Exception as exc:
+        from core.source_downloader import DownloadCancelled
+        if isinstance(exc, DownloadCancelled) or _should_cancel():
+            _push_event(job_id, "cancelled", 0.0, "Job cancelled during download")
+            _sync_job_to_db(job_id)
+            return True
+        raise
     if not downloaded_path.exists():
         raise RuntimeError("Downloaded file was not found on disk")
 
@@ -365,12 +380,18 @@ def _run_download_phase(job_id: str) -> None:
         _append_job_log(job_id, "WARN", "Downloaded file saved but database metadata update failed")
 
     _append_job_log(job_id, "INFO", f"Download completed: {inferred_name}")
+    return False
 
 
 def _process_job(job_id: str) -> None:
     """Process one queued job by delegating to type-specific handlers."""
     job = state.jobs[job_id]
     try:
+        if job.get("cancel_flag") and job["cancel_flag"].is_set():
+            _push_event(job_id, "cancelled", 0.0, "Job cancelled before start")
+            _sync_job_to_db(job_id)
+            return
+
         job_type = job.get("type", "transcribe")
 
         if job_type == "translate":
@@ -384,7 +405,12 @@ def _process_job(job_id: str) -> None:
             return
 
         if job_type == "download_transcribe":
-            _run_download_phase(job_id)
+            if _run_download_phase(job_id):
+                return
+            if job.get("cancel_flag") and job["cancel_flag"].is_set():
+                _push_event(job_id, "cancelled", 0.0, "Job cancelled after download")
+                _sync_job_to_db(job_id)
+                return
 
         if job["options"].get("colab_url"):
             _handle_colab_job(job_id)

@@ -10,9 +10,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from http_utils import content_disposition_attachment as _content_disposition
+
 import aiofiles
 import state
-from core.job_helpers import _append_job_log
+from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription_config import TranscriptionConfig
 from db import get_session, new_session
@@ -388,9 +390,49 @@ async def stream_job(job_id: str):
     return EventSourceResponse(event_generator())
 
 
+@router.get("/api/jobs")
+def list_jobs() -> dict:
+    """Return all non-terminal jobs with queue position for the UI queue strip."""
+    active_statuses = {
+        "queued", "downloading", "postprocessing",
+        "preparing", "transcribing", "diarizing", "warning",
+    }
+    rows: list[dict] = []
+    for jid, j in state.jobs.items():
+        st = j.get("status")
+        if st not in active_statuses:
+            continue
+        cf = j.get("cancel_flag")
+        if cf and cf.is_set():
+            continue
+        rows.append({
+            "id": jid,
+            "type": j.get("type", "transcribe"),
+            "status": st,
+            "progress": j.get("progress", 0.0),
+            "message": j.get("message", ""),
+            "filename": j.get("original_filename") or j.get("source_url") or "",
+            "source_url": j.get("source_url", ""),
+            "source_platform": j.get("source_platform", ""),
+            "created_at": j.get("created_at", 0.0),
+        })
+    rows.sort(key=lambda r: r["created_at"])
+    for idx, r in enumerate(rows):
+        r["position"] = idx
+    return {"jobs": rows}
+
+
 @router.post("/api/jobs/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict:
-    _get_job(job_id)["cancel_flag"].set()
+    job = _get_job(job_id)
+    job["cancel_flag"].set()
+    # Terminalize immediately so the UI (queue widget, transcript view)
+    # reflects the cancelled state without waiting for the worker to reach
+    # its next cancel check. The worker may still spend a bit of CPU until
+    # the current blocking call (e.g. model load, pyannote step) returns,
+    # but its further phases will see cancel_flag and bail.
+    _push_event(job_id, "cancelled", 0.0, "Job cancelled")
+    _sync_job_to_db(job_id)
     return {"ok": True}
 
 
@@ -478,7 +520,7 @@ def export_job(job_id: str, fmt: str):
         return StreamingResponse(
             iter([content.encode("utf-8")]),
             media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
         )
     if fmt not in formatters:
         raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
@@ -488,7 +530,7 @@ def export_job(job_id: str, fmt: str):
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
+        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )
 
 

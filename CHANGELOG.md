@@ -6,7 +6,28 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ✨ UI
 
+- **Floating queue widget:** Active jobs now surface in a bottom-right pill showing the live count. Click to expand the panel listing each non-terminal job (filename, status, progress bar) with per-row cancel and click-to-attach. Replaces the old full-page processing card and the duplicated amber transcript strip with a single source of truth.
+- **Enqueue while running:** Drop zone and URL field stay visible during transcription, so additional files/links can be queued without waiting for the current job. Inline status bar above the drop zone shows the attached job's filename, message, percentage, and a "View" shortcut to the transcript view.
+- **Transcript tab pulses** while a job is running, making the running state discoverable without the modal card.
+- **Foldable Transcribe sidebar sections:** Model, Language, Speakers, Cloud Power, and Benchmark are now collapsible `<details>` blocks. BETA badge moved from "Cloud Power" to "Speakers" to reflect the actual experimental surface.
+- **Export + New moved into the Transcript sidebar** as a compact "Actions" section (grid of JSON/SRT/TXT/MD plus full-width "+ New transcription"), freeing the top tab bar at narrow widths.
+
+### ⚡ Performance
+
+- **Diarization progress is real:** Mapped pyannote's `ProgressHook` step events (segmentation → embeddings → clustering → discrete diarization) into the 0.82 → 0.95 progress range with step labels, replacing the previous frozen 82% indicator. Falls back gracefully if the installed pyannote build lacks the hook kwarg.
+
+### 🐛 Fixes
+
+- **Cancel is now real for queued and running jobs:** `_process_job` checks `cancel_flag` before starting, the `/cancel` route terminalizes the job immediately (SSE event + DB sync), `list_jobs` filters out cancelled jobs, and the URL download phase honours cancellation via a yt-dlp progress hook. Diarization checks the flag before/between/after the pyannote pipeline call. Cancel × in the queue panel removes the row optimistically.
+- **Diarization compatibility with pyannote.audio 3.4+** ([#24](https://github.com/sim186/amico-script/issues/24)): `Pipeline.from_pretrained` is now called with the auth kwarg supported by the installed pyannote version (`token` or `use_auth_token`), fixing `TypeError: Pipeline.from_pretrained() got an unexpected keyword argument 'token'`. Thanks to [@Tiritibambix](https://github.com/Tiritibambix) for the detailed report and analysis.
+- **Diarization under huggingface_hub 1.0+ and torch 2.6+:** Added a `torch.load` shim that allowlists `TorchVersion` and defaults `weights_only=False` for trusted pyannote checkpoints, and pinned `huggingface_hub<1.0` so pyannote internals that still call `hf_hub_download(use_auth_token=...)` keep working. Fixes `hf_hub_download() got an unexpected keyword argument 'use_auth_token'` and `Weights only load failed ... TorchVersion not an allowed global` on fresh Docker builds.
+- **Export filenames with non-latin-1 characters** ([#25](https://github.com/sim186/amico-script/issues/25)): Export endpoints now emit RFC 5987 `Content-Disposition` headers, so filenames containing curly apostrophes (`’`), accented letters, CJK, etc. no longer trigger `UnicodeEncodeError: 'latin-1' codec can't encode character`. Thanks again to [@Tiritibambix](https://github.com/Tiritibambix) for spotting it.
+
+### 🔌 API
+
+- **`GET /api/jobs`:** Lists non-terminal jobs with `id`, `status`, `progress`, `filename`/`source_url`, `position`, and `created_at`, sorted by creation time. Cancelled jobs (`cancel_flag` set) are filtered out so the UI can drop them immediately.
 
 ## [1.12.1] - 2026-05-13
 ### ⚡ Performance

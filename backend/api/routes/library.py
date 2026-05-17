@@ -5,6 +5,8 @@ import json
 import time
 from pathlib import Path
 
+from http_utils import content_disposition_attachment as _content_disposition
+
 from db import get_session
 
 from exports import _format_json, _format_md, _format_md_bulk, _format_srt, _format_txt
@@ -205,7 +207,7 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
         return StreamingResponse(
             iter([content.encode("utf-8")]),
             media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
         )
     if fmt not in formatters:
         raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
@@ -215,7 +217,7 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}.{ext}"'},
+        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )
 
 
@@ -251,7 +253,7 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{filename}.md"'},
+        headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
     )
 
 
