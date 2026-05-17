@@ -688,17 +688,28 @@
         <div id="sidebar-transcribe" class="sidebar-panel active">
 
           <!-- Model -->
-          <div>
-            <label for="model-select"
-              class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Model</label>
-            <select id="model-select" aria-label="Whisper model"
-              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"></select>
-          </div>
+          <details open class="group">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>Model</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2">
+              <select id="model-select" aria-label="Whisper model"
+                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"></select>
+            </div>
+          </details>
 
           <!-- Language -->
-          <div>
-            <label for="language-select"
-              class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Language</label>
+          <details open class="group">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>Language</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2">
             <select id="language-select"
               class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand">
               <option value="">Auto-detect</option>
@@ -722,11 +733,18 @@
               <option value="no">Norwegian</option>
               <option value="uk">Ukrainian</option>
             </select>
-          </div>
+            </div>
+          </details>
 
           <!-- Diarization -->
-          <div>
-            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Speakers</h2>
+          <details open class="group">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span class="flex items-center gap-2">Speakers <span class="px-1.5 py-0.5 rounded-full bg-brand-muted/20 text-brand text-[10px] font-bold normal-case tracking-normal">BETA</span></span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2">
             <div class="flex items-center gap-2 mb-3">
               <button id="diarize-toggle" role="switch" aria-checked="false" aria-label="Enable speaker diarization"
                 class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-slate-200 transition focus:outline-none focus:ring-2 focus:ring-brand">
@@ -788,15 +806,18 @@
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          </details>
 
           <!-- Cloud Power -->
-          <div class="mt-6 border-t border-slate-100 pt-5">
-            <h2
-              class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-              Cloud Power
-              <span class="px-1.5 py-0.5 rounded-full bg-brand-muted/20 text-brand text-[10px] font-bold">BETA</span>
-            </h2>
+          <details class="group mt-2">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>Cloud Power</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2">
             <div class="flex items-center gap-2 mb-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
               <button id="cloud-power-toggle" role="switch" aria-checked="false" aria-label="Enable Colab Bridge"
                 class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-slate-200 transition focus:outline-none focus:ring-2 focus:ring-brand">
@@ -830,7 +851,8 @@
                 </p>
               </div>
             </div>
-          </div>
+            </div>
+          </details>
 
           <!-- Benchmark -->
           <details id="benchmark-details" class="group">
@@ -896,6 +918,22 @@
 
         <!-- SIDEBAR: Transcript tab -->
         <div id="sidebar-transcript" class="sidebar-panel">
+
+          <!-- Actions: Export + New -->
+          <div id="sidebar-actions">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Actions</h2>
+            <div class="grid grid-cols-4 gap-1.5 mb-2">
+              <button data-fmt="json" class="export-btn px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">JSON</button>
+              <button data-fmt="srt" class="export-btn px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">SRT</button>
+              <button data-fmt="txt" class="export-btn px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">TXT</button>
+              <button data-fmt="md" class="export-btn px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">MD</button>
+            </div>
+            <button id="new-btn" class="w-full px-2.5 py-1.5 rounded-md bg-brand text-white text-xs font-medium hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1">
+              + New transcription
+            </button>
+          </div>
+
+          <hr class="border-slate-100 my-1" />
 
           <!-- Job meta -->
           <div id="result-meta-sidebar" class="space-y-2">
@@ -1114,6 +1152,30 @@
     <!-- Mobile sidebar backdrop -->
     <div id="sidebar-backdrop" onclick="closeDrawer()"></div>
 
+    <!-- Floating queue widget -->
+    <div id="queue-widget" class="hidden fixed right-4 z-[60] flex flex-col items-end gap-2"
+      style="bottom: calc(var(--console-h, 36px) + 1rem);">
+      <div id="queue-panel" class="hidden w-80 max-w-[90vw] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+        <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Job queue</span>
+          <button onclick="toggleQueuePanel(false)" class="text-slate-400 hover:text-slate-600" aria-label="Close queue panel">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div id="queue-panel-rows" class="max-h-80 overflow-y-auto divide-y divide-slate-100"></div>
+      </div>
+      <button id="queue-pill" onclick="toggleQueuePanel()" type="button"
+        class="flex items-center gap-2 bg-brand text-white rounded-full shadow-lg px-3.5 py-2 text-sm font-medium hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span id="queue-pill-count">0</span>
+        <span class="hidden sm:inline text-xs opacity-80" id="queue-pill-label">jobs</span>
+      </button>
+    </div>
+
     <!-- ===================================================================
        MAIN PANEL
   =================================================================== -->
@@ -1165,21 +1227,8 @@
         </button>
         <!-- Global actions (Export + Search) -->
         <div class="ml-auto flex items-center gap-4 pb-2">
-          <div id="export-bar" class="hidden flex items-center gap-1.5">
-            <span class="text-xs text-slate-400 mr-1 hidden md:inline">Export</span>
-            <button data-fmt="json"
-              class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">JSON</button>
-            <button data-fmt="srt"
-              class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">SRT</button>
-            <button data-fmt="txt"
-              class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">TXT</button>
-            <button data-fmt="md"
-              class="export-btn px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-600 transition focus:outline-none focus:ring-1 focus:ring-brand">MD</button>
-            <button id="new-btn"
-              class="ml-1 px-2.5 py-1 rounded-md bg-brand text-white text-xs font-medium hover:bg-brand-hover transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1">
-              + New
-            </button>
-          </div>
+          <!-- export-bar relocated into sidebar-transcript -->
+          <div id="export-bar" class="hidden"></div>
 
           <button id="shortcuts-help-btn" onclick="toggleShortcutsOverlay(true)"
             class="p-1.5 text-slate-400 hover:text-brand transition rounded-lg" title="Keyboard Shortcuts (?)">
@@ -1210,6 +1259,34 @@
            TAB: TRANSCRIBE
       --------------------------------------------------------------- -->
         <div id="tab-transcribe" class="tab-panel active overflow-y-auto px-4 py-4 md:px-8 md:py-8" role="tabpanel">
+
+          <!-- Inline running-job status (visible while a job is attached) -->
+          <div id="active-job-bar" class="hidden mb-4 rounded-xl border border-brand/30 bg-brand-muted/10 px-4 py-3 flex items-center gap-3" aria-live="polite">
+            <svg class="animate-spin w-4 h-4 text-brand shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <p class="flex items-center gap-2 min-w-0">
+                  <span id="proc-filename" class="text-xs text-slate-500 truncate"></span>
+                  <span id="proc-message" class="text-xs font-semibold text-slate-700 truncate">Preparing…</span>
+                </p>
+                <span id="proc-percent" class="text-xs text-slate-500 tabular-nums shrink-0">0%</span>
+              </div>
+              <div class="w-full bg-slate-200 rounded-full h-1.5" role="progressbar" aria-label="Progress"
+                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-wrap">
+                <div id="progress-bar" class="bg-brand h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+              </div>
+            </div>
+            <button onclick="if (state.jobId) switchTab('transcript')" type="button"
+              class="shrink-0 text-xs text-brand hover:underline focus:outline-none">View</button>
+            <button id="cancel-btn" type="button"
+              class="shrink-0 text-xs text-slate-400 hover:text-red-500 transition focus:outline-none focus:ring-2 focus:ring-red-400 rounded px-2 py-1"
+              aria-label="Cancel transcription">
+              Cancel
+            </button>
+          </div>
 
           <!-- Upload state -->
           <div id="upload-state">
@@ -1331,31 +1408,6 @@
           </button>
         </div>
 
-        <!-- Processing state (replaces upload while running) -->
-        <div id="processing-state" class="hidden" aria-live="polite">
-          <div class="bg-white rounded-2xl border border-slate-200 px-8 py-10 text-center max-w-md mx-auto">
-            <svg class="animate-spin w-9 h-9 text-brand mx-auto mb-5" xmlns="http://www.w3.org/2000/svg" fill="none"
-              viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <p id="proc-filename" class="text-xs text-slate-400 mb-1 truncate"></p>
-            <p id="proc-message" class="font-semibold text-slate-800 mb-5">Preparing…</p>
-            <div class="w-full bg-slate-100 rounded-full h-2 mb-1.5" role="progressbar" aria-label="Progress"
-              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-wrap">
-              <div id="progress-bar" class="bg-brand h-2 rounded-full transition-all duration-300" style="width:0%">
-              </div>
-            </div>
-            <p id="proc-percent" class="text-xs text-slate-400 mb-6">0%</p>
-            <button id="cancel-btn"
-              class="text-xs text-slate-400 hover:text-red-500 transition focus:outline-none focus:ring-2 focus:ring-red-400 rounded px-2 py-1"
-              aria-label="Cancel transcription">
-              Cancel
-            </button>
-
-          </div>
-        </div>
-
       </div><!-- /tab-transcribe -->
 
       <!-- ---------------------------------------------------------------
@@ -1366,27 +1418,6 @@
 
           <!-- Inner panel: Transcript -->
           <div id="inner-panel-transcript">
-            <!-- Live transcription progress (hidden until transcription starts) -->
-            <div id="transcript-processing-header"
-              class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-3"
-              aria-live="polite">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between mb-1">
-                  <span id="tph-message" class="text-xs font-medium text-amber-800 truncate">Transcribing…</span>
-                  <span id="tph-percent" class="text-xs text-amber-600 ml-2 shrink-0">0%</span>
-                </div>
-                <div class="w-full bg-amber-200 rounded-full h-1" role="progressbar" aria-label="Transcription progress"
-                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="tph-bar-wrap">
-                  <div id="tph-bar" class="bg-amber-500 h-1 rounded-full transition-all duration-300" style="width:0%">
-                  </div>
-                </div>
-              </div>
-              <button id="tph-cancel-btn"
-                class="shrink-0 text-xs text-amber-700 hover:text-red-600 border border-amber-300 hover:border-red-400 rounded px-2 py-0.5 transition focus:outline-none focus:ring-2 focus:ring-red-400"
-                aria-label="Cancel transcription">
-                Cancel
-              </button>
-            </div>
             <!-- Combined toolbar: search / bulk-assign / AI toggle -->
             <div class="px-3 py-2 bg-white border-b border-slate-100 shrink-0 flex items-center gap-2">
               <input type="checkbox" id="select-all-segments" class="hidden rounded border-slate-300 text-brand focus:ring-brand shrink-0 cursor-pointer" title="Select all visible" />
@@ -2806,25 +2837,24 @@
     }
 
     function setProcessing(active) {
-      document.getElementById('upload-state').classList.toggle('hidden', active);
-      document.getElementById('processing-state').classList.toggle('hidden', !active);
-      const tph = document.getElementById('transcript-processing-header');
+      document.getElementById('upload-state').classList.remove('hidden');
       const transcriptBtn = document.getElementById('tab-btn-transcript');
+      const activeBar = document.getElementById('active-job-bar');
 
       if (active) {
         transcriptBtn.disabled = false;
+        transcriptBtn.classList.add('animate-pulse');
+        if (activeBar) activeBar.classList.remove('hidden');
         state.result = null;
         document.getElementById('segments-list').innerHTML = '';
-        tph.classList.remove('hidden');
-        switchTab('transcript');
         resetJobLogs();
         startLogPolling();
       } else {
-        tph.classList.add('hidden');
         stopLogPolling();
+        transcriptBtn.classList.remove('animate-pulse');
+        if (activeBar) activeBar.classList.add('hidden');
         if (!state.result) {
           transcriptBtn.disabled = true;
-          switchTab('transcribe');
         }
       }
     }
@@ -3051,10 +3081,6 @@
       document.getElementById('progress-bar').style.width = `${pct}%`;
       document.getElementById('proc-percent').textContent = `${pct}%`;
       document.getElementById('progress-bar-wrap').setAttribute('aria-valuenow', String(pct));
-      document.getElementById('tph-message').textContent = state.jobMessage || 'Transcribing…';
-      document.getElementById('tph-bar').style.width = `${pct}%`;
-      document.getElementById('tph-percent').textContent = `${pct}%`;
-      document.getElementById('tph-bar-wrap').setAttribute('aria-valuenow', String(pct));
     }
 
     function appendLiveSegment(seg) {
@@ -5991,7 +6017,6 @@
 
       document.getElementById('start-btn').addEventListener('click', startTranscription);
       document.getElementById('cancel-btn').addEventListener('click', cancelJob);
-      document.getElementById('tph-cancel-btn').addEventListener('click', cancelJob);
 
       document.getElementById('batch-clear-all-btn').addEventListener('click', () => {
         state.batchQueue = state.batchQueue.filter(i => i.status !== 'pending');
@@ -6027,7 +6052,7 @@
 
       // AI panel closed by default
 
-      document.getElementById('new-btn').addEventListener('click', () => {
+      const _newBtnHandler = () => {
         state.result = null;
         state.jobId = null;
         state.recordingId = null;
@@ -6042,7 +6067,8 @@
         const transcriptBtn = document.getElementById('tab-btn-transcript');
         transcriptBtn.disabled = true;
         switchTab('transcribe');
-      });
+      };
+      document.getElementById('new-btn').addEventListener('click', _newBtnHandler);
 
       document.getElementById('search-input').addEventListener('input', e => {
         state.searchQuery = e.target.value;
@@ -6122,6 +6148,123 @@
         if (gh) gh.href = repoBlob;
       }
     }
+
+    // ---------- Active jobs queue widget (floating pill) ----------
+    const QUEUE_STATUS_LABEL = {
+      queued: 'Queued',
+      downloading: 'Downloading',
+      postprocessing: 'Processing',
+      preparing: 'Preparing',
+      transcribing: 'Transcribing',
+      diarizing: 'Diarizing',
+      warning: 'Warning',
+    };
+
+    function toggleQueuePanel(force) {
+      const panel = document.getElementById('queue-panel');
+      if (!panel) return;
+      const shouldOpen = (typeof force === 'boolean') ? force : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !shouldOpen);
+    }
+    window.toggleQueuePanel = toggleQueuePanel;
+
+    let _queueLastSig = '';
+    function _hideQueueWidget() {
+      const widget = document.getElementById('queue-widget');
+      const rows = document.getElementById('queue-panel-rows');
+      if (widget) widget.classList.add('hidden');
+      const panel = document.getElementById('queue-panel');
+      if (panel) panel.classList.add('hidden');
+      if (rows) rows.innerHTML = '';
+      _queueLastSig = '';
+    }
+    window._hideQueueWidget = _hideQueueWidget;
+    function _renderQueueWidget(jobs) {
+      const widget = document.getElementById('queue-widget');
+      const rows = document.getElementById('queue-panel-rows');
+      const count = document.getElementById('queue-pill-count');
+      const label = document.getElementById('queue-pill-label');
+      if (!widget || !rows) return;
+      const hasJobs = jobs && jobs.length > 0;
+      if (!hasJobs) { _hideQueueWidget(); return; }
+      // Skip re-render if nothing relevant changed — keeps DOM stable.
+      const sig = jobs.map(j => `${j.id}:${j.status}:${Math.round((j.progress || 0) * 100)}`).join('|');
+      if (sig === _queueLastSig) return;
+      _queueLastSig = sig;
+      widget.classList.remove('hidden');
+      if (count) count.textContent = String(jobs.length);
+      if (label) label.textContent = jobs.length === 1 ? 'job' : 'jobs';
+      rows.innerHTML = jobs.map(j => {
+        const pct = Math.round((j.progress || 0) * 100);
+        const lbl = QUEUE_STATUS_LABEL[j.status] || j.status;
+        const name = (j.filename || j.source_url || j.id || '').toString();
+        const displayName = name.length > 40 ? name.slice(0, 37) + '…' : (name || '(unnamed)');
+        const isQueued = j.status === 'queued';
+        const barColor = isQueued ? 'bg-slate-300' : 'bg-brand';
+        const barWidth = isQueued ? 100 : Math.max(pct, 2);
+        const safeName = name.replace(/"/g, '&quot;');
+        return `
+          <div class="px-3 py-2 flex flex-col gap-1.5 hover:bg-slate-50 cursor-pointer" data-job-id="${j.id}" onclick="attachToJob('${j.id}')">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-[10px] text-slate-400 w-5 shrink-0">#${(j.position || 0) + 1}</span>
+              <span class="flex-1 min-w-0 truncate text-xs text-slate-700" title="${safeName}">${displayName}</span>
+              <button onclick="event.stopPropagation();cancelQueuedJob('${j.id}')" title="Cancel" class="text-slate-400 hover:text-red-500 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                <div class="${barColor} h-full transition-all" style="width:${barWidth}%"></div>
+              </div>
+              <span class="text-[10px] text-slate-500 shrink-0 w-20 text-right">${lbl}${isQueued ? '' : ' · ' + pct + '%'}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function cancelQueuedJob(jobId) {
+      // Optimistic UI: remove row immediately and hide widget if it was last.
+      const rowsEl = document.getElementById('queue-panel-rows');
+      const row = rowsEl ? rowsEl.querySelector(`[data-job-id="${jobId}"]`) : null;
+      if (row) row.remove();
+      if (rowsEl && rowsEl.children.length === 0) _hideQueueWidget();
+      _queueLastSig = '';  // force next poll to re-render
+      try { await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' }); } catch (_) {}
+      refreshQueueWidget();
+    }
+    window.cancelQueuedJob = cancelQueuedJob;
+
+    function attachToJob(jobId) {
+      if (!jobId) return;
+      if (state.jobId === jobId) {
+        switchTab('transcript');
+        toggleQueuePanel(false);
+        return;
+      }
+      state.jobId = jobId;
+      state.result = null;
+      state.recordingId = null;
+      state.activeRecordingId = null;
+      setProcessing(true);
+      connectSSE(jobId);
+      switchTab('transcript');
+      toggleQueuePanel(false);
+    }
+    window.attachToJob = attachToJob;
+
+    async function refreshQueueWidget() {
+      try {
+        const res = await fetch('/api/jobs');
+        if (!res.ok) return;
+        const data = await res.json();
+        _renderQueueWidget(data.jobs || []);
+      } catch (_) {}
+    }
+
+    setInterval(refreshQueueWidget, 2000);
+    document.addEventListener('DOMContentLoaded', () => { refreshQueueWidget(); });
 
     document.addEventListener('DOMContentLoaded', init);
   </script>

@@ -2,8 +2,90 @@
 from typing import Any
 
 from core.audio_utils import _convert_audio_for_diarization
-from core.job_helpers import _append_job_log, _push_event
-from shims import inject_torchcodec_shim
+from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
+from shims import inject_torch_load_shim, inject_torchcodec_shim
+
+
+_DIARIZATION_STEP_WEIGHTS = {
+    "segmentation": 0.45,
+    "embeddings": 0.40,
+    "clustering": 0.10,
+    "discrete_diarization": 0.05,
+}
+_DIARIZATION_PROGRESS_START = 0.82
+_DIARIZATION_PROGRESS_END = 0.95
+
+
+def _run_pipeline_with_progress(
+    job_id: str,
+    pipeline: Any,
+    diarization_input: Any,
+    opts: dict,
+    cancel_flag: Any,
+) -> Any:
+    """Run pyannote pipeline with step-level progress via its ProgressHook API.
+
+    Falls back to a single blocking call (no progress updates) if the hook
+    interface is unavailable in the installed pyannote version.
+    """
+    span = _DIARIZATION_PROGRESS_END - _DIARIZATION_PROGRESS_START
+    completed_weight = 0.0
+    step_order: list[str] = []
+
+    def _emit(label: str, fraction_within_step: float) -> None:
+        local = completed_weight + _DIARIZATION_STEP_WEIGHTS.get(label, 0.0) * fraction_within_step
+        progress = _DIARIZATION_PROGRESS_START + span * min(max(local, 0.0), 1.0)
+        _push_event(job_id, "diarizing", progress, f"Diarization: {label.replace('_', ' ')}")
+
+    class _ProgressHookAdapter:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def __call__(
+            self,
+            step_name: str,
+            step_artifact: Any = None,
+            file: Any = None,
+            total: int | None = None,
+            completed: int | None = None,
+        ) -> None:
+            nonlocal completed_weight
+            if cancel_flag and cancel_flag.is_set():
+                raise RuntimeError("Diarization cancelled")
+            if step_name not in step_order:
+                step_order.append(step_name)
+                _emit(step_name, 0.0)
+                return
+            if total and completed is not None:
+                frac = min(max(completed / total, 0.0), 1.0)
+                _emit(step_name, frac)
+                if completed >= total:
+                    completed_weight += _DIARIZATION_STEP_WEIGHTS.get(step_name, 0.0)
+
+    try:
+        return pipeline(
+            diarization_input,
+            num_speakers=opts.get("num_speakers"),
+            min_speakers=opts.get("min_speakers"),
+            max_speakers=opts.get("max_speakers"),
+            hook=_ProgressHookAdapter(),
+        )
+    except TypeError:
+        return pipeline(
+            diarization_input,
+            num_speakers=opts.get("num_speakers"),
+            min_speakers=opts.get("min_speakers"),
+            max_speakers=opts.get("max_speakers"),
+        )
+    except RuntimeError as exc:
+        if "cancelled" in str(exc).lower():
+            _push_event(job_id, "cancelled", 0.0, "Job cancelled during diarization")
+            _sync_job_to_db(job_id)
+            return None
+        raise
 
 
 def _assign_speaker(seg_start: float, seg_end: float, diarization: Any) -> str:
@@ -42,9 +124,16 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
         _append_job_log(job_id, "WARN", "Diarization requested but hf_token missing; skipping")
         return []
 
+    cancel_flag = job.get("cancel_flag")
+    if cancel_flag and cancel_flag.is_set():
+        _push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
+        _sync_job_to_db(job_id)
+        return []
+
     _push_event(job_id, "diarizing", 0.82, "Running speaker diarization...")
 
     inject_torchcodec_shim()
+    inject_torch_load_shim()
 
     try:
         try:
@@ -67,12 +156,21 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
 
     diarization_input = _convert_audio_for_diarization(job_id, job["file_path"], force=True)
 
-    diarization = pipeline(
-        diarization_input,
-        num_speakers=opts.get("num_speakers"),
-        min_speakers=opts.get("min_speakers"),
-        max_speakers=opts.get("max_speakers"),
+    if cancel_flag and cancel_flag.is_set():
+        _push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
+        _sync_job_to_db(job_id)
+        return []
+
+    diarization = _run_pipeline_with_progress(
+        job_id, pipeline, diarization_input, opts, cancel_flag,
     )
+    if diarization is None:
+        return []
+
+    if cancel_flag and cancel_flag.is_set():
+        _push_event(job_id, "cancelled", 0.0, "Job cancelled after diarization")
+        _sync_job_to_db(job_id)
+        return []
 
     if not hasattr(diarization, "itertracks"):
         annotation = None

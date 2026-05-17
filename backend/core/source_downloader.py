@@ -9,6 +9,10 @@ from typing import Callable
 from urllib.parse import urlparse
 
 
+class DownloadCancelled(Exception):
+    """Raised inside yt-dlp progress hook when the job is cancelled."""
+
+
 PLATFORM_HOSTS: dict[str, set[str]] = {
     "youtube": {
         "youtube.com",
@@ -224,7 +228,12 @@ def resolve_source_candidates(source_url: str, include_playlist: bool = True) ->
     return [DownloadCandidate(url=item_url, title=title, platform=detect_source_platform(item_url))]
 
 
-def download_source_audio(source_url: str, out_dir: Path, on_progress: ProgressCallback | None = None) -> tuple[Path, str]:
+def download_source_audio(
+    source_url: str,
+    out_dir: Path,
+    on_progress: ProgressCallback | None = None,
+    should_cancel: "Callable[[], bool] | None" = None,
+) -> tuple[Path, str]:
     """Download audio for a supported source URL and return local path and title."""
     if not is_supported_source_url(source_url):
         raise RuntimeError("Unsupported source URL")
@@ -236,6 +245,8 @@ def download_source_audio(source_url: str, out_dir: Path, on_progress: ProgressC
             on_progress(status, progress, message)
 
     def _hook(event: dict) -> None:
+        if should_cancel and should_cancel():
+            raise DownloadCancelled("Cancelled by user")
         status = event.get("status")
         if status == "downloading":
             total = event.get("total_bytes") or event.get("total_bytes_estimate") or 0

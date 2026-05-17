@@ -86,6 +86,40 @@ def _wav_info(source):
     return _Info()
 
 
+def inject_torch_load_shim() -> None:
+    """Allow pyannote checkpoints under torch>=2.6 (weights_only=True default).
+
+    PyTorch 2.6 flipped torch.load's `weights_only` default to True, which
+    rejects pyannote's checkpoints because they pickle TorchVersion and other
+    non-tensor globals. We trust the pyannote HF models, so:
+      1. Allowlist known pyannote globals (best-effort).
+      2. Patch torch.load to default weights_only=False when callers omit it.
+    Idempotent.
+    """
+    try:
+        import torch
+    except Exception:
+        return
+
+    if getattr(torch.load, "_amico_shim", False):
+        return
+
+    try:
+        from torch.torch_version import TorchVersion
+        torch.serialization.add_safe_globals([TorchVersion])
+    except Exception:
+        pass
+
+    _orig_load = torch.load
+
+    def _patched_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return _orig_load(*args, **kwargs)
+
+    _patched_load._amico_shim = True  # type: ignore[attr-defined]
+    torch.load = _patched_load  # type: ignore[assignment]
+
+
 def inject_torchcodec_shim() -> None:
     """Inject the stdlib-based torchcodec shim (no-op if already injected)."""
     if "torchcodec" in sys.modules:
