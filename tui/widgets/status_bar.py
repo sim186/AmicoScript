@@ -11,33 +11,34 @@ class StatusBar(Widget):
     DEFAULT_CSS = """
     StatusBar {
         height: 1;
-        background: $panel;
-        color: $text-muted;
-        padding: 0 1;
+        background: #12152a;
+        color: #6b6e9a;
+        padding: 0 2;
     }
-    StatusBar.-error { background: $error; color: $text; }
-    StatusBar.-ok { background: $panel; }
-    StatusBar.-leader { background: $primary; color: $text; }
+    StatusBar.-error { background: #ef4444; color: #dde1ff; }
+    StatusBar.-leader { background: #7c79f0; color: #dde1ff; }
     """
 
     connection: reactive[str] = reactive("connecting")
     message: reactive[str] = reactive("")
-    hint: reactive[str] = reactive("Space leader · / palette · ? help")
+    hint: reactive[str] = reactive("Space leader  ·  / palette  ·  ? help")
     leader_hint: reactive[str] = reactive("")
 
     def render(self) -> str:
         if self.leader_hint:
             return f"LEADER · {self.leader_hint}"
-        parts = [f"● {self.connection}"]
+        conn_color = "#22c55e" if self.connection in ("connected", "connecting") else "#ef4444"
+        left = f"[{conn_color}]●[/] {self.connection}"
         if self.message:
-            parts.append(self.message)
-        parts.append(self.hint)
-        return "  ·  ".join(parts)
+            left += f"  ·  {self.message}"
+        left += f"  ·  {self.hint}"
+        right = "[dim]? Help[/]   [#ef4444]q[/] Quit"
+        # Padding via spaces between left/right not reliable; use just left and let widget align.
+        return f"{left}                                                                 {right}"
 
     def set_connection(self, state: str, ok: bool = True) -> None:
         self.connection = state
         self.set_class(not ok, "-error")
-        self.set_class(ok, "-ok")
 
     def flash(self, msg: str) -> None:
         self.message = msg

@@ -152,10 +152,13 @@ class ApiClient:
             f"/api/recordings/{recording_id}/tags/{tag_id}"
         )
 
-    async def search(self, q: str, limit: int = 50, offset: int = 0) -> dict:
+    async def search(self, q: str, limit: int = 50, offset: int = 0) -> list:
         return await self._get("/api/search", q=q, limit=limit, offset=offset)
 
     # --- jobs --------------------------------------------------------
+
+    async def jobs(self) -> dict:
+        return await self._get("/api/jobs")
 
     async def job_result(self, job_id: str) -> dict:
         return await self._get(f"/api/jobs/{job_id}/result")

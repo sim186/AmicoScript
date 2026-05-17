@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
-class JobScreen(Screen):
+class JobDetailScreen(Screen):
     BINDINGS = [
         Binding("escape", "pop", "Back"),
         Binding("q", "pop", "Back"),
@@ -24,7 +24,7 @@ class JobScreen(Screen):
     ]
 
     DEFAULT_CSS = """
-    JobScreen { layout: vertical; }
+    JobDetailScreen { layout: vertical; }
     #title { padding: 0 1; height: 1; }
     Log { height: 1fr; border: tall $panel; }
     """

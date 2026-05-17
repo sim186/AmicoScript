@@ -6,6 +6,9 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 
+SPEAKER_COLORS = ["#22c55e", "#2dd4bf", "#f59e0b", "#7c79f0", "#ef4444", "#dde1ff"]
+
+
 def _fmt_ts(seconds: float) -> str:
     s = int(seconds)
     h, rem = divmod(s, 3600)
@@ -26,16 +29,27 @@ class SegmentList(OptionList):
     ]
 
     DEFAULT_CSS = """
-    SegmentList { height: 1fr; border: tall $panel; }
+    SegmentList {
+        height: 1fr;
+        background: #0c0e1a;
+        border: none;
+    }
     """
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.segments: list[dict] = []
+        self.speaker_index: dict[str, int] = {}
+
+    def speaker_color(self, name: str) -> str:
+        if name not in self.speaker_index:
+            self.speaker_index[name] = len(self.speaker_index)
+        return SPEAKER_COLORS[self.speaker_index[name] % len(SPEAKER_COLORS)]
 
     def load(self, segments: list[dict]) -> None:
         self.clear_options()
         self.segments = segments or []
+        self.speaker_index.clear()
         for i, seg in enumerate(self.segments):
             self.add_option(Option(self._format_row(seg), id=str(i)))
 
@@ -43,10 +57,11 @@ class SegmentList(OptionList):
         ts = _fmt_ts(float(seg.get("start", 0)))
         speaker = seg.get("speaker") or seg.get("speaker_label") or ""
         text = (seg.get("text") or "").strip()
-        prefix = f"[dim]{ts}[/dim]"
+        prefix = f"[#6b6e9a]{ts}[/]"
         if speaker:
-            prefix += f"  [bold]{speaker}[/bold]"
-        return f"{prefix}  {text}"
+            color = self.speaker_color(speaker)
+            prefix += f"  [{color} b]{speaker}[/]"
+        return f"{prefix}  [#dde1ff]{text}[/]"
 
     def selected_segment(self) -> dict | None:
         idx = self.highlighted

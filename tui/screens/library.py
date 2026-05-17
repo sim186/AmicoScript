@@ -4,38 +4,38 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from rich.text import Text
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import DataTable, Footer, Header
+from textual.widgets import DataTable
 
 from ..clipboard import copy_to_clipboard
+from ..widgets.chrome import CommandBar, ContextHint, TitleBar
 
 if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
-STATUS_ICON = {
-    "pending": "○",
-    "queued": "○",
-    "transcribing": "◐",
-    "diarizing": "◑",
-    "done": "●",
-    "completed": "●",
-    "error": "✗",
+STATUS_DISPLAY = {
+    "pending":     ("○", "queued",      "#6b6e9a"),
+    "queued":      ("○", "queued",      "#6b6e9a"),
+    "transcribing":("⠸", "proc",        "#f59e0b"),
+    "diarizing":   ("⠴", "diariz",      "#f59e0b"),
+    "done":        ("●", "done",        "#22c55e"),
+    "completed":   ("●", "done",        "#22c55e"),
+    "error":       ("✗", "error",       "#ef4444"),
 }
 
 
 def _fmt_duration(seconds):
     if not seconds:
-        return "--:--"
+        return "--"
     s = int(seconds)
     h, rem = divmod(s, 3600)
-    m, s = divmod(rem, 60)
-    if h:
-        return f"{h:d}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
+    m, _ = divmod(rem, 60)
+    return f"{h:d}h {m:02d}m"
 
 
 def _fmt_date(value):
@@ -43,19 +43,41 @@ def _fmt_date(value):
         return ""
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(float(value)).strftime("%Y-%m-%d %H:%M")
+            return datetime.fromtimestamp(float(value)).strftime("%Y-%m-%d")
         except (ValueError, OSError):
             return ""
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime(
-            "%Y-%m-%d %H:%M"
+            "%Y-%m-%d"
         )
     except ValueError:
-        return value[:16]
+        return value[:10]
+
+
+def _fmt_status(status: str) -> Text:
+    icon, label, color = STATUS_DISPLAY.get(status, ("·", status or "?", "#6b6e9a"))
+    return Text(f"{icon} {label}", style=color)
+
+
+def _fmt_tags(tags) -> Text:
+    if not tags:
+        return Text("")
+    out = Text()
+    for i, t in enumerate(tags[:3]):
+        if isinstance(t, dict):
+            name = t.get("name", "")
+            color = t.get("color_code") or "#7c79f0"
+        else:
+            name = str(t)
+            color = "#7c79f0"
+        if i:
+            out.append(" ")
+        out.append(f"[{name}]", style=color)
+    return out
 
 
 class LibraryPanel(Widget):
-    """Recording list panel, embeddable in a tab."""
+    """Recording list panel."""
 
     BINDINGS = [
         Binding("r", "refresh", "Refresh"),
@@ -70,7 +92,7 @@ class LibraryPanel(Widget):
 
     DEFAULT_CSS = """
     LibraryPanel { layout: vertical; height: 1fr; }
-    DataTable { height: 1fr; }
+    DataTable { height: 1fr; background: #0c0e1a; }
     """
 
     def __init__(
@@ -78,6 +100,7 @@ class LibraryPanel(Widget):
         status_filter: str | None = None,
         folder_id: str | None = None,
         tag_id: str | None = None,
+        on_loaded=None,
         *args,
         **kwargs,
     ) -> None:
@@ -87,18 +110,18 @@ class LibraryPanel(Widget):
         self.status_filter = status_filter
         self.folder_id = folder_id
         self.tag_id = tag_id
+        self.on_loaded = on_loaded
 
     def compose(self):
         with Vertical():
-            yield DataTable(cursor_type="row", zebra_stripes=True)
+            yield DataTable(cursor_type="row", zebra_stripes=False)
 
     def on_mount(self) -> None:
         self.table = self.query_one(DataTable)
-        self.table.add_columns("", "Name", "Duration", "Status", "Created")
+        self.table.add_columns("FILE", "DATE", "DUR", "MODEL", "TAGS", "STATUS")
         self.refresh_library()
 
     def on_show(self) -> None:
-        # Re-fetch when tab re-activated.
         if self.table is not None:
             self.refresh_library()
 
@@ -134,7 +157,8 @@ class LibraryPanel(Widget):
         if rec_id is None or self.table is None:
             return
         row = self.table.get_row_at(self.table.cursor_row)
-        name = str(row[1])
+        name_cell = row[0]
+        name = name_cell.plain if isinstance(name_cell, Text) else str(name_cell)
         if copy_to_clipboard(name):
             self.app.notify(f"copied: {name}")
 
@@ -169,17 +193,26 @@ class LibraryPanel(Widget):
         assert self.table is not None
         self.table.clear()
         self.row_keys.clear()
+        total_dur = 0.0
         for r in items:
-            icon = STATUS_ICON.get(r.get("status", ""), "·")
             name = r.get("alias") or r.get("filename") or f"#{r.get('id')}"
+            model = r.get("model_size") or r.get("model") or ""
+            dur = r.get("duration") or 0
+            try:
+                total_dur += float(dur or 0)
+            except (TypeError, ValueError):
+                pass
             self.table.add_row(
-                icon,
-                name,
-                _fmt_duration(r.get("duration")),
-                r.get("status", ""),
-                _fmt_date(r.get("created_at")),
+                Text(name, style="#dde1ff"),
+                Text(_fmt_date(r.get("created_at")), style="#6b6e9a"),
+                Text(_fmt_duration(dur), style="#6b6e9a"),
+                Text(model, style="#7c79f0"),
+                _fmt_tags(r.get("tags")),
+                _fmt_status(r.get("status", "")),
             )
             self.row_keys.append(str(r["id"]))
+        if self.on_loaded:
+            self.on_loaded(len(items), total_dur)
 
     def _selected_id(self) -> str | None:
         if not self.table or self.table.row_count == 0:
@@ -191,16 +224,16 @@ class LibraryPanel(Widget):
 
 
 class LibraryScreen(Screen):
-    """Full-screen library view. Pushed by leader chord or /library."""
+    """Full-screen library view — default landing."""
 
     BINDINGS = [
-        Binding("escape", "pop", "Back"),
+        Binding("escape", "pop_if_stacked", "Back"),
     ]
 
     leader_chords = {
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
-        "h": ("Welcome", "/welcome"),
+        "i": ("Import", "/import"),
         "q": ("Quit", "/quit"),
     }
 
@@ -226,34 +259,38 @@ class LibraryScreen(Screen):
 
     def compose(self):
         from ..widgets.status_bar import StatusBar
-        yield Header(show_clock=False)
+        yield TitleBar(id="titlebar")
         with Vertical():
             yield LibraryPanel(
                 status_filter=self.status_filter,
                 folder_id=self.folder_id,
                 tag_id=self.tag_id,
+                on_loaded=self._on_loaded,
                 id="library_panel",
             )
-            yield StatusBar(id="statusbar")
-        yield Footer()
+        yield ContextHint(
+            "↑↓ navigate  ·  ↵ open  ·  /import  ·  /export  ·  /delete  ·  /folder  ·  /search",
+            id="ctxhint",
+        )
+        yield CommandBar(id="cmdbar")
+        yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
         self.query_one(LibraryPanel).query_one(DataTable).focus()
 
-    def action_pop(self) -> None:
-        self.app.pop_screen()
+    def _on_loaded(self, count: int, total_dur: float) -> None:
+        h = int(total_dur // 3600)
+        m = int((total_dur % 3600) // 60)
+        try:
+            self.query_one("#ctxhint", ContextHint).set_text(
+                f"{count} recordings  ·  {h}h {m:02d}m total  "
+                f"|  ↑↓ navigate  ·  ↵ open  ·  /import  ·  /export  ·  /delete  ·  /search"
+            )
+        except Exception:
+            pass
+
+    def action_pop_if_stacked(self) -> None:
+        if len(self.app.screen_stack) > 1:
+            self.app.pop_screen()
 
 
-class JobsListScreen(LibraryScreen):
-    """Library filtered to in-flight jobs."""
-
-    leader_chords = {
-        "l": ("Library", "/library"),
-        "s": ("Settings", "/settings"),
-        "h": ("Welcome", "/welcome"),
-        "q": ("Quit", "/quit"),
-    }
-
-    def __init__(self) -> None:
-        super().__init__(status_filter="transcribing")
-        self.title = "Jobs"

@@ -1,7 +1,8 @@
 """Main Textual App for AmicoScript TUI.
 
-Modeless, palette-driven. No tabs. Leader key (Space) arms per-screen
-chord maps; ``/`` or ``ctrl+k`` opens the unified fuzzy palette.
+Modeless, palette-driven. Lands directly on Library. Leader key (Space)
+arms per-screen chord maps; ``/`` or ``ctrl+k`` opens the unified fuzzy
+palette.
 """
 from __future__ import annotations
 
@@ -16,52 +17,108 @@ from .commands import run_command
 from .config import Config
 from .leader import LeaderDispatcher
 from .palette import Palette
-from .screens.welcome import WelcomeScreen
 from .server import ServerManager
+
+
+# Mockup palette (see amicoscript_tui_mockups.html).
+COLOR_BG = "#0c0e1a"
+COLOR_SURFACE = "#12152a"
+COLOR_SURFACE2 = "#1a1d35"
+COLOR_BORDER = "#4a47c0"
+COLOR_BORDER_DIM = "#2a2860"
+COLOR_BORDER_BRIGHT = "#7c79f0"
+COLOR_TEXT = "#dde1ff"
+COLOR_TEXT_DIM = "#6b6e9a"
+COLOR_TEXT_MUTED = "#3a3d6a"
+COLOR_PURPLE = "#7c79f0"
+COLOR_PURPLE_BG = "#1e1b52"
+COLOR_PURPLE_SEL = "#2d2a7a"
+COLOR_AMBER = "#f59e0b"
+COLOR_GREEN = "#22c55e"
+COLOR_RED = "#ef4444"
+COLOR_TEAL = "#2dd4bf"
 
 
 class AmicoTUI(App):
     """AmicoScript terminal interface."""
 
-    CSS = """
-    $primary: #6c63ff;
-    $accent: #a78bfa;
-    $surface: #0f172a;
-    $panel: #1e293b;
-    $boost: #2a3548;
-    $text: #e2e8f0;
-    $text-muted: #94a3b8;
-    $success: #10b981;
-    $warning: #f59e0b;
-    $error: #ef4444;
+    CSS = f"""
+    $primary: {COLOR_PURPLE};
+    $accent: {COLOR_PURPLE};
+    $surface: {COLOR_BG};
+    $panel: {COLOR_SURFACE};
+    $boost: {COLOR_SURFACE2};
+    $text: {COLOR_TEXT};
+    $text-muted: {COLOR_TEXT_DIM};
+    $success: {COLOR_GREEN};
+    $warning: {COLOR_AMBER};
+    $error: {COLOR_RED};
 
-    Screen { background: $surface; color: $text; }
-    Header { background: $primary; color: $text; }
-    DataTable > .datatable--header {
-        background: $panel;
-        color: $accent;
-    }
-    DataTable > .datatable--cursor {
-        background: $primary;
-        color: $text;
-    }
-    DataTable > .datatable--hover {
-        background: $boost;
-    }
-    OptionList { background: $surface; color: $text; }
-    OptionList > .option-list--option-highlighted {
-        background: $primary;
-        color: $text;
-    }
-    Input {
-        background: $panel;
-        color: $text;
-        border: tall $primary;
-    }
-    Button {
-        background: $primary;
-        color: $text;
-    }
+    Screen {{
+        background: {COLOR_BG};
+        color: {COLOR_TEXT};
+    }}
+    Header {{
+        background: {COLOR_PURPLE_BG};
+        color: {COLOR_PURPLE};
+    }}
+    Footer {{
+        background: {COLOR_SURFACE};
+        color: {COLOR_TEXT_DIM};
+    }}
+    DataTable {{
+        background: {COLOR_BG};
+        color: {COLOR_TEXT};
+    }}
+    DataTable > .datatable--header {{
+        background: {COLOR_SURFACE};
+        color: {COLOR_TEXT_DIM};
+        text-style: none;
+    }}
+    DataTable > .datatable--cursor {{
+        background: {COLOR_PURPLE_SEL};
+        color: {COLOR_TEXT};
+    }}
+    DataTable > .datatable--hover {{
+        background: {COLOR_SURFACE2};
+    }}
+    OptionList {{
+        background: {COLOR_BG};
+        color: {COLOR_TEXT};
+        border: none;
+    }}
+    OptionList > .option-list--option-highlighted {{
+        background: {COLOR_PURPLE_SEL};
+        color: {COLOR_TEXT};
+    }}
+    OptionList > .option-list--option-hover {{
+        background: {COLOR_SURFACE2};
+    }}
+    Input {{
+        background: {COLOR_SURFACE2};
+        color: {COLOR_TEXT};
+        border: tall {COLOR_BORDER_DIM};
+    }}
+    Input:focus {{
+        border: tall {COLOR_BORDER_BRIGHT};
+    }}
+    Button {{
+        background: {COLOR_PURPLE_BG};
+        color: {COLOR_PURPLE};
+        border: tall {COLOR_BORDER};
+    }}
+    Button:hover {{
+        background: {COLOR_PURPLE_SEL};
+    }}
+    Button.-primary {{
+        background: {COLOR_PURPLE};
+        color: {COLOR_TEXT};
+    }}
+    Log {{
+        background: #080a14;
+        color: {COLOR_TEXT_DIM};
+        border: tall {COLOR_BORDER_DIM};
+    }}
     """
 
     BINDINGS = [
@@ -83,7 +140,8 @@ class AmicoTUI(App):
         self.leader = LeaderDispatcher(self)
 
     def on_mount(self) -> None:
-        self.push_screen(WelcomeScreen())
+        from .screens.library import LibraryScreen
+        self.push_screen(LibraryScreen())
         self.run_worker(self._health_loop(), exclusive=True, name="health")
 
     async def on_unmount(self) -> None:
@@ -119,7 +177,6 @@ class AmicoTUI(App):
     # --- actions --------------------------------------------------------
 
     def action_palette(self, seed: str = "") -> None:
-        # Avoid stacking duplicate palettes.
         if isinstance(self.screen, Palette):
             return
         self.push_screen(Palette(initial=seed))
@@ -133,12 +190,15 @@ class AmicoTUI(App):
             text = text[7:]
         from pathlib import Path
         p = Path(text)
-        if p.is_file() and p.suffix.lower() in {
-            ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus",
-            ".mp4", ".mkv", ".webm", ".mov", ".aac",
-        }:
+        if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
             self.notify(f"dropped: {p.name} — transcribing")
             await run_command(self, f"transcribe {shquote(str(p))}")
+
+
+AUDIO_EXTS = {
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus",
+    ".mp4", ".mkv", ".webm", ".mov", ".aac",
+}
 
 
 def shquote(s: str) -> str:

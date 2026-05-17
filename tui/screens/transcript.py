@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
-from textual.widgets import Header, OptionList, Static
+from textual.widgets import OptionList, Static
 
 from ..clipboard import copy_to_clipboard
 from ..playback import Player
 from ..waveform import compute_levels_async
+from ..widgets.chrome import CommandBar, ContextHint, TitleBar
 from ..widgets.segment_list import SegmentList
 from ..widgets.status_bar import StatusBar
 from ..widgets.waveform_view import WaveformView
@@ -34,8 +35,28 @@ class TranscriptScreen(Screen):
 
     DEFAULT_CSS = """
     TranscriptScreen { layout: vertical; }
-    #title { padding: 0 1; height: 1; color: $accent; }
+    #meta {
+        height: 1;
+        padding: 0 2;
+        background: #12152a;
+        color: #dde1ff;
+        border-bottom: solid #2a2860;
+    }
+    #legend {
+        height: 1;
+        padding: 0 2;
+        background: #0c0e1a;
+        color: #6b6e9a;
+        border-bottom: solid #2a2860;
+    }
     """
+
+    leader_chords = {
+        "l": ("Library", "/library"),
+        "j": ("Jobs", "/jobs"),
+        "s": ("Settings", "/settings"),
+        "q": ("Back", "/quit"),
+    }
 
     def __init__(self, recording_id: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -44,38 +65,41 @@ class TranscriptScreen(Screen):
         self.player = Player()
         self.duration_s: float = 0.0
         self._anim_timer = None
+        self.title = "Transcript"
 
     def compose(self):
-        yield Header(show_clock=False)
+        yield TitleBar(id="titlebar")
+        yield Static("loading…", id="meta")
+        yield Static("", id="legend")
         with Vertical():
-            yield Static("loading...", id="title")
             yield WaveformView(id="wave")
             yield SegmentList(id="segments")
-            yield StatusBar(id="statusbar")
+        yield ContextHint(
+            "Space play  ·  y copy seg  ·  Y copy all  ·  /export json|srt|txt|md  ·  ^A analyze",
+            id="ctxhint",
+        )
+        yield CommandBar(id="cmdbar")
+        yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
         self.run_worker(self._load(), exclusive=True)
-        # Animate at ~15 fps.
         self._anim_timer = self.set_interval(1 / 15, self._tick, pause=False)
 
     async def _load(self) -> None:
-        """Fast path: title + transcript visible immediately. Waveform separate worker."""
         app: "AmicoTUI" = self.app  # type: ignore[assignment]
-        title = self.query_one("#title", Static)
+        meta = self.query_one("#meta", Static)
+        legend = self.query_one("#legend", Static)
         seg_list = self.query_one(SegmentList)
         status = self.query_one(StatusBar)
 
         try:
             rec = await app.api.recording(self.recording_id)
         except Exception as e:
-            title.update(f"error: {e}")
+            meta.update(f"[#ef4444]error: {e}[/]")
             return
         name = rec.get("alias") or rec.get("filename") or self.recording_id
         self.duration_s = float(rec.get("duration") or 0.0)
-        title.update(
-            f"[b]{name}[/b]  ·  {self._fmt_dur(self.duration_s)}  ·  "
-            f"status: {rec.get('status', '?')}"
-        )
+        model = rec.get("model_size") or rec.get("model") or ""
 
         try:
             tdata = await app.api.transcript(self.recording_id)
@@ -87,8 +111,29 @@ class TranscriptScreen(Screen):
             seg_list.load(segs)
         except Exception as e:
             status.set_connection(f"transcript load failed: {e}", ok=False)
+            segs = []
 
-        # Waveform + audio: separate non-blocking worker so the screen is usable now.
+        speakers = sorted({(s.get("speaker") or s.get("speaker_label") or "")
+                          for s in segs} - {""})
+        word_count = sum(len((s.get("text") or "").split()) for s in segs)
+        meta.update(
+            f"[b #dde1ff]{name}[/]  [#6b6e9a]·  "
+            f"{self._fmt_dur(self.duration_s)}  ·  {word_count:,} words  ·  "
+            f"{len(speakers)} speakers  ·  [/][#7c79f0]{model}[/]"
+        )
+        if speakers:
+            chips = "  ".join(
+                f"[{seg_list.speaker_color(sp)}]■[/] [#dde1ff]{sp}[/]"
+                for sp in speakers
+            )
+        else:
+            chips = "[#6b6e9a]no speakers[/]"
+        legend.update(
+            f"{chips}        "
+            f"[#6b6e9a]export:[/] [#7c79f0]/export json[/]  "
+            f"[#7c79f0]/export srt[/]  [#7c79f0]/export txt[/]  [#7c79f0]/export md[/]"
+        )
+
         self.run_worker(self._load_audio(), exclusive=False, name="audio")
 
     async def _load_audio(self) -> None:
@@ -124,16 +169,11 @@ class TranscriptScreen(Screen):
             except OSError:
                 pass
 
-    # --- animation --------------------------------------------------
-
     def _tick(self) -> None:
         wave = self.query_one(WaveformView)
         if self.player.is_playing() and self.duration_s > 0:
             pos = self.player.position()
             wave.position = max(0.0, min(1.0, pos / self.duration_s))
-        # else leave position as-is (last cursor stays)
-
-    # --- segment Enter → play ---------------------------------------
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
@@ -142,8 +182,6 @@ class TranscriptScreen(Screen):
         if not seg:
             return
         self._play_from(float(seg.get("start", 0.0)))
-
-    # --- actions ----------------------------------------------------
 
     def action_pop(self) -> None:
         self.app.pop_screen()
@@ -180,8 +218,6 @@ class TranscriptScreen(Screen):
     def action_analyze(self) -> None:
         from ..palette import _open_analysis_type_picker
         _open_analysis_type_picker(self.app, self.recording_id)
-
-    # --- helpers ----------------------------------------------------
 
     def _play_from(self, offset_s: float) -> None:
         if not self._tmp_audio or not self._tmp_audio.exists():

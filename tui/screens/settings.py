@@ -1,39 +1,105 @@
-"""Settings panel: HF token + LLM config."""
+"""Settings: sectioned form (Model / Diarization / Output / Server)."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Button, Footer, Header, Input, Label
+from textual.widgets import Button, Input, Static
+
+from ..widgets.chrome import CommandBar, ContextHint, TitleBar
+from ..widgets.status_bar import StatusBar
 
 if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
+def _section(title: str) -> Static:
+    return Static(f"[b #6b6e9a]{title}[/]", classes="section-hdr")
+
+
 class SettingsPanel(Widget):
     DEFAULT_CSS = """
     SettingsPanel { layout: vertical; height: 1fr; }
-    Label { padding: 1 2 0 2; color: $accent; }
-    Input { margin: 0 2; }
-    Button { margin: 1 2 0 2; }
+    VerticalScroll { height: 1fr; }
+    .section-hdr {
+        padding: 1 2 0 2;
+        height: 2;
+        color: #6b6e9a;
+        background: #0c0e1a;
+        border-top: solid #2a2860;
+    }
+    .setting-row {
+        height: 3;
+        padding: 0 2;
+        background: #0c0e1a;
+        border-bottom: solid #2a2860;
+    }
+    .setting-label {
+        width: 28;
+        height: 3;
+        content-align: left middle;
+        color: #6b6e9a;
+    }
+    .setting-row Input {
+        height: 3;
+        background: #1a1d35;
+        color: #dde1ff;
+        border: tall #2a2860;
+    }
+    .setting-row Input:focus { border: tall #7c79f0; }
+    #btnrow {
+        height: 3;
+        padding: 1 2;
+        background: #0c0e1a;
+    }
     """
 
     def compose(self):
-        with Vertical():
-            yield Label("Hugging Face token (for diarization)")
-            yield Input(id="hf", password=True, placeholder="hf_...")
-            yield Label("LLM base URL")
-            yield Input(id="llm_url", placeholder="http://localhost:11434")
-            yield Label("LLM model name")
-            yield Input(id="llm_model", placeholder="llama3.1")
-            yield Label("LLM API key (optional)")
-            yield Input(id="llm_key", password=True)
-            yield Button("Save", id="save", variant="primary")
+        with VerticalScroll():
+            yield _section("MODEL")
+            with Horizontal(classes="setting-row"):
+                yield Static("Default model", classes="setting-label")
+                yield Input(id="model", placeholder="large-v3")
+            with Horizontal(classes="setting-row"):
+                yield Static("Device", classes="setting-label")
+                yield Input(id="device", placeholder="auto")
+            with Horizontal(classes="setting-row"):
+                yield Static("Compute type", classes="setting-label")
+                yield Input(id="compute", placeholder="float16")
+
+            yield _section("DIARIZATION")
+            with Horizontal(classes="setting-row"):
+                yield Static("Hugging Face token", classes="setting-label")
+                yield Input(id="hf", password=True, placeholder="hf_…")
+
+            yield _section("LLM")
+            with Horizontal(classes="setting-row"):
+                yield Static("Base URL", classes="setting-label")
+                yield Input(id="llm_url", placeholder="http://localhost:11434")
+            with Horizontal(classes="setting-row"):
+                yield Static("Model name", classes="setting-label")
+                yield Input(id="llm_model", placeholder="llama3.1")
+            with Horizontal(classes="setting-row"):
+                yield Static("API key", classes="setting-label")
+                yield Input(id="llm_key", password=True)
+
+            yield _section("SERVER")
+            with Horizontal(classes="setting-row"):
+                yield Static("API URL", classes="setting-label")
+                yield Input(id="api_url", disabled=True)
+
+            with Horizontal(id="btnrow"):
+                yield Button("Save", id="save", variant="primary")
+                yield Button("Reset defaults", id="reset")
 
     def on_mount(self) -> None:
+        try:
+            self.query_one("#api_url", Input).value = self.app.api.base_url
+        except Exception:
+            pass
         self.run_worker(self._load(), exclusive=True)
 
     async def _load(self) -> None:
@@ -43,7 +109,6 @@ class SettingsPanel(Widget):
             self.query_one("#hf", Input).value = s.get("hf_token") or ""
         except Exception as e:
             self.app.notify(f"settings load failed: {e}", severity="error")
-            return
         try:
             llm = await app.api.llm_settings()
             self.query_one("#llm_url", Input).value = llm.get("base_url") or ""
@@ -51,11 +116,22 @@ class SettingsPanel(Widget):
             self.query_one("#llm_key", Input).value = llm.get("api_key") or ""
         except Exception:
             pass
+        try:
+            mods = await app.api.models()
+            default = mods.get("default") or mods.get("current") or ""
+            if default:
+                self.query_one("#model", Input).value = str(default)
+        except Exception:
+            pass
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        if event.button.id == "reset":
+            self.run_worker(self._load(), exclusive=True)
+            self.app.notify("reloaded from server")
+            return
         if event.button.id != "save":
             return
-        app: "AmicoTUI" = self.app  # type: ignore[assignment]
         try:
             await app.api.save_settings(hf_token=self.query_one("#hf", Input).value)
             await app.api.save_llm_settings(
@@ -69,15 +145,13 @@ class SettingsPanel(Widget):
 
 
 class SettingsScreen(Screen):
-    """Full-screen settings view."""
-
     BINDINGS = [Binding("escape", "pop", "Back")]
 
     leader_chords = {
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
-        "h": ("Welcome", "/welcome"),
-        "q": ("Quit", "/quit"),
+        "i": ("Import", "/import"),
+        "q": ("Back", "/quit"),
     }
 
     DEFAULT_CSS = """
@@ -90,18 +164,12 @@ class SettingsScreen(Screen):
         self.title = "Settings"
 
     def compose(self):
-        from ..widgets.status_bar import StatusBar
-        yield Header(show_clock=False)
+        yield TitleBar(id="titlebar")
         with Vertical():
             yield SettingsPanel(id="settings_panel")
-            yield StatusBar(id="statusbar")
-        yield Footer()
-
-    def on_mount(self) -> None:
-        try:
-            self.query_one(SettingsPanel).query_one("#hf", Input).focus()
-        except Exception:
-            pass
+        yield ContextHint("tab to navigate fields  ·  Save persists to backend", id="ctxhint")
+        yield CommandBar(id="cmdbar")
+        yield StatusBar(id="statusbar")
 
     def action_pop(self) -> None:
         self.app.pop_screen()

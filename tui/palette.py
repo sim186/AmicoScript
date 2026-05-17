@@ -67,33 +67,48 @@ class Palette(ModalScreen):
     DEFAULT_CSS = """
     Palette {
         align: center middle;
-        background: transparent;
+        background: rgba(12,14,26,0.85);
     }
     #box {
-        width: 80%;
-        max-width: 100;
+        width: 70%;
+        max-width: 90;
         height: auto;
         padding: 0;
-        background: $boost;
-        border-left: thick $primary;
+        background: #12152a;
+        border: tall #4a47c0;
+    }
+    #header {
+        height: 1;
+        padding: 0 2;
+        background: #12152a;
+        color: #6b6e9a;
+        border-bottom: solid #2a2860;
     }
     #suggestions {
         height: auto;
         max-height: 14;
-        background: $boost;
+        background: #12152a;
         border: none;
+        color: #dde1ff;
+    }
+    #suggestions > .option-list--option-highlighted {
+        background: #2d2a7a;
+        color: #dde1ff;
     }
     CommandInput {
         border: none;
-        background: $boost;
+        background: #1a1d35;
+        color: #dde1ff;
         height: 1;
-        padding: 0 1;
+        padding: 0 2;
+        border-top: solid #4a47c0;
     }
     #hint {
         height: 1;
-        color: $text-muted;
-        background: $boost;
-        padding: 0 1;
+        color: #6b6e9a;
+        background: #12152a;
+        padding: 0 2;
+        border-top: solid #2a2860;
     }
     """
 
@@ -131,8 +146,9 @@ class Palette(ModalScreen):
 
     def compose(self):
         with Vertical(id="box"):
+            yield Static("command palette", id="header")
             yield OptionList(id="suggestions")
-            yield CommandInput(placeholder="search …")
+            yield CommandInput(placeholder="/")
             yield Static("", id="hint")
 
     async def on_mount(self) -> None:
@@ -325,7 +341,7 @@ class Palette(ModalScreen):
         lst.clear_options()
         for e in self._visible:
             lst.add_option(Option(
-                f"[b]{e.display}[/b]  [dim]{e.subtitle}[/dim]",
+                f"[b #7c79f0]{e.display:<14}[/]  [#6b6e9a]{e.subtitle}[/]",
                 id=e.key,
             ))
         if self._visible:

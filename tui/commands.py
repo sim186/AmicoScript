@@ -76,8 +76,8 @@ async def _transcribe(app, args):
     result = await app.api.transcribe_file(path)
     job_id = result.get("job_id") or result.get("id")
     if job_id:
-        from .screens.jobs import JobScreen
-        app.push_screen(JobScreen(job_id))
+        from .screens.job_detail import JobDetailScreen
+        app.push_screen(JobDetailScreen(job_id))
     else:
         app.notify(f"submitted: {result}")
 
@@ -90,8 +90,8 @@ async def _transcribe_url(app, args):
     result = await app.api.transcribe_url(args[0])
     jobs = result.get("jobs") or ([result] if result.get("job_id") else [])
     if jobs:
-        from .screens.jobs import JobScreen
-        app.push_screen(JobScreen(jobs[0].get("job_id") or jobs[0].get("id")))
+        from .screens.job_detail import JobDetailScreen
+        app.push_screen(JobDetailScreen(jobs[0].get("job_id") or jobs[0].get("id")))
     else:
         app.notify(f"submitted: {result}")
 
@@ -102,16 +102,8 @@ async def _search(app, args):
         app.notify("usage: /search <query>")
         return
     q = " ".join(args)
-    data = await app.api.search(q)
-    hits = data.get("results") or data.get("hits") or []
-    if not hits:
-        app.notify("no results")
-        return
-    lines = [
-        f"{h.get('recording_id', '')[:8]}  {h.get('snippet') or h.get('text', '')[:60]}"
-        for h in hits[:20]
-    ]
-    app.notify("\n".join(lines), timeout=10)
+    from .screens.search import SearchScreen
+    app.push_screen(SearchScreen(q))
 
 
 @command("export", "export <id> <fmt: json|srt|txt|md>")
@@ -176,17 +168,21 @@ async def _tag(app, args):
 
 @command("logs", "show server log buffer")
 async def _logs(app, args):
-    if not app.server or not app.server.logs:
-        app.notify("no logs captured")
-        return
-    tail = list(app.server.logs)[-40:]
-    app.notify("\n".join(tail), timeout=12)
+    from .screens.logs import LogsScreen
+    app.push_screen(LogsScreen())
 
 
 @command("settings", "open settings screen")
 async def _settings(app, args):
     from .screens.settings import SettingsScreen
     app.push_screen(SettingsScreen())
+
+
+@command("import", "browse the filesystem to pick a file to transcribe")
+async def _import(app, args):
+    from .screens.import_ import ImportScreen
+    start = Path(args[0]).expanduser() if args else None
+    app.push_screen(ImportScreen(start))
 
 
 @command("library", "open the recordings library")
@@ -197,15 +193,8 @@ async def _library(app, args):
 
 @command("jobs", "open the active-jobs list")
 async def _jobs(app, args):
-    from .screens.library import JobsListScreen
+    from .screens.jobs_list import JobsListScreen
     app.push_screen(JobsListScreen())
-
-
-@command("welcome", "return to the welcome screen")
-async def _welcome(app, args):
-    # Pop everything back to the welcome screen.
-    while len(app.screen_stack) > 1:
-        app.pop_screen()
 
 
 @command("analyze", "pick a recording and run analysis")
