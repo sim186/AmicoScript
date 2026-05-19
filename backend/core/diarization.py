@@ -140,7 +140,7 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
             from backend import resource_downloader as _rd
         except ImportError:
             import resource_downloader as _rd
-        _rd.ensure_pyannote_model("pyannote/speaker-diarization-3.1", opts.get("hf_token"))
+        _rd.ensure_pyannote_model("pyannote/speaker-diarization-community-1", opts.get("hf_token"))
     except Exception:
         pass
 
@@ -150,7 +150,7 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
     _sig = _inspect.signature(_Pipeline.from_pretrained)
     _token_kw = "token" if "token" in _sig.parameters else "use_auth_token"
     pipeline = _Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1",
+        "pyannote/speaker-diarization-community-1",
         **{_token_kw: opts["hf_token"]},
     )
 
