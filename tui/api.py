@@ -58,6 +58,12 @@ class ApiClient:
     async def models(self) -> dict:
         return await self._get("/api/models")
 
+    async def whisper_models(self) -> dict:
+        return await self._get("/api/whisper/models")
+
+    async def save_whisper_model(self, model: str) -> dict:
+        return await self._post("/api/whisper/models", json={"model": model})
+
     async def latest_release(self) -> dict:
         return await self._get("/api/latest-release")
 
@@ -240,9 +246,21 @@ class ApiClient:
     async def settings(self) -> dict:
         return await self._get("/api/settings")
 
-    async def save_settings(self, hf_token: str | None = None) -> dict:
+    async def save_settings(
+        self,
+        hf_token: str | None = None,
+        whisper_model: str | None = None,
+        whisper_device: str | None = None,
+        whisper_compute: str | None = None,
+    ) -> dict:
         return await self._post(
-            "/api/settings", json=_drop_none({"hf_token": hf_token})
+            "/api/settings",
+            json=_drop_none({
+                "hf_token": hf_token,
+                "whisper_model": whisper_model,
+                "whisper_device": whisper_device,
+                "whisper_compute": whisper_compute,
+            }),
         )
 
 

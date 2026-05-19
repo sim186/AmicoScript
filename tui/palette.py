@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from textual.binding import Binding
@@ -40,7 +41,7 @@ MRU_BONUS = 50
 # Commands that, when typed with a trailing space, switch the palette to
 # a sub-picker. ``new`` arg of /folder is preserved by falling back to
 # raw command execution on Enter when no folder matches the query.
-SUBPICKERS = {"library", "folder", "tag", "analyze", "models"}
+SUBPICKERS = {"library", "folder", "tag", "analyze", "models", "llm", "transcribe"}
 # Map command name → mode key used internally (most are 1:1; /models → "model").
 _MODE_BY_COMMAND = {
     "library": "library",
@@ -48,6 +49,8 @@ _MODE_BY_COMMAND = {
     "tag": "tag",
     "analyze": "analyze",
     "models": "model",
+    "llm": "llm_model",
+    "transcribe": "transcribe",
 }
 
 
@@ -134,6 +137,7 @@ class Palette(ModalScreen):
         self._folders: list[Entry] = []
         self._tags: list[Entry] = []
         self._models: list[Entry] = []
+        self._llm_models: list[Entry] = []
         # Visible after filtering, in render order.
         self._visible: list[Entry] = []
         self._mode = "free"
@@ -143,6 +147,12 @@ class Palette(ModalScreen):
         self._ad_hoc_entries = entries
         self._ad_hoc_on_pick = on_pick
         self._ad_hoc_title = title
+        # Transcribe-mode file browser state.
+        self._current_fs_path: Path = Path.home()
+        self._fs_entries: list[Entry] = []
+        self._transcribe_library_mode: bool = False
+        self._transcribe_filter: str = ""
+        self._recording_data: dict[str, dict] = {}
 
     def compose(self):
         with Vertical(id="box"):
@@ -194,11 +204,13 @@ class Palette(ModalScreen):
             items = data.get("items", []) if isinstance(data, dict) else (data or [])
         except Exception:
             items = []
+        self._recording_data = {}
         out: list[Entry] = []
         for r in items:
             rid = str(r.get("id", ""))
             name = r.get("alias") or r.get("filename") or f"#{rid}"
             status = r.get("status", "")
+            self._recording_data[rid] = r
             out.append(Entry(
                 kind="recording",
                 key=f"recording:{rid}",
@@ -224,10 +236,20 @@ class Palette(ModalScreen):
             return
         app: "AmicoTUI" = self.app  # type: ignore[assignment]
         try:
-            data = await app.api.llm_models()
+            data = await app.api.whisper_models()
         except Exception:
             data = {}
         self._models = entries_from_models(data)
+
+    async def _load_llm_models(self) -> None:
+        if self._llm_models:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        try:
+            data = await app.api.llm_models()
+        except Exception:
+            data = {}
+        self._llm_models = entries_from_llm_models(data)
 
     async def _load_tags(self) -> None:
         if self._tags:
@@ -238,6 +260,63 @@ class Palette(ModalScreen):
         except Exception:
             tags = []
         self._tags = entries_from_tags(tags)
+
+    # --- filesystem browser helpers (transcribe mode) --------------------
+
+    def _resolve_fs_query(self, query: str) -> tuple[Path, str]:
+        """Parse transcribe query into (directory_path, filter_string)."""
+        if not query:
+            return (getattr(self, '_current_fs_path', Path.home()), "")
+        if query.startswith("/") or (query.startswith("~") and (len(query) == 1 or query[1] == "/")):
+            p = Path(query).expanduser()
+            if p.is_dir():
+                return (p, "")
+            parent = p
+            while not parent.exists() and parent.parent != parent:
+                parent = parent.parent
+            parts = p.parts[len(parent.parts):]
+            filter_str = "/".join(parts) if parts else ""
+            return (parent, filter_str)
+        return (getattr(self, '_current_fs_path', Path.home()), query)
+
+    def _build_fs_entries(self, path: Path) -> list[Entry]:
+        """List directory contents for the transcribe file browser."""
+        from .app import AUDIO_EXTS
+        entries: list[Entry] = []
+        if path.parent != path:
+            entries.append(Entry(
+                kind="dir",
+                key=f"dir:{path.parent}",
+                display="📁 ..",
+                subtitle=str(path.parent),
+                search_text=".. parent",
+                on_select=_noop,
+            ))
+        try:
+            for p in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+                if p.name.startswith("."):
+                    continue
+                if p.is_dir():
+                    entries.append(Entry(
+                        kind="dir",
+                        key=f"dir:{p}",
+                        display=f"📁 {p.name}/",
+                        subtitle="",
+                        search_text=p.name,
+                        on_select=_noop,
+                    ))
+                elif p.suffix.lower() in AUDIO_EXTS:
+                    entries.append(Entry(
+                        kind="file",
+                        key=f"file:{p}",
+                        display=f"♪ {p.name}",
+                        subtitle="",
+                        search_text=p.name,
+                        on_select=_noop,
+                    ))
+        except (PermissionError, OSError):
+            pass
+        return entries
 
     # --- mode parsing ----------------------------------------------------
 
@@ -254,6 +333,11 @@ class Palette(ModalScreen):
         return ("free", raw)
 
     def _mode_label(self, mode: str) -> str:
+        if mode == "transcribe":
+            if self._transcribe_library_mode:
+                return "library recordings · type to filter · enter re-transcribe · esc close"
+            path = getattr(self, '_current_fs_path', Path.home())
+            return f"browsing: {path} · type to filter · enter dir or transcribe · @ for library · esc close"
         return {
             "free": "tab complete · ctrl+p commands · esc close",
             "command": "tab complete · enter run · esc close",
@@ -262,7 +346,8 @@ class Palette(ModalScreen):
             "tag": "type to filter · enter scopes library · esc close",
             "transcript": "type to filter · enter opens transcript · esc close",
             "analyze": "pick a recording · enter chooses analysis type · esc close",
-            "model": "pick a model · enter sets default · esc close",
+            "model": "pick a Whisper model · enter sets default · esc close",
+            "llm_model": "pick an LLM model · enter sets default · esc close",
         }.get(mode, mode)
 
     def _update_hint(self, mode: str) -> None:
@@ -277,16 +362,32 @@ class Palette(ModalScreen):
         await self._on_query_change(event.value)
 
     async def _on_query_change(self, raw: str) -> None:
-        mode, _q = self._parse(raw)
-        if mode != self._mode:
+        mode, query = self._parse(raw)
+        mode_changed = mode != self._mode
+        if mode_changed:
             self._mode = mode
-            self._update_hint(mode)
             if mode == "folder":
                 await self._load_folders()
             elif mode == "tag":
                 await self._load_tags()
             elif mode == "model":
                 await self._load_models()
+            elif mode == "llm_model":
+                await self._load_llm_models()
+
+        if mode == "transcribe":
+            q = query.strip()
+            if q.startswith("@"):
+                self._transcribe_library_mode = True
+                self._transcribe_filter = q[1:].lstrip()
+            else:
+                self._transcribe_library_mode = False
+                self._current_fs_path, self._transcribe_filter = self._resolve_fs_query(q)
+                self._fs_entries = self._build_fs_entries(self._current_fs_path)
+
+        if mode_changed or mode == "transcribe":
+            self._update_hint(mode)
+
         self._refresh(raw)
 
     async def on_input_submitted(self, event) -> None:
@@ -310,19 +411,31 @@ class Palette(ModalScreen):
             return self._tags
         if mode == "model":
             return self._models
+        if mode == "llm_model":
+            return self._llm_models
+        if mode == "transcribe":
+            if self._transcribe_library_mode:
+                return self._recordings
+            return self._fs_entries
         # free: commands first, then recordings
         return self._commands + self._recordings
 
     def _refresh(self, raw: str) -> None:
         mode, query = self._parse(raw)
         pool = self._pool_for_mode(mode)
+
+        if mode == "transcribe":
+            effective_query = self._transcribe_filter
+        else:
+            effective_query = query
+
         mru = list(getattr(self.app, "_palette_mru", []))
         mru_rank = {k: len(mru) - i for i, k in enumerate(mru)}
 
         scored: list[tuple[int, Entry]] = []
-        if query:
+        if effective_query:
             for e in pool:
-                s = score_match(query, e.search_text)
+                s = score_match(effective_query, e.search_text)
                 if s is None:
                     continue
                 if e.key in mru_rank:
@@ -408,6 +521,9 @@ class Palette(ModalScreen):
         # No match — if input looks like a raw command, run it.
         text = fallback_text.strip()
         if text.startswith("/"):
+            mode, _ = self._parse(text)
+            if mode == "transcribe":
+                return
             self.app.pop_screen()
             await run_command(self.app, text)
 
@@ -430,6 +546,35 @@ class Palette(ModalScreen):
             self.app.pop_screen()
             _open_analysis_type_picker(self.app, rec_id)
             return
+        # Transcribe mode: file browser or library recording re-transcribe.
+        if self._mode == "transcribe":
+            if entry.kind == "dir":
+                new_path = Path(entry.key.split(":", 1)[1])
+                self._current_fs_path = new_path
+                self._transcribe_filter = ""
+                self._fs_entries = self._build_fs_entries(new_path)
+                inp = self.query_one(CommandInput)
+                inp.value = f"/transcribe {new_path}/"
+                inp.cursor_position = len(inp.value)
+                self._refresh(inp.value)
+                return
+            elif entry.kind == "file":
+                from .app import shquote
+                file_path = entry.key.split(":", 1)[1]
+                self.app.pop_screen()
+                await run_command(self.app, f"transcribe {shquote(file_path)}")
+                return
+            elif entry.kind == "recording" and self._transcribe_library_mode:
+                rid = entry.key.split(":", 1)[1]
+                rec_data = self._recording_data.get(rid, {})
+                file_path = rec_data.get("file_path", "")
+                if file_path:
+                    from .app import shquote
+                    self.app.pop_screen()
+                    await run_command(self.app, f"transcribe {shquote(file_path)}")
+                else:
+                    self.app.notify(f"source file not available for {rid[:8]}", severity="warning")
+                return
         self.app.pop_screen()
         await entry.on_select(self.app)
 
@@ -442,6 +587,7 @@ class Palette(ModalScreen):
             + self._folders
             + self._tags
             + self._models
+            + self._llm_models
         )
 
 
@@ -488,11 +634,21 @@ def _open_library_tag(tag_id: str):
     return go
 
 
-def _set_default_model(name: str):
+def _set_whisper_model(name: str):
+    async def go(app: "AmicoTUI") -> None:
+        try:
+            await app.api.save_whisper_model(name)
+            app.notify(f"whisper model set to {name}")
+        except Exception as e:
+            app.notify(f"failed to save: {e}", severity="error")
+    return go
+
+
+def _set_llm_model(name: str):
     async def go(app: "AmicoTUI") -> None:
         try:
             await app.api.save_llm_settings(model_name=name)
-            app.notify(f"default LLM model: {name}")
+            app.notify(f"LLM model set to {name}")
         except Exception as e:
             app.notify(f"failed to save: {e}", severity="error")
     return go
@@ -564,25 +720,56 @@ def entries_from_tags(tags: list[dict] | None) -> list[Entry]:
 
 def entries_from_models(data) -> list[Entry]:
     items = data.get("models") if isinstance(data, dict) else (data or [])
-    names: list[str] = []
+    entries: list[Entry] = []
+    for it in items or []:
+        if isinstance(it, dict):
+            mid = str(it.get("id", ""))
+            if not mid:
+                continue
+            name = it.get("name", mid)
+            params = it.get("params", "")
+            ram = it.get("ram", "")
+            subtitle = f"Whisper · {params} · {ram} · accuracy {it.get('accuracy', '?')}/5"
+        elif isinstance(it, str):
+            mid = it
+            name = it
+            subtitle = "Whisper model"
+        else:
+            continue
+        entries.append(Entry(
+            kind="model",
+            key=f"model:{mid}",
+            display=f"{name}",
+            subtitle=subtitle,
+            search_text=f"{mid} {name}",
+            on_select=_set_whisper_model(mid),
+        ))
+    return entries
+
+
+def entries_from_llm_models(data) -> list[Entry]:
+    items = data if isinstance(data, list) else (data.get("models") if isinstance(data, dict) else [])
+    entries: list[Entry] = []
     for it in items or []:
         if isinstance(it, str):
-            names.append(it)
+            mid = it
+            name = it
         elif isinstance(it, dict):
-            n = it.get("name") or it.get("model")
-            if n:
-                names.append(str(n))
-    return [
-        Entry(
-            kind="model",
-            key=f"model:{n}",
-            display=f"⚡ {n}",
+            mid = str(it.get("id") or it.get("name") or it.get("model") or "")
+            name = str(it.get("name") or it.get("id") or mid)
+        else:
+            continue
+        if not mid:
+            continue
+        entries.append(Entry(
+            kind="llm_model",
+            key=f"llm_model:{mid}",
+            display=f"{name}",
             subtitle="set as default LLM model",
-            search_text=n,
-            on_select=_set_default_model(n),
-        )
-        for n in names
-    ]
+            search_text=mid,
+            on_select=_set_llm_model(mid),
+        ))
+    return entries
 
 
 def seed_palette(pal: "Palette", text: str) -> None:

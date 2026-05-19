@@ -107,6 +107,9 @@ class SettingsPanel(Widget):
         try:
             s = await app.api.settings()
             self.query_one("#hf", Input).value = s.get("hf_token") or ""
+            self.query_one("#model", Input).value = s.get("whisper_model") or "small"
+            self.query_one("#device", Input).value = s.get("whisper_device") or "auto"
+            self.query_one("#compute", Input).value = s.get("whisper_compute") or "float16"
         except Exception as e:
             self.app.notify(f"settings load failed: {e}", severity="error")
         try:
@@ -114,13 +117,6 @@ class SettingsPanel(Widget):
             self.query_one("#llm_url", Input).value = llm.get("base_url") or ""
             self.query_one("#llm_model", Input).value = llm.get("model_name") or ""
             self.query_one("#llm_key", Input).value = llm.get("api_key") or ""
-        except Exception:
-            pass
-        try:
-            mods = await app.api.models()
-            default = mods.get("default") or mods.get("current") or ""
-            if default:
-                self.query_one("#model", Input).value = str(default)
         except Exception:
             pass
 
@@ -133,7 +129,12 @@ class SettingsPanel(Widget):
         if event.button.id != "save":
             return
         try:
-            await app.api.save_settings(hf_token=self.query_one("#hf", Input).value)
+            await app.api.save_settings(
+                hf_token=self.query_one("#hf", Input).value,
+                whisper_model=self.query_one("#model", Input).value or None,
+                whisper_device=self.query_one("#device", Input).value or None,
+                whisper_compute=self.query_one("#compute", Input).value or None,
+            )
             await app.api.save_llm_settings(
                 base_url=self.query_one("#llm_url", Input).value or None,
                 model_name=self.query_one("#llm_model", Input).value or None,

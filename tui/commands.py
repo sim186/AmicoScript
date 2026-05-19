@@ -58,6 +58,18 @@ async def run_command(app: "AmicoTUI", raw: str) -> None:
 # --- handlers --------------------------------------------------------
 
 
+async def _whisper_options(app) -> dict:
+    """Return the saved Whisper model from settings for transcribe calls."""
+    try:
+        s = await app.api.settings()
+        model = s.get("whisper_model", "").strip()
+        if model:
+            return {"model": model}
+    except Exception:
+        pass
+    return {}
+
+
 @command("help", "show command reference")
 async def _help(app, args):
     lines = [f"/{c.name} — {c.help}" for c in list_commands()]
@@ -67,19 +79,37 @@ async def _help(app, args):
 @command("transcribe", "upload <path> and transcribe")
 async def _transcribe(app, args):
     if not args:
-        app.notify("usage: /transcribe <path>")
+        from .palette import Palette, seed_palette
+        pal = Palette()
+        app.push_screen(pal)
+        pal.call_after_refresh(seed_palette, pal, "/transcribe ")
         return
-    path = Path(args[0]).expanduser()
-    if not path.is_file():
-        app.notify(f"not a file: {path}")
+
+    arg = args[0]
+
+    if arg.startswith("@"):
+        from .palette import Palette, seed_palette
+        pal = Palette()
+        app.push_screen(pal)
+        pal.call_after_refresh(seed_palette, pal, f"/transcribe {arg}")
         return
-    result = await app.api.transcribe_file(path)
-    job_id = result.get("job_id") or result.get("id")
-    if job_id:
-        from .screens.job_detail import JobDetailScreen
-        app.push_screen(JobDetailScreen(job_id))
-    else:
-        app.notify(f"submitted: {result}")
+
+    path = Path(arg).expanduser()
+    if path.is_file():
+        opts = await _whisper_options(app)
+        result = await app.api.transcribe_file(path, options=opts)
+        job_id = result.get("job_id") or result.get("id")
+        if job_id:
+            from .screens.job_detail import JobDetailScreen
+            app.push_screen(JobDetailScreen(job_id))
+        else:
+            app.notify(f"submitted: {result}")
+        return
+
+    from .palette import Palette, seed_palette
+    pal = Palette()
+    app.push_screen(pal)
+    pal.call_after_refresh(seed_palette, pal, f"/transcribe {path}")
 
 
 @command("transcribe-url", "transcribe from <url>")
@@ -87,7 +117,8 @@ async def _transcribe_url(app, args):
     if not args:
         app.notify("usage: /transcribe-url <url>")
         return
-    result = await app.api.transcribe_url(args[0])
+    opts = await _whisper_options(app)
+    result = await app.api.transcribe_url(args[0], **opts)
     jobs = result.get("jobs") or ([result] if result.get("job_id") else [])
     if jobs:
         from .screens.job_detail import JobDetailScreen
@@ -228,7 +259,7 @@ async def _analyze(app, args):
         app.notify(f"analysis failed: {e}", severity="error")
 
 
-@command("models", "pick an LLM model")
+@command("models", "pick a Whisper transcription model")
 async def _models(app, args):
     from .palette import Palette, seed_palette
     pal = Palette()
@@ -236,10 +267,12 @@ async def _models(app, args):
     pal.call_after_refresh(seed_palette, pal, "/models ")
 
 
-@command("llm", "open LLM settings")
+@command("llm", "pick an LLM model")
 async def _llm(app, args):
-    from .screens.settings import SettingsScreen
-    app.push_screen(SettingsScreen())
+    from .palette import Palette, seed_palette
+    pal = Palette()
+    app.push_screen(pal)
+    pal.call_after_refresh(seed_palette, pal, "/llm ")
 
 
 @command("quit", "exit the app")

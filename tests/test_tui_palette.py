@@ -40,17 +40,17 @@ def test_entries_from_tags_skips_missing_id():
 
 def test_entries_from_models_mixed_shapes():
     out = entries_from_models({"models": [
-        {"name": "llama3.1"},
-        {"model": "qwen2.5"},
-        "mistral",
+        {"id": "tiny", "name": "Tiny", "params": "~39M", "ram": "~1 GB", "speed": 5, "accuracy": 1},
+        {"id": "base", "name": "Base", "params": "~74M", "ram": "~1 GB", "speed": 4, "accuracy": 2},
+        "small",
     ]})
     names = {e.key.split(":", 1)[1] for e in out}
-    assert names == {"llama3.1", "qwen2.5", "mistral"}
+    assert names == {"tiny", "base", "small"}
 
 
 def test_entries_from_models_handles_bare_list():
-    out = entries_from_models(["llama3.1", "qwen2.5"])
-    assert {e.display for e in out} == {"⚡ llama3.1", "⚡ qwen2.5"}
+    out = entries_from_models(["tiny", "base"])
+    assert {e.display for e in out} == {"tiny", "base"}
 
 
 def test_entries_from_models_empty():
