@@ -6,6 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.12.2] - 2026-06-03
 ### ✨ UI
 
 - **Floating queue widget:** Active jobs now surface in a bottom-right pill showing the live count. Click to expand the panel listing each non-terminal job (filename, status, progress bar) with per-row cancel and click-to-attach. Replaces the old full-page processing card and the duplicated amber transcript strip with a single source of truth.
@@ -28,6 +31,7 @@ Keep a Changelog format.
 ### 🔌 API
 
 - **`GET /api/jobs`:** Lists non-terminal jobs with `id`, `status`, `progress`, `filename`/`source_url`, `position`, and `created_at`, sorted by creation time. Cancelled jobs (`cancel_flag` set) are filtered out so the UI can drop them immediately.
+- No change details provided.
 
 ## [1.12.1] - 2026-05-13
 ### ⚡ Performance
