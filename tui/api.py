@@ -6,7 +6,7 @@ dicts/lists decoded from JSON. Errors raise httpx.HTTPStatusError.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 import httpx
 
@@ -193,21 +193,29 @@ class ApiClient:
         """
         path = Path(path)
         total = path.stat().st_size
-        sent = 0
 
-        def reader() -> Iterable[bytes]:
-            nonlocal sent
-            with path.open("rb") as f:
-                while True:
-                    chunk = f.read(64 * 1024)
-                    if not chunk:
-                        break
-                    sent += len(chunk)
-                    if on_progress is not None:
-                        on_progress(sent, total)
-                    yield chunk
+        class _ProgressFile:
+            def __init__(self, filepath, on_progress_cb, total_size):
+                self._f = open(filepath, "rb")
+                self._on_progress = on_progress_cb
+                self._total = total_size
+                self._sent = 0
 
-        files = {"file": (path.name, reader(), "application/octet-stream")}
+            def read(self, size=-1):
+                chunk = self._f.read(size)
+                if self._on_progress is not None:
+                    self._sent += len(chunk)
+                    self._on_progress(self._sent, self._total)
+                return chunk
+
+            def seek(self, *args):
+                return self._f.seek(*args)
+
+            def close(self):
+                self._f.close()
+
+        progress_file = _ProgressFile(path, on_progress, total)
+        files = {"file": (path.name, progress_file, "application/octet-stream")}
         data = {k: str(v) for k, v in (options or {}).items() if v is not None}
         r = await self.client.post("/api/transcribe", data=data, files=files)
         r.raise_for_status()

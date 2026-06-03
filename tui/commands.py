@@ -161,7 +161,10 @@ async def _cancel(app, args):
 @command("delete", "delete recording <id>")
 async def _delete(app, args):
     if not args:
-        app.notify("usage: /delete <id>")
+        from .palette import Palette, seed_palette
+        pal = Palette()
+        app.push_screen(pal)
+        pal.call_after_refresh(seed_palette, pal, "/delete ")
         return
     await app.api.delete_recording(args[0])
     app.notify(f"deleted {args[0]}")

@@ -41,7 +41,7 @@ MRU_BONUS = 50
 # Commands that, when typed with a trailing space, switch the palette to
 # a sub-picker. ``new`` arg of /folder is preserved by falling back to
 # raw command execution on Enter when no folder matches the query.
-SUBPICKERS = {"library", "folder", "tag", "analyze", "models", "llm", "transcribe"}
+SUBPICKERS = {"library", "folder", "tag", "analyze", "models", "llm", "transcribe", "delete"}
 # Map command name → mode key used internally (most are 1:1; /models → "model").
 _MODE_BY_COMMAND = {
     "library": "library",
@@ -51,6 +51,7 @@ _MODE_BY_COMMAND = {
     "models": "model",
     "llm": "llm_model",
     "transcribe": "transcribe",
+    "delete": "delete",
 }
 
 
@@ -346,6 +347,7 @@ class Palette(ModalScreen):
             "tag": "type to filter · enter scopes library · esc close",
             "transcript": "type to filter · enter opens transcript · esc close",
             "analyze": "pick a recording · enter chooses analysis type · esc close",
+            "delete": "type to filter · enter deletes recording · esc close",
             "model": "pick a Whisper model · enter sets default · esc close",
             "llm_model": "pick an LLM model · enter sets default · esc close",
         }.get(mode, mode)
@@ -403,7 +405,7 @@ class Palette(ModalScreen):
             return self._ad_hoc_entries
         if mode == "command":
             return self._commands
-        if mode == "library" or mode == "transcript" or mode == "analyze":
+        if mode == "library" or mode == "transcript" or mode == "analyze" or mode == "delete":
             return self._recordings
         if mode == "folder":
             return self._folders
@@ -483,12 +485,27 @@ class Palette(ModalScreen):
         )
 
     async def action_tab(self) -> None:
-        """Tab: in command mode, complete to a unique match; otherwise cycle."""
+        """Tab: complete to highlighted suggestion, then prefix; otherwise cycle."""
         inp = self.query_one(CommandInput)
+        lst = self.query_one("#suggestions", OptionList)
+
+        # Prefer completing to the currently highlighted suggestion.
+        if lst.option_count and lst.highlighted is not None:
+            opt = lst.get_option_at_index(lst.highlighted)
+            if opt and opt.id:
+                entry = next((e for e in self._visible if e.key == opt.id), None)
+                if entry:
+                    completed = _completion_text(entry)
+                    if completed:
+                        inp.value = completed
+                        inp.cursor_position = len(inp.value)
+                        await self._on_query_change(inp.value)
+                        return
+
+        # Fallback: prefix-based completion in command mode.
         raw = inp.value
         mode, query = self._parse(raw)
         if mode == "command":
-            # Find commands whose name starts with the typed query (case-insens).
             q = query.lower().split(" ", 1)[0]
             matches = [c.name for c in list_commands() if c.name.startswith(q)]
             if len(matches) == 1:
@@ -499,14 +516,13 @@ class Palette(ModalScreen):
                 await self._on_query_change(inp.value)
                 return
             if len(matches) > 1:
-                # Complete to longest common prefix.
                 lcp = _longest_common_prefix(matches)
                 if lcp and lcp != q:
                     inp.value = "/" + lcp
                     inp.cursor_position = len(inp.value)
                     await self._on_query_change(inp.value)
                     return
-        # Fallback: cycle suggestions.
+        # Final fallback: cycle suggestions.
         self.action_next_suggestion()
 
     # --- activation ------------------------------------------------------
@@ -540,6 +556,21 @@ class Palette(ModalScreen):
             self.app.pop_screen()
             await self._ad_hoc_on_pick(self.app, entry)
             return
+        # In delete mode, picking a recording deletes it immediately.
+        if self._mode == "delete" and entry.kind == "recording":
+            rec_id = entry.key.split(":", 1)[1]
+            app: "AmicoTUI" = self.app  # type: ignore[assignment]
+            self.app.pop_screen()
+            try:
+                await app.api.delete_recording(rec_id)
+                app.notify(f"deleted {rec_id[:8]}")
+                screen = app.screen
+                if hasattr(screen, "refresh_library"):
+                    screen.refresh_library()
+            except Exception as e:
+                app.notify(f"delete failed: {e}", severity="error")
+            return
+
         # In analyze mode, picking a recording opens the type chooser.
         if self._mode == "analyze" and entry.kind == "recording":
             rec_id = entry.key.split(":", 1)[1]
@@ -602,6 +633,32 @@ def _longest_common_prefix(strings: list[str]) -> str:
         if i >= len(s2) or s2[i] != ch:
             return s1[:i]
     return s1
+
+
+def _completion_text(entry: Entry) -> str:
+    """Generate the slash-command text for a completed entry."""
+    if entry.kind == "command":
+        cmd_name = entry.key.split(":", 1)[1]
+        suffix = " " if cmd_name in SUBPICKERS else ""
+        return "/" + cmd_name + suffix
+    if entry.kind == "recording":
+        name = entry.display.removeprefix("♪ ").strip()
+        return "/library " + name
+    if entry.kind == "folder":
+        name = entry.display.removeprefix("▣ ").strip()
+        return "/folder " + name
+    if entry.kind == "tag":
+        name = entry.display.removeprefix("# ").strip()
+        return "/tag " + name
+    if entry.kind == "model":
+        return "/models " + entry.display.strip()
+    if entry.kind == "llm_model":
+        return "/llm " + entry.display.strip()
+    if entry.kind in ("file", "dir"):
+        path = entry.key.split(":", 1)[1]
+        suffix = "/" if entry.kind == "dir" else ""
+        return "/transcribe " + path + suffix
+    return ""
 
 
 # --- selection adapters --------------------------------------------------

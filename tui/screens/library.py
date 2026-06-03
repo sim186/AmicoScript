@@ -224,10 +224,10 @@ class LibraryPanel(Widget):
 
 
 class LibraryScreen(Screen):
-    """Full-screen library view — default landing."""
+    """Full-screen library view."""
 
     BINDINGS = [
-        Binding("escape", "pop_if_stacked", "Back"),
+        Binding("escape", "pop", "Back"),
     ]
 
     leader_chords = {
@@ -289,8 +289,7 @@ class LibraryScreen(Screen):
         except Exception:
             pass
 
-    def action_pop_if_stacked(self) -> None:
-        if len(self.app.screen_stack) > 1:
-            self.app.pop_screen()
+    def action_pop(self) -> None:
+        self.app.pop_screen()
 
 

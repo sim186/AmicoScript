@@ -1,8 +1,8 @@
 """Main Textual App for AmicoScript TUI.
 
-Modeless, palette-driven. Lands directly on Library. Leader key (Space)
-arms per-screen chord maps; ``/`` or ``ctrl+k`` opens the unified fuzzy
-palette.
+Modeless, palette-driven. Lands on a welcome screen; the library and
+other views are pushed on top. Leader key (Space) arms per-screen chord
+maps; ``/`` or ``ctrl+k`` opens the unified fuzzy palette.
 """
 from __future__ import annotations
 
@@ -123,8 +123,8 @@ class AmicoTUI(App):
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
-        Binding("slash", "palette('/')", "Palette", priority=True, show=False),
-        Binding("at", "palette('@')", "Palette @", priority=True, show=False),
+        Binding("slash", "palette('/')", "Palette", show=False),
+        Binding("at", "palette('@')", "Palette @", show=False),
         Binding("ctrl+k", "palette()", "Palette", priority=True, show=False),
         Binding("ctrl+p", "palette('/')", "Commands", priority=True, show=False),
     ]
@@ -140,8 +140,8 @@ class AmicoTUI(App):
         self.leader = LeaderDispatcher(self)
 
     def on_mount(self) -> None:
-        from .screens.library import LibraryScreen
-        self.push_screen(LibraryScreen())
+        from .screens.welcome import WelcomeScreen
+        self.push_screen(WelcomeScreen())
         self.run_worker(self._health_loop(), exclusive=True, name="health")
 
     async def on_unmount(self) -> None:
