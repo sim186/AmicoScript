@@ -23,6 +23,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Meeting watcher output (runtime recordings — never commit audio)
+meetings/
+
 # PyInstaller / Build artifacts
 build/
 dist/

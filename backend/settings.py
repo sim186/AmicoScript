@@ -53,6 +53,19 @@ def _get_saved_hf_token() -> str:
     return settings.get("hf_token", "") or os.environ.get("HF_TOKEN", "")
 
 
+def _get_meeting_capture_enabled() -> bool:
+    """Return whether the external Teams auto-capture watcher is enabled."""
+    settings = _load_settings()
+    return bool(settings.get("meeting_capture_enabled", False))
+
+
+def _set_meeting_capture_enabled(enabled: bool) -> None:
+    """Persist the Teams auto-capture enabled flag."""
+    settings = _load_settings()
+    settings["meeting_capture_enabled"] = bool(enabled)
+    _save_settings(settings)
+
+
 def _get_llm_settings() -> dict:
     """Return LLM config: base_url, model_name, api_key."""
     settings = _load_settings()

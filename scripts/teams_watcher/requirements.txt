@@ -1,0 +1,8 @@
+pyaudiowpatch>=0.2.12
+pycaw>=20240210
+comtypes>=1.2.0
+requests>=2.31.0
+numpy>=1.24.0
+winotify>=1.1.0
+pystray>=0.19.4
+pillow>=10.0.0
