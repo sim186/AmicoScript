@@ -54,13 +54,13 @@ def _get_saved_hf_token() -> str:
 
 
 def _get_meeting_capture_enabled() -> bool:
-    """Return whether the external Teams auto-capture watcher is enabled."""
+    """Return whether the external meeting auto-capture watcher is enabled."""
     settings = _load_settings()
     return bool(settings.get("meeting_capture_enabled", False))
 
 
 def _set_meeting_capture_enabled(enabled: bool) -> None:
-    """Persist the Teams auto-capture enabled flag."""
+    """Persist the meeting auto-capture enabled flag."""
     settings = _load_settings()
     settings["meeting_capture_enabled"] = bool(enabled)
     _save_settings(settings)

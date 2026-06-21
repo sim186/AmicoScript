@@ -3,8 +3,7 @@
 Local-only daemon (no MS Graph / cloud APIs). Detects a call from any
 conferencing or chat app — **Teams, Zoom, Webex, Google Meet, WhatsApp,
 Telegram, Signal, Slack, Discord, and more** — records the meeting audio, then
-drives a running AmicoScript instance to transcribe it and write a markdown
-report (summary + action items).
+submits it to the normal AmicoScript transcription queue.
 
 ## Two ways it runs
 
@@ -40,18 +39,18 @@ loop runs* differs. Force it with `AMICOSCRIPT_EMBEDDED_WATCHER=on|off|auto`.
    participants) plus your **microphone** (`pyaudiowpatch`), mixes them to one
    mono WAV. No virtual cable, no admin rights. App-agnostic — loopback grabs
    whatever plays through the speakers regardless of which app.
-3. **Report** — on meeting end, POSTs the WAV to AmicoScript `/api/transcribe`,
-   waits, then runs `summary` + `action_items` analyses and writes
-   `<app>_<timestamp>.report.md` next to the WAV (header notes the detected app).
+3. **Transcribe** — on meeting end, POSTs the WAV to AmicoScript
+   `/api/transcribe`. From there it uses the same queue, library, transcript,
+   export, and optional Ollama analysis workflows as a manually uploaded file.
 
 **Desktop toasts** (via `winotify`) fire on: recording started, recording
-stopped, and report ready.
+stopped, and transcription queued.
 
 ## Enable / disable
 
 Open AmicoScript → sidebar → **Meeting auto-capture** → flip the toggle. State is
-saved server-side; the watcher picks it up within ~5 s. Turning it off prevents
-*new* captures; a meeting already in progress finishes and is still reported.
+saved server-side; the watcher picks it up within ~5 s. Turning it off stops an
+active capture immediately and prevents new captures.
 
 ## Setup
 
@@ -100,7 +99,7 @@ Persistent env overrides are inherited by the task if set with `setx`
 installed in the build environment**, so install them before building on Windows:
 
 ```powershell
-pip install -r scripts/teams_watcher/requirements.txt
+pip install -r scripts/meeting_watcher/requirements.txt
 python package.py
 ```
 
@@ -146,7 +145,7 @@ killed mid-call, the chip clears on its own within ~20 s (heartbeat TTL).
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `AMICOSCRIPT_URL` | `http://localhost:8002` | AmicoScript base URL |
-| `AMICOSCRIPT_WATCHER_OUT` | `STORAGE_ROOT/meetings` (`~/.amicoscript/data/meetings`, or `./amicoscript-data/meetings` in portable mode) | where WAVs + reports go |
+| `AMICOSCRIPT_WATCHER_OUT` | `STORAGE_ROOT/meetings` (`~/.amicoscript/data/meetings`, or `./amicoscript-data/meetings` in portable mode) | where captured WAVs go |
 | `AMICOSCRIPT_MODEL` | `small` | Whisper model |
 | `AMICOSCRIPT_DIARIZE` | `true` | speaker diarization (needs HF token in app) |
 | `AMICOSCRIPT_MIX_MIC` | `true` | mix mic into recording (`false` = remote only) |
@@ -166,7 +165,7 @@ at the top of `watcher.py`.
   tame it. If your `pycaw` build can't enumerate mic sessions, the heuristic is
   skipped automatically (logged once) and the allowlist still works.
 - The watcher only knows *which* app from the matched process name; under the
-  pure heuristic path the report still records the best-guess app label.
+  pure heuristic path the recording label uses the best-guess app.
 
 ## Caveats
 

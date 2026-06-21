@@ -135,24 +135,51 @@ def _watcher_output_dir() -> Path:
         return Path.home() / "AmicoScript" / "meetings"
 
 
+def _maybe_start_external_watcher_task() -> None:
+    """Start the installed per-user watcher task, if setup.bat registered it."""
+    import platform
+    import subprocess
+
+    if platform.system() != "Windows":
+        return
+    task_name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
+    try:
+        proc = subprocess.run(
+            ["schtasks", "/Run", "/TN", task_name],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except Exception as exc:
+        print(f"External meeting watcher task could not be started ({exc}).")
+        return
+    if proc.returncode == 0:
+        print(f"External meeting watcher task started: {task_name}")
+    else:
+        msg = (proc.stderr or proc.stdout or "").strip()
+        print(f"External meeting watcher task not available: {task_name}. {msg}")
+
+
 def _maybe_start_embedded_watcher() -> None:
     """Run the meeting watcher in-process on the native Windows host.
 
     The watcher needs WASAPI/mic access, which only exists when AmicoScript runs
     directly on the host (the PyInstaller build), not inside the Linux Docker
     image. So we start it here only on Windows; Docker/other platforms fall back
-    to the external watcher (scripts/teams_watcher). Override with
+    to the external watcher (scripts/meeting_watcher). Override with
     AMICOSCRIPT_EMBEDDED_WATCHER=on|off|auto (default auto).
     """
     import platform
 
     mode = os.environ.get("AMICOSCRIPT_EMBEDDED_WATCHER", "auto").lower()
     if mode in {"0", "off", "false", "no"}:
+        _maybe_start_external_watcher_task()
         return
     if mode == "auto" and platform.system() != "Windows":
         return
 
-    watcher_dir = SCRIPTS_DIR / "teams_watcher"
+    watcher_dir = SCRIPTS_DIR / "meeting_watcher"
     if watcher_dir.exists() and str(watcher_dir) not in sys.path:
         sys.path.insert(0, str(watcher_dir))
     os.environ.setdefault("AMICOSCRIPT_WATCHER_OUT", str(_watcher_output_dir()))
@@ -165,7 +192,9 @@ def _maybe_start_embedded_watcher() -> None:
         except Exception as exc:
             # Audio deps not bundled, or not on a host that supports them.
             print(f"Embedded meeting watcher unavailable ({exc}); "
-                  "use the external watcher (scripts/teams_watcher) instead.")
+                  "use the external watcher (scripts/meeting_watcher) instead.")
+            if mode == "auto":
+                _maybe_start_external_watcher_task()
             return
         _watcher_module = watcher
         print("Embedded meeting watcher started (enable via the UI toggle).")

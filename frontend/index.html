@@ -871,11 +871,11 @@
               </button>
               <div class="flex flex-col">
                 <span class="text-xs font-semibold text-slate-700">Auto-record meetings</span>
-                <span class="text-[10px] text-slate-500 leading-tight">Teams, Zoom, Meet, WhatsApp, Telegram &amp; more — records &amp; transcribes calls</span>
+                <span class="text-[10px] text-slate-500 leading-tight">Meeting and chat apps — records &amp; transcribes calls</span>
               </div>
             </div>
             <p id="watcher-state-line" class="text-[10px] leading-tight text-slate-400">Checking helper…</p>
-            <a id="watcher-setup-link" href="/scripts/teams_watcher/setup.bat" download
+            <a id="watcher-setup-link" href="/scripts/meeting_watcher/setup.bat" download
               class="hidden text-[10px] font-semibold text-brand hover:underline">Download one-click setup</a>
             <p class="text-[10px] text-slate-400 leading-tight mt-1">
               Recording meetings may need all-party consent — check your policy.
@@ -1186,7 +1186,7 @@
       style="bottom: calc(var(--console-h, 36px) + 1rem);">
 
       <!-- Meeting-recording indicator — driven by the external meeting watcher
-           (scripts/teams_watcher) via GET /api/watcher/status. -->
+           (scripts/meeting_watcher) via GET /api/watcher/status. -->
       <div id="recording-chip" role="status" aria-live="polite"
         class="hidden flex items-center gap-2 bg-red-600 text-white rounded-full shadow-lg px-3.5 py-2 text-sm font-medium">
         <span class="relative flex h-2.5 w-2.5">
@@ -1194,6 +1194,7 @@
           <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
         </span>
         <span>Recording</span>
+        <span id="recording-chip-timer" class="text-xs opacity-90 font-mono"></span>
         <span id="recording-chip-app" class="text-xs opacity-80"></span>
       </div>
 
@@ -1260,7 +1261,7 @@
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <a id="watcher-onboard-setup" href="/scripts/teams_watcher/setup.bat" download
+          <a id="watcher-onboard-setup" href="/scripts/meeting_watcher/setup.bat" download
             class="text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">Set it up</a>
           <button id="watcher-onboard-dismiss"
             class="text-sm text-slate-500 bg-transparent border-0 px-2 py-1 rounded hover:bg-slate-100">Not now</button>
@@ -1271,8 +1272,31 @@
       <div id="watcher-onboard-steps"
         class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 text-sm">
         Downloaded <code>setup.bat</code> — <strong>double-click it</strong> (in Downloads, or run
-        <code>scripts\teams_watcher\setup.bat</code> from the project). It installs the helper and
+        <code>scripts\meeting_watcher\setup.bat</code> from the project). It installs the helper and
         starts it; this bar disappears automatically once it's running.
+      </div>
+
+      <!-- Meeting-watcher update banner: shown when the installed helper's
+           heartbeat version is older than the one bundled with this running
+           app. "Update now" asks the backend to reinstall in place; if that
+           fails (e.g. backend runs in Docker, not on this Windows host) we
+           fall back to the manual setup.bat download. -->
+      <div id="watcher-update-banner"
+        class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-5.3M20 15a8 8 0 01-14 5.3" />
+          </svg>
+          <div class="text-sm min-w-0">
+            <span id="watcher-update-text" class="font-semibold">A newer meeting-watcher helper is available.</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="watcher-update-now"
+            class="text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2">Update now</button>
+          <button id="watcher-update-dismiss"
+            class="text-sm text-amber-700 bg-transparent border-0 px-2 py-1 rounded hover:bg-amber-100">Not now</button>
+        </div>
       </div>
 
       <!-- Tab bar -->
@@ -2663,15 +2687,29 @@
       btn.classList.toggle('bg-slate-200', !on);
     }
 
+    async function ensureSessionToken() {
+      if (state.exitToken) return state.exitToken;
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.exit_token) state.exitToken = data.exit_token;
+        }
+      } catch (_) {}
+      return state.exitToken || '';
+    }
+
     function initMeetingCaptureToggle() {
       const btn = document.getElementById('meeting-capture-toggle');
       if (!btn) return;
       btn.addEventListener('click', async () => {
         const next = btn.getAttribute('aria-checked') !== 'true';
-        setMeetingCaptureToggle(next);
         try {
+          const token = await ensureSessionToken();
+          setMeetingCaptureToggle(next);
           const fd = new FormData();
           fd.append('enabled', String(next));
+          fd.append('token', token);
           const res = await fetch('/api/settings/meeting-capture', { method: 'POST', body: fd });
           if (!res.ok) throw new Error('save failed');
         } catch (_) {
@@ -4984,10 +5022,10 @@
       }
     }
 
-    async function openRecording(rec) {
+    async function openRecording(rec, silent = false) {
       if (rec.status !== 'done') {
-        alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
-        return;
+        if (!silent) alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
+        return false;
       }
       clientLog(`Opening recording: ${rec.filename}`);
       try {
@@ -5036,8 +5074,10 @@
         const transcriptBtn = document.getElementById('tab-btn-transcript');
         transcriptBtn.disabled = false;
         switchTab('transcript');
+        return true;
       } catch (err) {
-        alert(`Failed to open recording: ${err.message}`);
+        if (!silent) alert(`Failed to open recording: ${err.message}`);
+        return false;
       }
     }
 
@@ -6381,6 +6421,9 @@
         // unbounded over a long-lived session (only tracked across consecutive
         // polls with active jobs).
         if (jobs.length === 0) _queueSeenDone.clear();
+        if (_watcherAutoOpenPending && !_watcherWasRecording) {
+          _maybeOpenLatestWatcherRecording();
+        }
       } catch (_) {}
     }
 
@@ -6391,7 +6434,60 @@
     // Require a couple of consecutive "not alive" polls before nagging, so the
     // native embedded watcher (alive within ~1-2s of launch) never flashes it.
     let _watcherMiss = 0;
+    let _watcherWasRecording = false;
+    let _watcherAutoOpenPending = false;
+    let _watcherAutoOpenInFlight = false;
+    let _watcherStoppedAt = 0;
+    let _watcherRecordingSince = 0;
+    let _watcherTimerHandle = null;
+
+    function _formatElapsed(seconds) {
+      const s = Math.max(0, Math.floor(seconds));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+    }
+
+    function _tickRecordingTimer() {
+      const timerEl = document.getElementById('recording-chip-timer');
+      if (!timerEl || !_watcherRecordingSince) return;
+      timerEl.textContent = _formatElapsed(Date.now() / 1000 - _watcherRecordingSince);
+    }
+
+    async function _maybeOpenLatestWatcherRecording() {
+      if (!_watcherAutoOpenPending || _watcherAutoOpenInFlight) return;
+      if (_watcherWasRecording) return;
+      _watcherAutoOpenInFlight = true;
+      try {
+        const res = await fetch('/api/library?sort=created_at&order=desc&limit=1&status=done');
+        if (!res.ok) return;
+        const rows = await res.json();
+        const rec = rows && rows[0];
+        if (!rec) return;
+        if (_watcherStoppedAt && rec.created_at && rec.created_at + 10 < _watcherStoppedAt) return;
+        if (state.activeRecordingId === rec.id && state.result) {
+          _watcherAutoOpenPending = false;
+          return;
+        }
+        const opened = await openRecording(rec, true);
+        if (opened) _watcherAutoOpenPending = false;
+      } catch (_) {
+        // Try again on the next poll.
+      } finally {
+        _watcherAutoOpenInFlight = false;
+      }
+    }
+
     function _setWatcherUI(d) {
+      const wasRecording = _watcherWasRecording;
+      _watcherWasRecording = !!d.recording;
+      if (!d.recording && wasRecording) {
+        _watcherAutoOpenPending = true;
+        _watcherStoppedAt = Date.now() / 1000;
+      }
+
       // Bottom-right recording chip.
       const chip = document.getElementById('recording-chip');
       if (chip) {
@@ -6399,8 +6495,13 @@
           const appEl = document.getElementById('recording-chip-app');
           if (appEl) appEl.textContent = d.app ? `· ${d.app}` : '';
           chip.classList.remove('hidden');
+          _watcherRecordingSince = d.since || _watcherRecordingSince || (Date.now() / 1000);
+          _tickRecordingTimer();
+          if (!_watcherTimerHandle) _watcherTimerHandle = setInterval(_tickRecordingTimer, 1000);
         } else {
           chip.classList.add('hidden');
+          _watcherRecordingSince = 0;
+          if (_watcherTimerHandle) { clearInterval(_watcherTimerHandle); _watcherTimerHandle = null; }
         }
       }
 
@@ -6432,6 +6533,23 @@
         try { dismissed = localStorage.getItem('watcherSetupDismissed') === '1'; } catch (_) {}
         if (banner && !dismissed && _watcherMiss >= 2) banner.classList.remove('hidden');
       }
+
+      if (_watcherAutoOpenPending && !d.recording) {
+        _maybeOpenLatestWatcherRecording();
+      }
+
+      // Outdated installed-watcher banner. Re-shows for each newly-seen
+      // current_version even if a previous version was dismissed.
+      const updateBanner = document.getElementById('watcher-update-banner');
+      if (updateBanner) {
+        if (d.update_available) {
+          let dismissedVersion = '';
+          try { dismissedVersion = localStorage.getItem('watcherUpdateDismissedFor') || ''; } catch (_) {}
+          updateBanner.classList.toggle('hidden', dismissedVersion === d.current_version);
+        } else {
+          updateBanner.classList.add('hidden');
+        }
+      }
     }
 
     async function refreshRecordingChip() {
@@ -6457,8 +6575,51 @@
       if (setup) setup.addEventListener('click', () => { if (steps) steps.classList.remove('hidden'); });
     }
 
-    setInterval(refreshRecordingChip, 3000);
-    document.addEventListener('DOMContentLoaded', () => { initWatcherOnboarding(); refreshRecordingChip(); });
+    function initWatcherUpdateBanner() {
+      const banner = document.getElementById('watcher-update-banner');
+      const text = document.getElementById('watcher-update-text');
+      const updateBtn = document.getElementById('watcher-update-now');
+      const dismiss = document.getElementById('watcher-update-dismiss');
+      if (!banner) return;
+      if (dismiss) dismiss.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/api/watcher/status');
+          const d = res.ok ? await res.json() : {};
+          localStorage.setItem('watcherUpdateDismissedFor', d.current_version || '');
+        } catch (_) {}
+        banner.classList.add('hidden');
+      });
+      if (updateBtn) updateBtn.addEventListener('click', async () => {
+        const originalLabel = updateBtn.textContent;
+        updateBtn.textContent = 'Updating…';
+        updateBtn.disabled = true;
+        try {
+          const token = await ensureSessionToken();
+          const fd = new FormData();
+          fd.append('token', token);
+          const res = await fetch('/api/watcher/install', { method: 'POST', body: fd });
+          const data = res.ok ? await res.json() : { ok: false };
+          if (data.ok) {
+            if (text) text.textContent = 'Helper updated — restarting…';
+            setTimeout(refreshRecordingChip, 2000);
+          } else {
+            if (text) {
+              text.textContent = data.error === 'not_windows'
+                ? "Can't auto-update from here — download and run setup.bat on this PC instead."
+                : `Auto-update failed (${data.error || 'unknown error'}) — try setup.bat instead.`;
+            }
+            const onboardBanner = document.getElementById('watcher-onboard-banner');
+            if (onboardBanner) onboardBanner.classList.remove('hidden');
+          }
+        } finally {
+          updateBtn.textContent = originalLabel;
+          updateBtn.disabled = false;
+        }
+      });
+    }
+
+    setInterval(refreshRecordingChip, 1000);
+    document.addEventListener('DOMContentLoaded', () => { initWatcherOnboarding(); initWatcherUpdateBanner(); refreshRecordingChip(); });
 
     document.addEventListener('DOMContentLoaded', init);
   </script>

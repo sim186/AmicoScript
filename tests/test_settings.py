@@ -61,12 +61,11 @@ def test_save_settings_atomic_no_corruption_on_error(tmp_path, monkeypatch):
 
 
 def test_settings_respects_portable_mode(tmp_path, monkeypatch):
-    """PORTABLE_MODE should use cwd/amicoscript-data, not ~/.amicoscript."""
+    """PORTABLE_MODE should use cwd/amicoscript-data."""
     monkeypatch.setenv("AMICOSCRIPT_PORTABLE", "1")
     monkeypatch.chdir(tmp_path)
     sf = settings._settings_file()
-    assert "amicoscript-data" in str(sf)
-    assert str(Path.home()) not in str(sf)
+    assert sf == tmp_path / "amicoscript-data" / "settings.json"
 
 
 def test_settings_standard_mode(tmp_path, monkeypatch):

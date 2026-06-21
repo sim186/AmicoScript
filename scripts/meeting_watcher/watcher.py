@@ -1,13 +1,12 @@
-"""Meeting watcher -> AmicoScript auto-report daemon.
+"""Meeting watcher -> AmicoScript transcription helper.
 
 Local-only (no MS Graph / cloud APIs). Detects an in-progress call from any
 conferencing or chat app -- Teams, Zoom, Webex, Google Meet, WhatsApp,
 Telegram, Signal, Slack, Discord, etc. -- via two signals (pycaw): a dedicated
 meeting app playing audio, or any app on the mic AND speaker at once (catches
 browser meetings and chat-app voice/video calls). Captures the meeting
-audio via WASAPI loopback + your microphone (pyaudiowpatch), then drives the
-running AmicoScript instance over HTTP to transcribe and produce a report
-(summary + action items).
+audio via WASAPI loopback + your microphone (pyaudiowpatch), then submits the
+WAV to the normal AmicoScript transcription queue.
 
 Usage:
     python watcher.py                # uses defaults below / env vars
@@ -35,6 +34,9 @@ import time
 import wave
 import threading
 import datetime as dt
+import math
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -46,6 +48,13 @@ from pycaw.pycaw import AudioUtilities
 # Config (override via environment variables)
 # --------------------------------------------------------------------------- #
 BASE_URL = os.environ.get("AMICOSCRIPT_URL", "http://localhost:8002").rstrip("/")
+
+# Bump whenever watcher.py changes in a way an installed copy should pick up.
+# Reported in the heartbeat so the web UI can tell an outdated installed
+# watcher apart from the one bundled with the running app (see
+# backend/api/routes/settings.py:_bundled_watcher_version, read via regex —
+# do not rename this constant without updating that pattern).
+WATCHER_VERSION = "2"
 
 
 def _default_output_dir() -> Path:
@@ -68,13 +77,12 @@ OUTPUT_DIR = Path(_env_out if _env_out else _default_output_dir()).resolve()
 WHISPER_MODEL = os.environ.get("AMICOSCRIPT_MODEL", "small")
 DIARIZE = os.environ.get("AMICOSCRIPT_DIARIZE", "true").lower() in {"1", "true", "yes", "on"}
 MIX_MIC = os.environ.get("AMICOSCRIPT_MIX_MIC", "true").lower() in {"1", "true", "yes", "on"}
-ANALYSES = ("summary", "action_items")  # LLM reports to request after transcription
 
-POLL_SECONDS = 1.0          # how often to check audio state
-START_DEBOUNCE = 3          # consecutive active polls before "call started"
-STOP_DEBOUNCE = 6           # consecutive inactive polls before "call ended"
+POLL_SECONDS = 0.5          # how often to check audio state
+START_DEBOUNCE = 2          # consecutive active polls before "call started"
+STOP_DEBOUNCE = 3           # consecutive inactive polls before "call ended"
 MIN_MEETING_SECONDS = 15    # ignore captures shorter than this (false triggers)
-STATUS_HEARTBEAT = 10       # seconds between "recording" heartbeats to the web UI
+STATUS_HEARTBEAT = 5        # seconds between "recording" heartbeats to the web UI
 
 def _env_set(var: str, default: str) -> set[str]:
     return {a.strip().lower() for a in os.environ.get(var, default).split(",") if a.strip()}
@@ -112,7 +120,7 @@ EDATAFLOW_RENDER = 0            # EDataFlow.eRender (speakers)
 EDATAFLOW_CAPTURE = 1           # EDataFlow.eCapture (microphone)
 EROLE_MULTIMEDIA = 1            # ERole.eMultimedia
 EROLE_COMMUNICATIONS = 2        # ERole.eCommunications
-# Calls (WhatsApp/Teams/Zoom) route audio to the *communications* default device,
+# Calls often route audio to the *communications* default device,
 # which can differ from the *multimedia* default. Scan both so either is seen.
 DEVICE_ROLES = (EROLE_MULTIMEDIA, EROLE_COMMUNICATIONS)
 _heuristic_warned = False
@@ -131,6 +139,9 @@ _tray_quit = threading.Event()         # set by the tray "Quit" menu item
 _embedded_quit = threading.Event()
 _tray_state = {"enabled": False, "recording": False, "app": ""}
 _tray_last_sig = None
+_instance_mutex = None
+_instance_lock_fd = None
+_instance_lock_path: Path | None = None
 
 
 LOG_FILE = Path(os.environ.get("AMICOSCRIPT_WATCHER_LOG", str(OUTPUT_DIR / "watcher.log")))
@@ -189,6 +200,73 @@ def notify(title: str, message: str) -> None:
         Notification(**kwargs).show()
     except Exception as exc:
         log(f"WARN: toast failed: {exc}")
+
+
+def _acquire_instance_lock() -> bool:
+    """Return False when another watcher already owns the per-user lock."""
+    global _instance_mutex, _instance_lock_fd, _instance_lock_path
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR)
+            kernel32.CreateMutexW.restype = wintypes.HANDLE
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            handle = kernel32.CreateMutexW(None, False, "Local\\AmicoScriptMeetingWatcher")
+            if not handle:
+                log("WARN: could not create watcher mutex; continuing without lock")
+                return True
+            if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+                kernel32.CloseHandle(handle)
+                return False
+            _instance_mutex = handle
+            return True
+        except Exception as exc:
+            log(f"WARN: could not create watcher mutex ({exc}); continuing without lock")
+            return True
+
+    try:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        _instance_lock_path = OUTPUT_DIR / "watcher.lock"
+        _instance_lock_fd = os.open(str(_instance_lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        os.write(_instance_lock_fd, str(os.getpid()).encode("ascii", errors="ignore"))
+        return True
+    except FileExistsError:
+        return False
+    except Exception as exc:
+        log(f"WARN: could not create watcher lock ({exc}); continuing without lock")
+        return True
+
+
+def _release_instance_lock() -> None:
+    global _instance_mutex, _instance_lock_fd, _instance_lock_path
+    if _instance_mutex is not None and os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            kernel32.CloseHandle(_instance_mutex)
+        except Exception:
+            pass
+        _instance_mutex = None
+    if _instance_lock_fd is not None:
+        try:
+            os.close(_instance_lock_fd)
+        except Exception:
+            pass
+        _instance_lock_fd = None
+    if _instance_lock_path is not None:
+        try:
+            _instance_lock_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        _instance_lock_path = None
 
 
 # --------------------------------------------------------------------------- #
@@ -272,7 +350,7 @@ def _listening_procs():
 
 
 def _pretty_app(proc_name: str) -> str:
-    """teams.exe -> Teams, ms-teams.exe -> Teams, whatsapp.exe -> Whatsapp."""
+    """Map process names like zoom.exe or ms-teams.exe to readable labels."""
     low = proc_name.lower()
     for known in KNOWN_APPS:
         if known in low:
@@ -381,33 +459,53 @@ def _names_match(a: str, b: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Audio capture (pyaudiowpatch WASAPI loopback + mic)
 # --------------------------------------------------------------------------- #
+@dataclass
+class _Source:
+    info: dict
+    path: Path
+    thread: threading.Thread | None = None
+
+
 class Capture:
     """Records WASAPI loopback from every default *render* device (multimedia AND
     communications) plus every default *mic*, each in its own thread, then mixes
     everything to one mono 16-bit WAV on stop().
 
     Recording both device roles is what makes calls work when the communications
-    default (where WhatsApp/Teams/Zoom route audio) differs from the multimedia
+    default (where call apps often route audio) differs from the multimedia
     default — otherwise the remote party is captured from the wrong device."""
 
     def __init__(self, mix_mic: bool = True):
         self.mix_mic = mix_mic
         self._stop = threading.Event()
         self._pa = pyaudio.PyAudio()
-        # Each source: (pyaudio device-info dict, frames sink).
-        self._sources: list[tuple[dict, list[bytes]]] = []
+        self._sources: list[_Source] = []
         id_to_name = _all_device_names()  # one COM enumeration, reused below
         loop_infos = self._loopback_infos(id_to_name)
         if not loop_infos:
             self._pa.terminate()
             raise RuntimeError("No WASAPI loopback device found")
         for info in loop_infos:
-            self._sources.append((info, []))
+            self._sources.append(_Source(info=info, path=self._new_raw_path()))
         if mix_mic:
             for info in self._mic_infos(id_to_name):
-                self._sources.append((info, []))
-        self._threads: list[threading.Thread] = []
-        log("Capture devices: " + ", ".join(i["name"] for i, _ in self._sources))
+                self._sources.append(_Source(info=info, path=self._new_raw_path()))
+        log("Capture devices: " + ", ".join(s.info["name"] for s in self._sources))
+
+    @staticmethod
+    def _new_raw_path() -> Path:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix="capture-", suffix=".raw", dir=str(OUTPUT_DIR))
+        os.close(fd)
+        return Path(name)
+
+    @staticmethod
+    def _rate(info: dict) -> int:
+        return int(float(info.get("defaultSampleRate") or 16000))
+
+    @staticmethod
+    def _channels(info: dict) -> int:
+        return max(1, int(info.get("maxInputChannels") or 2))
 
     def _default_loopback(self) -> dict:
         wasapi = self._pa.get_host_api_info_by_type(pyaudio.paWASAPI)
@@ -468,12 +566,13 @@ class Capture:
                 chosen[d["index"]] = d
         return list(chosen.values())
 
-    def _record(self, info: dict, sink: list[bytes]) -> None:
+    def _record(self, source: _Source) -> None:
+        info = source.info
         try:
             stream = self._pa.open(
                 format=pyaudio.paInt16,
-                channels=int(info["maxInputChannels"]) or 2,
-                rate=int(info["defaultSampleRate"]),
+                channels=self._channels(info),
+                rate=self._rate(info),
                 frames_per_buffer=CHUNK,
                 input=True,
                 input_device_index=info["index"],
@@ -482,74 +581,131 @@ class Capture:
             log(f"WARN: cannot open {info.get('name')}: {exc}")
             return
         try:
-            while not self._stop.is_set():
-                sink.append(stream.read(CHUNK, exception_on_overflow=False))
+            with open(source.path, "ab", buffering=1024 * 1024) as raw:
+                while not self._stop.is_set():
+                    raw.write(stream.read(CHUNK, exception_on_overflow=False))
         finally:
             stream.stop_stream()
             stream.close()
 
     def start(self) -> None:
-        for info, sink in self._sources:
-            t = threading.Thread(target=self._record, args=(info, sink), daemon=True)
+        for source in self._sources:
+            t = threading.Thread(target=self._record, args=(source,), daemon=True)
+            source.thread = t
             t.start()
-            self._threads.append(t)
 
     @staticmethod
-    def _to_mono(frames: list[bytes], channels: int) -> np.ndarray:
-        if not frames:
+    def _bytes_to_mono(raw: bytes, channels: int) -> np.ndarray:
+        if not raw:
             return np.zeros(0, dtype=np.float32)
-        data = np.frombuffer(b"".join(frames), dtype=np.int16).astype(np.float32)
+        data = np.frombuffer(raw, dtype=np.int16)
         if channels > 1:
-            data = data.reshape(-1, channels).mean(axis=1)
-        return data
+            frame_count = data.size // channels
+            data = data[: frame_count * channels].reshape(-1, channels).mean(axis=1)
+        return data.astype(np.float32)
 
     @staticmethod
-    def _resample(data: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
-        if src_rate == dst_rate or data.size == 0:
-            return data
-        n = int(round(data.size * dst_rate / src_rate))
-        return np.interp(np.linspace(0, data.size, n, endpoint=False),
-                         np.arange(data.size), data)
+    def _read_resampled_window(fh, stat: dict, out_start: int, out_n: int, out_rate: int) -> np.ndarray:
+        src_rate = stat["rate"]
+        total_frames = stat["frames"]
+        channels = stat["channels"]
+        bytes_per_frame = stat["bytes_per_frame"]
+        if total_frames <= 0:
+            return np.zeros(out_n, dtype=np.float32)
+
+        if src_rate == out_rate:
+            src_start = out_start
+            if src_start >= total_frames:
+                return np.zeros(out_n, dtype=np.float32)
+            read_frames = min(out_n, total_frames - src_start)
+            fh.seek(src_start * bytes_per_frame)
+            mono = Capture._bytes_to_mono(fh.read(read_frames * bytes_per_frame), channels)
+            if mono.size < out_n:
+                mono = np.pad(mono, (0, out_n - mono.size))
+            return mono[:out_n].astype(np.float32)
+
+        ratio = src_rate / float(out_rate)
+        src_start = max(0, int(math.floor(out_start * ratio)))
+        src_end = min(total_frames, int(math.ceil((out_start + out_n) * ratio)) + 1)
+        if src_start >= src_end:
+            return np.zeros(out_n, dtype=np.float32)
+        fh.seek(src_start * bytes_per_frame)
+        mono = Capture._bytes_to_mono(fh.read((src_end - src_start) * bytes_per_frame), channels)
+        if mono.size == 0:
+            return np.zeros(out_n, dtype=np.float32)
+        positions = (np.arange(out_n, dtype=np.float64) + out_start) * ratio - src_start
+        return np.interp(
+            positions,
+            np.arange(mono.size, dtype=np.float64),
+            mono,
+            left=0.0,
+            right=0.0,
+        ).astype(np.float32)
+
+    def _source_stats(self) -> list[dict]:
+        stats = []
+        for source in self._sources:
+            channels = self._channels(source.info)
+            rate = self._rate(source.info)
+            bytes_per_frame = channels * 2
+            try:
+                size = source.path.stat().st_size
+            except OSError:
+                size = 0
+            frames = size // bytes_per_frame
+            if frames > 0:
+                stats.append({
+                    "source": source,
+                    "channels": channels,
+                    "rate": rate,
+                    "bytes_per_frame": bytes_per_frame,
+                    "frames": frames,
+                })
+        return stats
 
     def stop(self, out_path: Path) -> float:
         """Stop recording, write mixed WAV to out_path, return duration seconds."""
         self._stop.set()
         stuck = False
-        for t in self._threads:
-            t.join(timeout=5)
-            if t.is_alive():
+        for source in self._sources:
+            if source.thread is None:
+                continue
+            source.thread.join(timeout=5)
+            if source.thread.is_alive():
                 stuck = True
 
-        rate = int(self._sources[0][0]["defaultSampleRate"]) if self._sources else 16000
-        monos = []
-        for info, sink in self._sources:
-            channels = int(info.get("maxInputChannels", 1)) or 1
-            m = self._to_mono(sink, channels)
-            m = self._resample(m, int(info["defaultSampleRate"]), rate)
-            if m.size:
-                monos.append(m)
-
-        if monos:
-            length = max(m.size for m in monos)
-            mix = np.zeros(length, dtype=np.float32)
-            # Attenuate each source before summing so N near-full-scale signals
-            # don't add up to ~N*32767 and hard-clip at the clip step below
-            # (audible distortion when loopback + mic are both loud). Dividing by
-            # the source count keeps the mix's peak roughly equal to one source.
-            gain = 1.0 / len(monos)
-            for m in monos:
-                mix[: m.size] += m * gain
-        else:
-            mix = np.zeros(0, dtype=np.float32)
-
-        mix = np.clip(mix, -32768, 32767).astype(np.int16)
+        stats = self._source_stats()
+        rate = self._rate(self._sources[0].info) if self._sources else 16000
+        duration = max((s["frames"] / float(s["rate"]) for s in stats), default=0.0)
+        total_frames = int(math.ceil(duration * rate)) if rate else 0
+        chunk_frames = max(rate * 10, CHUNK)
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        with wave.open(str(out_path), "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(rate)
-            wf.writeframes(mix.tobytes())
+        handles = []
+        try:
+            handles = [(s, open(s["source"].path, "rb")) for s in stats]
+            with wave.open(str(out_path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(rate)
+                gain = 1.0 / len(handles) if handles else 1.0
+                for out_start in range(0, total_frames, chunk_frames):
+                    out_n = min(chunk_frames, total_frames - out_start)
+                    mix = np.zeros(out_n, dtype=np.float32)
+                    for stat, fh in handles:
+                        mix += self._read_resampled_window(fh, stat, out_start, out_n, rate) * gain
+                    wf.writeframes(np.clip(mix, -32768, 32767).astype(np.int16).tobytes())
+        finally:
+            for _, fh in handles:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+            for source in self._sources:
+                try:
+                    source.path.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         if stuck:
             # A capture thread didn't exit in time (blocked in stream.read on a
@@ -562,18 +718,42 @@ class Capture:
                 self._pa.terminate()
             except Exception as exc:
                 log(f"WARN: PyAudio teardown failed (ignored): {exc}")
-        return mix.size / float(rate) if rate else 0.0
+        return duration
 
 
 # --------------------------------------------------------------------------- #
 # AmicoScript HTTP driver
 # --------------------------------------------------------------------------- #
 _enabled_cache = {"value": None, "ts": 0.0}
+_server_token_cache = {"value": "", "ts": 0.0}
 ENABLED_TTL = 5.0  # seconds to cache the toggle state
 
 
+def _remember_server_settings(data: dict) -> None:
+    token = data.get("exit_token") or ""
+    if token:
+        _server_token_cache["value"] = token
+        _server_token_cache["ts"] = time.time()
+    if "meeting_capture_enabled" in data:
+        _enabled_cache["value"] = bool(data.get("meeting_capture_enabled", False))
+        _enabled_cache["ts"] = time.time()
+
+
+def server_token(force: bool = False) -> str:
+    """Session token for CSRF-protected local POST endpoints."""
+    if _server_token_cache["value"] and not force:
+        return str(_server_token_cache["value"])
+    try:
+        r = requests.get(f"{BASE_URL}/api/settings", timeout=5)
+        r.raise_for_status()
+        _remember_server_settings(r.json())
+    except Exception:
+        pass
+    return str(_server_token_cache["value"] or "")
+
+
 def capture_enabled() -> bool:
-    """Whether the web-UI 'Teams auto-capture' toggle is ON. Cached briefly.
+    """Whether the web-UI 'Meeting auto-capture' toggle is ON. Cached briefly.
 
     On any error, keep the last known value (default False) so a transient app
     restart does not silently start/stop recording.
@@ -584,7 +764,9 @@ def capture_enabled() -> bool:
     try:
         r = requests.get(f"{BASE_URL}/api/settings", timeout=5)
         r.raise_for_status()
-        value = bool(r.json().get("meeting_capture_enabled", False))
+        data = r.json()
+        _remember_server_settings(data)
+        value = bool(data.get("meeting_capture_enabled", False))
     except Exception:
         value = bool(_enabled_cache["value"])  # last known, or False
     _enabled_cache["value"] = value
@@ -599,11 +781,20 @@ def report_status(recording: bool, app: str = "") -> None:
     stop. Failures are ignored — the server expires a stale heartbeat on its own.
     """
     try:
-        requests.post(
+        data = {
+            "recording": "true" if recording else "false",
+            "app": app,
+            "version": WATCHER_VERSION,
+            "token": server_token(),
+        }
+        resp = requests.post(
             f"{BASE_URL}/api/watcher/status",
-            data={"recording": "true" if recording else "false", "app": app},
+            data=data,
             timeout=5,
         )
+        if resp.status_code == 403:
+            data["token"] = server_token(force=True)
+            requests.post(f"{BASE_URL}/api/watcher/status", data=data, timeout=5)
     except Exception:
         pass
 
@@ -622,80 +813,15 @@ def transcribe(wav_path: Path) -> tuple[str, str]:
     return j["job_id"], j["recording_id"]
 
 
-def wait_job(job_id: str, label: str, timeout: float = 3600) -> str:
-    """Poll a transcription/translation job until terminal. Returns status."""
-    deadline = time.time() + timeout
-    last = ""
-    while time.time() < deadline:
-        r = requests.get(f"{BASE_URL}/api/jobs/{job_id}/logs", timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        status, prog = data.get("status", ""), data.get("progress", 0.0)
-        line = f"{label}: {status} {int((prog or 0) * 100)}%"
-        if line != last:
-            log(line)
-            last = line
-        if status in ("done", "error", "cancelled"):
-            return status
-        time.sleep(2)
-    return "timeout"
-
-
-def run_analysis(recording_id: str, analysis_type: str, timeout: float = 1800) -> str:
-    """Create an analysis, poll until done, return result_text (or '')."""
-    resp = requests.post(
-        f"{BASE_URL}/api/recordings/{recording_id}/analyses",
-        data={"analysis_type": analysis_type},
-        timeout=60,
-    )
-    if resp.status_code != 200:
-        log(f"  {analysis_type}: skipped ({resp.status_code} {resp.text[:120]})")
-        return ""
-    analysis_id = resp.json()["analysis_id"]
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        r = requests.get(f"{BASE_URL}/api/recordings/{recording_id}/analyses/{analysis_id}", timeout=30)
-        r.raise_for_status()
-        a = r.json()
-        if a.get("status") == "done":
-            return a.get("result_text") or ""
-        if a.get("status") == "error":
-            log(f"  {analysis_type}: error")
-            return a.get("result_text") or ""
-        time.sleep(2)
-    return ""
-
-
-def process_recording(wav_path: Path, started: dt.datetime, app_name: str = "Meeting") -> None:
-    """Full pipeline: transcribe -> analyses -> write markdown report."""
+def submit_recording(wav_path: Path) -> None:
+    """Upload WAV to the normal transcription queue and return."""
     try:
         log(f"Uploading {wav_path.name} -> AmicoScript")
         job_id, recording_id = transcribe(wav_path)
-        if wait_job(job_id, "transcribe") != "done":
-            log("Transcription did not complete; leaving WAV for manual retry")
-            return
-
-        report = [
-            f"# Meeting report",
-            f"",
-            f"- **App:** {app_name}",
-            f"- **Started:** {started:%Y-%m-%d %H:%M}",
-            f"- **Audio:** `{wav_path.name}`",
-            f"- **Recording ID:** {recording_id}",
-            f"- **Open in app:** {BASE_URL}/?recording={recording_id}",
-            f"",
-        ]
-        for atype in ANALYSES:
-            log(f"  running analysis: {atype}")
-            text = run_analysis(recording_id, atype)
-            report.append(f"## {atype.replace('_', ' ').title()}\n\n{text or '_(no result)_'}\n")
-
-        report_path = wav_path.with_suffix(".report.md")
-        report_path.write_text("\n".join(report), encoding="utf-8")
-        log(f"Report written: {report_path}")
-        notify("Meeting report ready", report_path.name)
+        log(f"Transcription queued: job={job_id} recording={recording_id}")
+        notify("Transcription queued", wav_path.name)
     except Exception as exc:
-        log(f"ERROR processing recording: {exc}")
+        log(f"ERROR uploading recording: {exc}")
 
 
 def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None:
@@ -712,7 +838,7 @@ def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None
         log(f"Captured {duration:.0f}s -> {wav_path.name}")
         notify("Recording stopped", f"{duration / 60:.0f} min captured — transcribing…")
         threading.Thread(
-            target=process_recording, args=(wav_path, started_at, detected_app), daemon=True
+            target=submit_recording, args=(wav_path,), daemon=True
         ).start()
     else:
         log(f"Ignored short capture ({duration:.0f}s < {MIN_MEETING_SECONDS}s)")
@@ -732,11 +858,15 @@ _TRAY_COLORS = {
 def _set_capture_enabled(value: bool) -> None:
     """Flip the server-side auto-capture toggle (keeps tray + web UI in sync)."""
     try:
-        requests.post(
+        data = {"enabled": "true" if value else "false", "token": server_token()}
+        resp = requests.post(
             f"{BASE_URL}/api/settings/meeting-capture",
-            data={"enabled": "true" if value else "false"},
+            data=data,
             timeout=5,
         )
+        if resp.status_code == 403:
+            data["token"] = server_token(force=True)
+            requests.post(f"{BASE_URL}/api/settings/meeting-capture", data=data, timeout=5)
     except Exception as exc:
         log(f"WARN: could not set capture toggle: {exc}")
     _enabled_cache["value"] = value
@@ -840,7 +970,7 @@ def _tray_refresh(force: bool = False) -> None:
 # --------------------------------------------------------------------------- #
 # Main watch loop
 # --------------------------------------------------------------------------- #
-def main() -> None:
+def _main_loop() -> None:
     log(f"Meeting watcher started. AmicoScript = {BASE_URL}")
     log(f"Output dir = {OUTPUT_DIR} | model={WHISPER_MODEL} diarize={DIARIZE} mix_mic={MIX_MIC}")
     log(f"Meeting apps (speaker): {', '.join(sorted(CALL_APPS))}")
@@ -881,7 +1011,16 @@ def main() -> None:
 
         enabled = capture_enabled()
 
-        if not in_call and enabled and active_streak >= START_DEBOUNCE:
+        if in_call and not enabled:
+            in_call = False
+            active_streak = inactive_streak = 0
+            report_status(False)
+            log("Auto-capture disabled -- stopping capture")
+            if capture:
+                _finalize_capture(capture, started_at, detected_app)
+                capture = None
+
+        elif not in_call and enabled and active_streak >= START_DEBOUNCE:
             in_call = True
             started_at = dt.datetime.now()
             detected_app = app or "Meeting"
@@ -933,6 +1072,16 @@ def main() -> None:
         except Exception:
             pass
     log("Watcher stopped.")
+
+
+def main() -> None:
+    if not _acquire_instance_lock():
+        log("Another meeting watcher is already running; exiting.")
+        return
+    try:
+        _main_loop()
+    finally:
+        _release_instance_lock()
 
 
 def stop_embedded() -> None:

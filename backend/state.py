@@ -52,10 +52,10 @@ event_loop: Optional[asyncio.AbstractEventLoop] = None
 exit_token: str = ""
 
 # ---------------------------------------------------------------------------
-# Meeting-watcher status — set by the external watcher (scripts/teams_watcher)
+# Meeting-watcher status — set by the external watcher (scripts/meeting_watcher)
 # via POST /api/watcher/status and read by the web UI to show a "recording"
 # chip. Transient (in-memory only); a stale heartbeat is treated as idle by the
 # route's TTL so a crashed watcher never leaves the UI stuck on "recording".
 # ---------------------------------------------------------------------------
 
-watcher_status: dict = {"recording": False, "app": "", "ts": 0.0}
+watcher_status: dict = {"recording": False, "app": "", "ts": 0.0, "started_at": 0.0, "version": ""}

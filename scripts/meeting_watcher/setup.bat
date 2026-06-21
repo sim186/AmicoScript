@@ -7,7 +7,7 @@ REM  silently at every logon. No admin rights required. After this runs once,
 REM  recording is controlled entirely from the AmicoScript web UI toggle.
 REM
 REM  Works two ways:
-REM   - run from the project (scripts\teams_watcher\) -> uses the files here.
+REM   - run from the project (scripts\meeting_watcher\) -> uses the files here.
 REM   - downloaded on its own           -> fetches the rest from the running app
 REM                                         (set AMICO_URL to override the URL).
 REM ==========================================================================
@@ -36,7 +36,7 @@ if not exist "%SRC%watcher.py" (
   echo Fetching watcher files from %AMICO_URL% ...
   if not exist "!SRC!" mkdir "!SRC!"
   for %%F in (watcher.py requirements.txt install-windows.ps1 uninstall-windows.ps1 diag.py logo.ico) do (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%AMICO_URL%/scripts/teams_watcher/%%F' -OutFile '!SRC!%%F' } catch { exit 1 }"
+    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%AMICO_URL%/scripts/meeting_watcher/%%F' -OutFile '!SRC!%%F' } catch { exit 1 }"
     if errorlevel 1 (
       echo ERROR: could not download %%F from %AMICO_URL%.
       echo Make sure AmicoScript is running, then re-run this file.
