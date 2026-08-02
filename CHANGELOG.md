@@ -8,6 +8,28 @@ Keep a Changelog format.
 
 
 
+## [1.16.0] - 2026-08-02
+### 🖥️ Native desktop window
+
+- **The app opens in a real window instead of a browser tab.** The packaged build now draws the UI in the webview the OS already ships — WKWebView on macOS, WebView2 on Windows — so no Chromium is bundled and the download does not grow. Closing the window shuts the backend down cleanly.
+- **Choose how the UI opens** with `AMICOSCRIPT_UI`: `window` (default), `browser` (serve and open your default browser, the old behaviour), or `none` (serve only). `AMICOSCRIPT_NO_BROWSER=1` still forces a headless backend, so the TUI, Docker and CI are unaffected.
+- **Graceful fallback:** if no webview engine is available the app opens a browser tab instead of failing. Source checkouts without `pywebview` installed behave exactly as before.
+- **Exports, text selection and zoom work in the window.** pywebview disables downloads, text selection and zoom by default; all three are enabled here, and the window keeps a persistent profile under the storage root so sidebar settings survive a restart.
+
+### 📦 Offline-first frontend
+
+- **Tailwind, marked, WaveSurfer and the Inter font are now bundled with the app** instead of being fetched from CDNs on every load. The UI renders with no network at all, which is what a local-first, privacy-focused app should have been doing from the start. Assets are pinned by version and add ~770 KB.
+
+### ⚠️ Known changes in behaviour
+
+- **Closing the window now quits the app.** On Windows this also stops the embedded meeting watcher, which previously kept running after you closed the browser tab. Set `AMICOSCRIPT_UI=browser` to restore the old behaviour; a tray icon that outlives the window is planned.
+- **Linux keeps opening a browser tab.** Its webview backend (WebKitGTK) lives in system packages that cannot be bundled into a portable build. A native Linux window is planned via a different desktop shell.
+
+### 🔧 Maintenance
+
+- New `docs/desktop-shell.md` documents the window architecture, packaging details and the planned Tauri sidecar migration.
+- New `tests/test_frontend_assets.py` fails the build if a CDN reference reappears in the frontend or a bundled asset goes missing.
+
 ## [1.15.0] - 2026-08-02
 - No change details provided.
 
