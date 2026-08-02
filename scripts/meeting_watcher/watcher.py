@@ -130,6 +130,11 @@ BLOCK_APPS = _env_set("AMICOSCRIPT_BLOCK_APPS", "spotify,vlc,wmplayer")
 USE_MIC_HEURISTIC = os.environ.get("AMICOSCRIPT_MIC_HEURISTIC", "true").lower() in {"1", "true", "yes", "on"}
 
 CHUNK = 1024
+# Whisper transcribes at 16 kHz mono and the backend normalizes to that anyway,
+# so write the mix straight out at 16 kHz instead of the ~48 kHz capture rate:
+# a 2 h meeting drops from ~700 MB to ~230 MB with no loss of usable signal,
+# and the backend's ffmpeg pass gets correspondingly cheaper.
+OUT_RATE = 16000
 AUDIO_SESSION_STATE_ACTIVE = 1  # AudioSessionStateActive
 EDATAFLOW_RENDER = 0            # EDataFlow.eRender (speakers)
 EDATAFLOW_CAPTURE = 1           # EDataFlow.eCapture (microphone)
@@ -474,6 +479,30 @@ def _names_match(a: str, b: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Audio capture (pyaudiowpatch WASAPI loopback + mic)
 # --------------------------------------------------------------------------- #
+_AA_KERNELS: dict = {}
+
+
+def _antialias_kernel(ratio: float):
+    """Windowed-sinc low-pass used before decimating by `ratio`.
+
+    Without it every component above the output Nyquist folds back into the
+    speech band as aliasing noise, which is exactly the range Whisper listens
+    to. Cutoff sits at 0.9x the output Nyquist to leave a transition band; the
+    tap count scales with the ratio but is capped so filtering a multi-hour
+    meeting stays cheap relative to reading the raw captures off disk.
+    """
+    key = round(ratio, 3)
+    cached = _AA_KERNELS.get(key)
+    if cached is not None:
+        return cached
+    taps = int(min(65, max(15, 8 * ratio))) | 1  # odd -> symmetric, zero phase shift
+    n = np.arange(taps, dtype=np.float64) - (taps - 1) / 2.0
+    h = np.sinc(n * (0.9 / ratio)) * np.hanning(taps)
+    kernel = (h / h.sum()).astype(np.float32)
+    _AA_KERNELS[key] = kernel
+    return kernel
+
+
 @dataclass
 class _Source:
     info: dict
@@ -644,11 +673,20 @@ class Capture:
         src_end = min(total_frames, int(math.ceil((out_start + out_n) * ratio)) + 1)
         if src_start >= src_end:
             return np.zeros(out_n, dtype=np.float32)
-        fh.seek(src_start * bytes_per_frame)
-        mono = Capture._bytes_to_mono(fh.read((src_end - src_start) * bytes_per_frame), channels)
+        # When downsampling, read a margin on each side so the anti-alias filter
+        # sees real samples at the window edges — otherwise every chunk boundary
+        # gets a click from convolving against zero padding.
+        kernel = _antialias_kernel(ratio) if ratio > 1.0 else None
+        pad = kernel.size // 2 if kernel is not None else 0
+        read_start = max(0, src_start - pad)
+        read_end = min(total_frames, src_end + pad)
+        fh.seek(read_start * bytes_per_frame)
+        mono = Capture._bytes_to_mono(fh.read((read_end - read_start) * bytes_per_frame), channels)
         if mono.size == 0:
             return np.zeros(out_n, dtype=np.float32)
-        positions = (np.arange(out_n, dtype=np.float64) + out_start) * ratio - src_start
+        if kernel is not None and mono.size > kernel.size:
+            mono = np.convolve(mono, kernel, mode="same").astype(np.float32)
+        positions = (np.arange(out_n, dtype=np.float64) + out_start) * ratio - read_start
         return np.interp(
             positions,
             np.arange(mono.size, dtype=np.float64),
@@ -690,9 +728,9 @@ class Capture:
                 stuck = True
 
         stats = self._source_stats()
-        rate = self._rate(self._sources[0].info) if self._sources else 16000
+        rate = OUT_RATE
         duration = max((s["frames"] / float(s["rate"]) for s in stats), default=0.0)
-        total_frames = int(math.ceil(duration * rate)) if rate else 0
+        total_frames = int(math.ceil(duration * rate))
         chunk_frames = max(rate * 10, CHUNK)
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -962,8 +1000,12 @@ def _tray_color_key() -> str:
     return "idle" if _tray_state["enabled"] else "off"
 
 
+def _tray_title() -> str:
+    return "AmicoScript meetings" if _EMBEDDED else "AmicoScript watcher"
+
+
 def _build_tray_menu():
-    return pystray.Menu(
+    items = [
         pystray.MenuItem(lambda item: _tray_status_label(), None, enabled=False),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
@@ -971,9 +1013,13 @@ def _build_tray_menu():
             lambda icon, item: _set_capture_enabled(not _tray_state["enabled"]),
         ),
         pystray.MenuItem("Open AmicoScript", lambda icon, item: __import__("webbrowser").open(BASE_URL)),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Quit watcher", _tray_on_quit),
-    )
+    ]
+    if not _EMBEDDED:
+        # Embedded, the watcher's lifetime is the host app's: quitting it would
+        # leave meeting capture dead with no way back short of restarting the
+        # app. Pause covers the same need reversibly.
+        items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Quit watcher", _tray_on_quit)]
+    return pystray.Menu(*items)
 
 
 def _tray_on_quit(icon, item) -> None:
@@ -985,9 +1031,14 @@ def _tray_on_quit(icon, item) -> None:
 
 
 def _start_tray() -> None:
+    """Show the notification-area icon — in embedded mode too.
+
+    The native app's only other recording indicator is the web-UI chip, which
+    vanishes the moment the browser tab is closed. A tool that silently records
+    meetings in the background has to be visible somewhere at all times, so the
+    tray icon runs regardless of how the watcher was started.
+    """
     global _tray_icon
-    if _EMBEDDED:
-        return  # native app owns its own UI
     if os.environ.get("AMICOSCRIPT_TRAY", "true").lower() not in {"1", "true", "yes", "on"}:
         return
     if not _TRAY_OK:
@@ -997,11 +1048,11 @@ def _start_tray() -> None:
         _tray_icon = pystray.Icon(
             "amicoscript-watcher",
             _tray_image(_TRAY_COLORS["off"]),
-            "AmicoScript watcher",
+            _tray_title(),
             menu=_build_tray_menu(),
         )
         threading.Thread(target=_tray_icon.run, daemon=True, name="tray").start()
-        log("Tray icon started (notification area). Right-click to pause/quit.")
+        log("Tray icon started (notification area). Right-click to pause.")
     except Exception as exc:
         log(f"WARN: tray icon failed: {exc}")
         _tray_icon = None
@@ -1019,7 +1070,7 @@ def _tray_refresh(force: bool = False) -> None:
     _tray_last_sig = sig
     try:
         icon.icon = _tray_image(_TRAY_COLORS[_tray_color_key()])
-        icon.title = "AmicoScript watcher — " + _tray_status_label()
+        icon.title = _tray_title() + " — " + _tray_status_label()
         icon.update_menu()
         if color_changed:
             # pystray/win32 sometimes caches the tray bitmap and ignores a plain

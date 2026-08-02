@@ -13,7 +13,8 @@ Keep a Changelog format.
 - **Bundled with the Windows app:** The native build runs the watcher in-process — no separate install, no scheduled task. Docker and source installs can still install the standalone helper via a one-click `setup.bat`, offered by a first-run banner that disappears once the helper is alive.
 - **Live recording indicator:** A red "Recording" chip with an elapsed timer and the detected app appears in the bottom-right stack while a meeting is being captured, and the finished transcript opens automatically once it's ready. A crashed helper can't leave the chip stuck on — the server expires a stale heartbeat.
 - **Helper update prompt:** The watcher reports its version in its heartbeat; the UI offers a one-click in-place update when an installed helper is older than the one shipped with the running app.
-- **Tray icon** (standalone helper): colour-coded status with pause/resume, "Open AmicoScript", and quit.
+- **Tray icon:** colour-coded status (grey off / green idle / red recording) with pause/resume auto-capture and "Open AmicoScript". Shown by the embedded watcher too, so the native app always has a visible recording indicator even with the browser tab closed.
+- **Captures are written at 16 kHz mono**, the rate Whisper transcribes at — a 2 h meeting is ~230 MB instead of ~700 MB. Decimation goes through a windowed-sinc low-pass so nothing above 8 kHz aliases back into the speech band.
 
 ### 🐛 Fixes
 
@@ -22,6 +23,7 @@ Keep a Changelog format.
 - **Uninstalling the helper actually stops it:** `uninstall-windows.ps1` now kills the running watcher process instead of leaving it recording until the next logoff.
 - **Orphaned capture scratch files** (`capture-*.raw`, hundreds of MB after a hard kill mid-meeting) are cleaned up on watcher start.
 - **Long meeting uploads no longer time out** at 60 s.
+- **The Windows release actually ships the watcher.** The release workflow never installed `scripts/meeting_watcher/requirements.txt`, so `package.py`'s dependency check silently dropped the embedded watcher from the bundle and meeting auto-capture was dead in the packaged app. The build now installs them, warns loudly if they're missing, and bundles the tray dependencies too.
 
 
 

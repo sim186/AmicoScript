@@ -1,8 +1,11 @@
 import datetime as dt
 import importlib.util
+import math
 import sys
 import types
 from pathlib import Path
+
+import pytest
 
 
 class _Response:
@@ -325,3 +328,97 @@ def test_cleanup_orphan_raw_removes_only_scratch_files(monkeypatch, tmp_path):
 
     assert not orphan.exists()
     assert keep.exists()
+
+
+def _load_watcher_with_numpy(monkeypatch, tmp_path):
+    """Load watcher.py with real numpy (only the Windows audio deps stubbed).
+
+    The other tests stub numpy out entirely; the resampler needs the real thing.
+    """
+    np = pytest.importorskip("numpy")
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("AMICOSCRIPT_WATCHER_OUT", str(tmp_path))
+
+    pycaw_pkg = types.ModuleType("pycaw")
+    pycaw_pkg.__path__ = []
+    pycaw_mod = types.ModuleType("pycaw.pycaw")
+    pycaw_mod.AudioUtilities = object()
+    monkeypatch.setitem(sys.modules, "pycaw", pycaw_pkg)
+    monkeypatch.setitem(sys.modules, "pycaw.pycaw", pycaw_mod)
+    monkeypatch.setitem(
+        sys.modules,
+        "pyaudiowpatch",
+        types.SimpleNamespace(paWASAPI=0, paInt16=8, PyAudio=lambda: object()),
+    )
+
+    module_name = f"meeting_watcher_numpy_{id(tmp_path)}"
+    spec = importlib.util.spec_from_file_location(
+        module_name, root / "scripts" / "meeting_watcher" / "watcher.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    module.OUTPUT_DIR = tmp_path
+    return module, np
+
+
+def _resample_all(watcher, np, raw_path, src_rate, frames, out_rate):
+    stat = {"rate": src_rate, "frames": frames, "channels": 1, "bytes_per_frame": 2}
+    total = int(math.ceil(frames / float(src_rate) * out_rate))
+    chunk = out_rate * 10
+    parts = []
+    with open(raw_path, "rb") as fh:
+        for start in range(0, total, chunk):
+            parts.append(
+                watcher.Capture._read_resampled_window(
+                    fh, stat, start, min(chunk, total - start), out_rate
+                )
+            )
+    return np.concatenate(parts), total
+
+
+def test_downsampling_suppresses_aliasing(monkeypatch, tmp_path):
+    """A 15 kHz tone must not fold back to 1 kHz when decimating 48k -> 16k.
+
+    Without the anti-alias low-pass it lands right in the middle of the band
+    Whisper transcribes from.
+    """
+    watcher, np = _load_watcher_with_numpy(monkeypatch, tmp_path)
+    src_rate, seconds = 48000, 25.0
+    t = np.arange(int(src_rate * seconds)) / src_rate
+    signal = 0.4 * np.sin(2 * np.pi * 440 * t) + 0.4 * np.sin(2 * np.pi * 15000 * t)
+    raw = tmp_path / "src.raw"
+    raw.write_bytes((signal * 32767).astype(np.int16).tobytes())
+
+    out, total = _resample_all(watcher, np, raw, src_rate, t.size, watcher.OUT_RATE)
+
+    assert watcher.OUT_RATE == 16000
+    assert out.size == total
+
+    spectrum = np.abs(np.fft.rfft(out * np.hanning(out.size)))
+    freqs = np.fft.rfftfreq(out.size, 1.0 / watcher.OUT_RATE)
+
+    def peak(hz):
+        i = int(np.argmin(np.abs(freqs - hz)))
+        return spectrum[max(0, i - 3):i + 4].max()
+
+    # The 440 Hz tone survives; its 15 kHz alias image at 1 kHz is buried.
+    assert peak(1000) < peak(440) / 1000.0
+
+
+def test_resampled_chunks_join_without_clicks(monkeypatch, tmp_path):
+    """Per-chunk filtering must not leave a step at the 10 s window boundary."""
+    watcher, np = _load_watcher_with_numpy(monkeypatch, tmp_path)
+    src_rate, seconds = 48000, 25.0
+    t = np.arange(int(src_rate * seconds)) / src_rate
+    signal = 0.4 * np.sin(2 * np.pi * 440 * t)
+    raw = tmp_path / "src.raw"
+    raw.write_bytes((signal * 32767).astype(np.int16).tobytes())
+
+    out, _ = _resample_all(watcher, np, raw, src_rate, t.size, watcher.OUT_RATE)
+
+    boundary = watcher.OUT_RATE * 10
+    step = abs(float(out[boundary] - out[boundary - 1]))
+    # Largest legitimate sample-to-sample change for this tone at 16 kHz.
+    max_slope = 2 * np.pi * 440 / watcher.OUT_RATE * float(np.abs(out).max())
+    assert step <= max_slope * 1.1

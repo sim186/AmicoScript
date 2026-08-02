@@ -84,6 +84,20 @@ def build(gpu: bool = False):
                 args.append('--hidden-import=comtypes')
             if _importlib_util.find_spec('winotify') is not None:
                 args.append('--collect-all=winotify')
+            # Tray icon: the embedded watcher's only always-visible recording
+            # indicator once the browser tab is closed.
+            if _importlib_util.find_spec('pystray') is not None:
+                args.append('--collect-submodules=pystray')
+            if _importlib_util.find_spec('PIL') is not None:
+                args.append('--hidden-import=PIL.Image')
+                args.append('--hidden-import=PIL.ImageDraw')
+        elif is_windows:
+            # Loud, because the failure is silent otherwise: the app builds and
+            # runs fine, meeting auto-capture just never works. Install
+            # scripts/meeting_watcher/requirements.txt before building.
+            print('WARNING: pyaudiowpatch not installed — the Windows build will '
+                  'NOT include the embedded meeting watcher. Run '
+                  '"pip install -r scripts/meeting_watcher/requirements.txt" first.')
     except Exception:
         # Fall back to not collecting heavy package data in minimal environments
         pass
