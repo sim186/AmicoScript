@@ -249,3 +249,79 @@ def test_report_status_refreshes_token_and_retries_after_403(monkeypatch, tmp_pa
     assert posts[0][1]["token"] == "old-token"
     assert posts[1][1]["token"] == "new-token"
     assert all(url.endswith("/api/watcher/status") for url, _ in posts)
+
+
+def test_transcription_options_follow_app_settings_by_default(monkeypatch, tmp_path):
+    """No env overrides -> upload uses whatever the AmicoScript UI is set to."""
+    watcher = _load_watcher(monkeypatch, tmp_path)
+
+    assert watcher.WHISPER_MODEL is None
+    assert watcher.LANGUAGE is None
+    assert watcher.DIARIZE is None
+    # Diarization must be off until the app says otherwise: it needs an HF token
+    # and used to run on every auto-captured meeting regardless of the UI toggle.
+    assert watcher.transcription_options() == {
+        "model": "small", "language": "", "diarize": False,
+    }
+
+    watcher._remember_server_settings({
+        "default_model": "medium",
+        "default_language": "it",
+        "default_diarize": True,
+    })
+    assert watcher.transcription_options() == {
+        "model": "medium", "language": "it", "diarize": True,
+    }
+
+
+def test_env_vars_pin_transcription_options(monkeypatch, tmp_path):
+    monkeypatch.setenv("AMICOSCRIPT_MODEL", "large-v3")
+    monkeypatch.setenv("AMICOSCRIPT_LANGUAGE", "de")
+    monkeypatch.setenv("AMICOSCRIPT_DIARIZE", "false")
+    watcher = _load_watcher(monkeypatch, tmp_path)
+
+    watcher._remember_server_settings({
+        "default_model": "small",
+        "default_language": "it",
+        "default_diarize": True,
+    })
+    assert watcher.transcription_options() == {
+        "model": "large-v3", "language": "de", "diarize": False,
+    }
+
+
+def test_transcribe_posts_resolved_options(monkeypatch, tmp_path):
+    watcher = _load_watcher(monkeypatch, tmp_path)
+    monkeypatch.setattr(watcher, "log", lambda *_, **__: None)
+    watcher._remember_server_settings({
+        "default_model": "medium",
+        "default_language": "it",
+        "default_diarize": False,
+    })
+    posted = {}
+
+    def fake_post(url, files, data, timeout):
+        posted.update(url=url, data=dict(data))
+        return _Response(data={"job_id": "job", "recording_id": "rec"})
+
+    monkeypatch.setattr(watcher.requests, "post", fake_post)
+    wav = tmp_path / "meeting.wav"
+    wav.write_bytes(b"fake wav")
+
+    assert watcher.transcribe(wav) == ("job", "rec")
+    assert posted["url"].endswith("/api/transcribe")
+    assert posted["data"] == {"model": "medium", "language": "it", "diarize": "false"}
+
+
+def test_cleanup_orphan_raw_removes_only_scratch_files(monkeypatch, tmp_path):
+    watcher = _load_watcher(monkeypatch, tmp_path)
+    monkeypatch.setattr(watcher, "log", lambda *_, **__: None)
+    orphan = tmp_path / "capture-abc123.raw"
+    orphan.write_bytes(b"raw pcm")
+    keep = tmp_path / "zoom_20260101_100000.wav"
+    keep.write_bytes(b"wav")
+
+    watcher._cleanup_orphan_raw()
+
+    assert not orphan.exists()
+    assert keep.exists()

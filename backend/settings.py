@@ -66,6 +66,42 @@ def _set_meeting_capture_enabled(enabled: bool) -> None:
     _save_settings(settings)
 
 
+# Defaults for manual uploads *and* the meeting watcher. The web UI persists
+# these when the sidebar model/language/diarize controls change; the watcher
+# reads them from GET /api/settings so auto-captured meetings match the UI.
+_DEFAULT_MODEL = "small"
+
+
+def _get_transcription_defaults() -> dict:
+    """Return Whisper model / language / diarize defaults (diarize off by default)."""
+    settings = _load_settings()
+    model = (settings.get("default_model") or _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
+    language = str(settings.get("default_language") or "").strip()
+    return {
+        "default_model": model,
+        "default_language": language,
+        "default_diarize": bool(settings.get("default_diarize", False)),
+    }
+
+
+def _set_transcription_defaults(
+    model: str | None = None,
+    language: str | None = None,
+    diarize: bool | None = None,
+) -> dict:
+    """Update any of the transcription defaults; omit a field to leave it unchanged."""
+    settings = _load_settings()
+    if model is not None:
+        cleaned = (model or "").strip() or _DEFAULT_MODEL
+        settings["default_model"] = cleaned
+    if language is not None:
+        settings["default_language"] = (language or "").strip()
+    if diarize is not None:
+        settings["default_diarize"] = bool(diarize)
+    _save_settings(settings)
+    return _get_transcription_defaults()
+
+
 def _get_llm_settings() -> dict:
     """Return LLM config: base_url, model_name, api_key."""
     settings = _load_settings()

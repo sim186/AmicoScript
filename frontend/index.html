@@ -2301,6 +2301,7 @@
       clientLog(`Model selected: ${id}`);
       state.selectedModel = id;
       localStorage.setItem('selectedModel', id);
+      _saveTranscriptionDefaults();
       const sel = document.getElementById('model-select');
       if (sel) sel.value = id;
     }
@@ -2614,6 +2615,7 @@
           const hfSection = document.getElementById('hf-section');
           if (hfSection) hfSection.classList.toggle('hidden', !state.diarize);
           localStorage.setItem('diarize', String(state.diarize));
+          _saveTranscriptionDefaults();
         });
       }
 
@@ -4009,6 +4011,14 @@
     // =========================================================================
     // HF Token server persistence
     // =========================================================================
+    function _saveTranscriptionDefaults() {
+      const fd = new FormData();
+      fd.append('model', state.selectedModel);
+      fd.append('language', state.selectedLanguage);
+      fd.append('diarize', String(state.diarize));
+      fetch('/api/settings', { method: 'POST', body: fd }).catch(() => {});
+    }
+
     let _hfSaveTimer = null;
     function _saveHfTokenDebounced(token) {
       clearTimeout(_hfSaveTimer);
@@ -4043,11 +4053,6 @@
 
       if (localStorage.getItem('diarize') === 'true') {
         state.diarize = true;
-        const btn = document.getElementById('diarize-toggle');
-        btn.setAttribute('aria-checked', 'true');
-        btn.querySelector('span').style.transform = 'translateX(16px)';
-        btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
-        document.getElementById('hf-section').classList.remove('hidden');
       }
 
       if (localStorage.getItem('cloudPower') === 'true') {
@@ -4067,7 +4072,7 @@
         if (cInp) cInp.value = savedColabUrl;
       }
 
-      // Load HF token and exit token from server only (not stored in localStorage)
+      // Load HF token, exit token, and transcription defaults from server
       let tok = '';
       try {
         const res = await fetch('/api/settings');
@@ -4076,9 +4081,35 @@
           tok = data.hf_token || '';
           if (data.exit_token) state.exitToken = data.exit_token;
           setMeetingCaptureToggle(!!data.meeting_capture_enabled);
+          // Use server defaults when localStorage has no value
+          if (!localStorage.getItem('selectedModel') && data.default_model) {
+            state.selectedModel = data.default_model;
+          }
+          if (localStorage.getItem('selectedLanguage') === null && data.default_language) {
+            state.selectedLanguage = data.default_language;
+            document.getElementById('language-select').value = data.default_language;
+          }
+          if (!localStorage.getItem('diarize') && data.default_diarize) {
+            state.diarize = true;
+          }
         }
       } catch (_) { /* server not available */ }
       if (tok) { state.hfToken = tok; document.getElementById('hf-token-input').value = tok; }
+
+      // Apply diarize toggle UI after resolving the value
+      if (state.diarize) {
+        const btn = document.getElementById('diarize-toggle');
+        btn.setAttribute('aria-checked', 'true');
+        btn.querySelector('span').style.transform = 'translateX(16px)';
+        btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
+        document.getElementById('hf-section').classList.remove('hidden');
+      }
+
+      // Push the resolved values back so the server (and therefore the meeting
+      // watcher) matches what the sidebar shows. Without this an existing user
+      // whose settings live only in localStorage would have their auto-captured
+      // meetings transcribed with different options than their manual uploads.
+      _saveTranscriptionDefaults();
 
       // Load LLM settings from server
       try {
@@ -6157,6 +6188,7 @@
         state.selectedLanguage = e.target.value;
         clientLog(`Language set: ${e.target.value || 'auto-detect'}`);
         localStorage.setItem('selectedLanguage', e.target.value);
+        _saveTranscriptionDefaults();
       });
 
       document.getElementById('start-btn').addEventListener('click', startTranscription);
@@ -6441,6 +6473,18 @@
     let _watcherRecordingSince = 0;
     let _watcherTimerHandle = null;
 
+    // The setup helper is a Windows .bat that installs onto the machine running
+    // the *browser* (the app may be in Docker elsewhere), so gate the setup
+    // prompts on the browser's platform. Unknown platform → assume Windows
+    // rather than hiding the feature from someone who can use it.
+    function _isWindowsHost() {
+      try {
+        const p = (navigator.userAgentData && navigator.userAgentData.platform)
+          || navigator.platform || navigator.userAgent || '';
+        return /win/i.test(p);
+      } catch (_) { return true; }
+    }
+
     function _formatElapsed(seconds) {
       const s = Math.max(0, Math.floor(seconds));
       const h = Math.floor(s / 3600);
@@ -6506,25 +6550,29 @@
       }
 
       // Sidebar helper-status line + download link.
+      const canInstall = _isWindowsHost();
       const line = document.getElementById('watcher-state-line');
       if (line) {
         if (d.alive) {
           line.textContent = d.recording ? '● Helper running — recording' : '● Helper running';
           line.className = 'text-[10px] leading-tight text-emerald-600';
-        } else {
+        } else if (canInstall) {
           line.textContent = '● Helper not running';
           line.className = 'text-[10px] leading-tight text-amber-600';
+        } else {
+          line.textContent = '● Helper not running — meeting capture is Windows-only for now';
+          line.className = 'text-[10px] leading-tight text-slate-400';
         }
       }
       const link = document.getElementById('watcher-setup-link');
-      if (link) link.classList.toggle('hidden', !!d.alive);
+      if (link) link.classList.toggle('hidden', !!d.alive || !canInstall);
 
       // First-run onboarding banner: ask once; auto-hide as soon as the helper
-      // is alive; stay hidden if the user dismissed it.
+      // is alive; stay hidden if the user dismissed it or can't run the setup.
       const banner = document.getElementById('watcher-onboard-banner');
       const steps = document.getElementById('watcher-onboard-steps');
-      if (d.alive) {
-        _watcherMiss = 0;
+      if (d.alive || !canInstall) {
+        if (d.alive) _watcherMiss = 0;
         if (banner) banner.classList.add('hidden');
         if (steps) steps.classList.add('hidden');
       } else {

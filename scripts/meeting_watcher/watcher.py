@@ -54,7 +54,7 @@ BASE_URL = os.environ.get("AMICOSCRIPT_URL", "http://localhost:8002").rstrip("/"
 # watcher apart from the one bundled with the running app (see
 # backend/api/routes/settings.py:_bundled_watcher_version, read via regex —
 # do not rename this constant without updating that pattern).
-WATCHER_VERSION = "2"
+WATCHER_VERSION = "3"
 
 
 def _default_output_dir() -> Path:
@@ -74,8 +74,23 @@ def _default_output_dir() -> Path:
 _env_out = os.environ.get("AMICOSCRIPT_WATCHER_OUT")
 OUTPUT_DIR = Path(_env_out if _env_out else _default_output_dir()).resolve()
 
-WHISPER_MODEL = os.environ.get("AMICOSCRIPT_MODEL", "small")
-DIARIZE = os.environ.get("AMICOSCRIPT_DIARIZE", "true").lower() in {"1", "true", "yes", "on"}
+def _env_flag(var: str) -> bool | None:
+    """Tri-state env flag: True/False when set, None when unset (= follow the app)."""
+    raw = os.environ.get(var)
+    if raw is None or not raw.strip():
+        return None
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Transcription options. Unset (the normal case) means "use whatever the
+# AmicoScript UI is set to" — model / language / diarize are read from
+# GET /api/settings so an auto-captured meeting is transcribed exactly like a
+# manual upload. Setting the env var pins that one option for the watcher only.
+# Diarization in particular must NOT default to on here: it needs an HF token,
+# adds minutes per meeting, and silently disagreed with the UI's Speakers toggle.
+WHISPER_MODEL = os.environ.get("AMICOSCRIPT_MODEL") or None
+LANGUAGE = os.environ.get("AMICOSCRIPT_LANGUAGE")
+DIARIZE = _env_flag("AMICOSCRIPT_DIARIZE")
 MIX_MIC = os.environ.get("AMICOSCRIPT_MIX_MIC", "true").lower() in {"1", "true", "yes", "on"}
 
 POLL_SECONDS = 0.5          # how often to check audio state
@@ -726,6 +741,10 @@ class Capture:
 # --------------------------------------------------------------------------- #
 _enabled_cache = {"value": None, "ts": 0.0}
 _server_token_cache = {"value": "", "ts": 0.0}
+# Last-seen transcription defaults from the app (sidebar model / language /
+# Speakers toggle). Refreshed by every GET /api/settings the watcher already
+# makes for the capture toggle, so uploads follow the UI without extra requests.
+_defaults_cache = {"model": "small", "language": "", "diarize": False}
 ENABLED_TTL = 5.0  # seconds to cache the toggle state
 
 
@@ -737,6 +756,26 @@ def _remember_server_settings(data: dict) -> None:
     if "meeting_capture_enabled" in data:
         _enabled_cache["value"] = bool(data.get("meeting_capture_enabled", False))
         _enabled_cache["ts"] = time.time()
+    if data.get("default_model"):
+        _defaults_cache["model"] = str(data["default_model"])
+    if "default_language" in data:
+        _defaults_cache["language"] = str(data.get("default_language") or "")
+    if "default_diarize" in data:
+        _defaults_cache["diarize"] = bool(data.get("default_diarize"))
+
+
+def transcription_options() -> dict:
+    """Model / language / diarize for an upload.
+
+    An explicit env var pins the option for the watcher; otherwise we follow the
+    app's saved defaults (older backends without them fall back to the values in
+    ``_defaults_cache``, i.e. small / auto-detect / no diarization).
+    """
+    return {
+        "model": WHISPER_MODEL or _defaults_cache["model"],
+        "language": LANGUAGE if LANGUAGE is not None else _defaults_cache["language"],
+        "diarize": DIARIZE if DIARIZE is not None else _defaults_cache["diarize"],
+    }
 
 
 def server_token(force: bool = False) -> str:
@@ -801,12 +840,19 @@ def report_status(recording: bool, app: str = "") -> None:
 
 def transcribe(wav_path: Path) -> tuple[str, str]:
     """Upload WAV, return (job_id, recording_id)."""
+    opts = transcription_options()
+    log(f"Transcribing with model={opts['model']} "
+        f"language={opts['language'] or 'auto'} diarize={opts['diarize']}")
     with open(wav_path, "rb") as f:
         resp = requests.post(
             f"{BASE_URL}/api/transcribe",
             files={"file": (wav_path.name, f, "audio/wav")},
-            data={"model": WHISPER_MODEL, "diarize": "true" if DIARIZE else "false"},
-            timeout=60,
+            data={
+                "model": opts["model"],
+                "language": opts["language"],
+                "diarize": "true" if opts["diarize"] else "false",
+            },
+            timeout=300,
         )
     resp.raise_for_status()
     j = resp.json()
@@ -822,6 +868,26 @@ def submit_recording(wav_path: Path) -> None:
         notify("Transcription queued", wav_path.name)
     except Exception as exc:
         log(f"ERROR uploading recording: {exc}")
+
+
+def _cleanup_orphan_raw() -> None:
+    """Delete ``capture-*.raw`` scratch files left behind by a crashed watcher.
+
+    ``Capture.stop`` removes them normally, but a hard kill mid-meeting leaves
+    hundreds of MB per source sitting in the output dir forever.
+    """
+    removed = 0
+    try:
+        for stale in OUTPUT_DIR.glob("capture-*.raw"):
+            try:
+                stale.unlink()
+                removed += 1
+            except OSError:
+                pass
+    except Exception:
+        return
+    if removed:
+        log(f"Cleaned up {removed} orphaned capture scratch file(s)")
 
 
 def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None:
@@ -971,8 +1037,15 @@ def _tray_refresh(force: bool = False) -> None:
 # Main watch loop
 # --------------------------------------------------------------------------- #
 def _main_loop() -> None:
-    log(f"Meeting watcher started. AmicoScript = {BASE_URL}")
-    log(f"Output dir = {OUTPUT_DIR} | model={WHISPER_MODEL} diarize={DIARIZE} mix_mic={MIX_MIC}")
+    log(f"Meeting watcher v{WATCHER_VERSION} started. AmicoScript = {BASE_URL}")
+    pinned = ", ".join(
+        f"{k}={v}" for k, v in (
+            ("model", WHISPER_MODEL), ("language", LANGUAGE), ("diarize", DIARIZE),
+        ) if v is not None
+    )
+    log(f"Output dir = {OUTPUT_DIR} | mix_mic={MIX_MIC} | "
+        f"transcription options: {pinned or 'following the AmicoScript UI settings'}")
+    _cleanup_orphan_raw()
     log(f"Meeting apps (speaker): {', '.join(sorted(CALL_APPS))}")
     log(f"Chat apps (mic+speaker): {', '.join(sorted(CHAT_APPS))} | mic-heuristic={'on' if USE_MIC_HEURISTIC else 'off'}")
     if CHAT_APPS and not USE_MIC_HEURISTIC:

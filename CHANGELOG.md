@@ -6,6 +6,23 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ✨ Meeting auto-capture (Windows, beta)
+
+- **Automatic meeting recording:** A background helper detects an in-progress call — Teams, Zoom, Webex, Google Meet in a browser, plus WhatsApp/Telegram/Signal/Slack/Discord voice calls — records both system audio (WASAPI loopback) and your microphone, and submits the result to the normal transcription queue when the call ends. Detection is fully local (pycaw audio-session inspection); no meeting APIs, no cloud.
+- **Driven from the web UI:** New "Meeting auto-capture" section in the sidebar toggles recording on/off. The helper polls the toggle, so nothing records until you opt in.
+- **Bundled with the Windows app:** The native build runs the watcher in-process — no separate install, no scheduled task. Docker and source installs can still install the standalone helper via a one-click `setup.bat`, offered by a first-run banner that disappears once the helper is alive.
+- **Live recording indicator:** A red "Recording" chip with an elapsed timer and the detected app appears in the bottom-right stack while a meeting is being captured, and the finished transcript opens automatically once it's ready. A crashed helper can't leave the chip stuck on — the server expires a stale heartbeat.
+- **Helper update prompt:** The watcher reports its version in its heartbeat; the UI offers a one-click in-place update when an installed helper is older than the one shipped with the running app.
+- **Tray icon** (standalone helper): colour-coded status with pause/resume, "Open AmicoScript", and quit.
+
+### 🐛 Fixes
+
+- **Auto-captured meetings now use your actual transcription settings.** The watcher previously hard-coded `diarize=true` and `model=small` and never sent a language, so every recorded meeting was diarized regardless of the sidebar Speakers toggle. Model, language and diarization are now read from the app's saved settings, which the web UI keeps in sync; `AMICOSCRIPT_MODEL` / `AMICOSCRIPT_LANGUAGE` / `AMICOSCRIPT_DIARIZE` remain available to pin an option for auto-captures only.
+- **No more Windows-only setup nag on macOS/Linux/Docker browsers:** the `setup.bat` onboarding banner and download link are hidden unless the browser is running on Windows.
+- **Uninstalling the helper actually stops it:** `uninstall-windows.ps1` now kills the running watcher process instead of leaving it recording until the next logoff.
+- **Orphaned capture scratch files** (`capture-*.raw`, hundreds of MB after a hard kill mid-meeting) are cleaned up on watcher start.
+- **Long meeting uploads no longer time out** at 60 s.
+
 
 
 ## [1.12.2] - 2026-06-03

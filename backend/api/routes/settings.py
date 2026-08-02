@@ -13,9 +13,11 @@ from fastapi import APIRouter, Form, HTTPException
 
 from settings import (
     _get_meeting_capture_enabled,
+    _get_transcription_defaults,
     _load_settings,
     _save_settings,
     _set_meeting_capture_enabled,
+    _set_transcription_defaults,
 )
 
 router = APIRouter()
@@ -63,19 +65,42 @@ def _require_session_token(token: str) -> None:
 def get_settings() -> dict:
     import state
     settings = _load_settings()
+    defaults = _get_transcription_defaults()
     return {
         "hf_token": settings.get("hf_token", ""),
         "exit_token": getattr(state, "exit_token", ""),
         "meeting_capture_enabled": _get_meeting_capture_enabled(),
+        # Shared by the web UI and the meeting watcher so auto-captured
+        # meetings use the same model / language / diarize as manual uploads.
+        "default_model": defaults["default_model"],
+        "default_language": defaults["default_language"],
+        "default_diarize": defaults["default_diarize"],
     }
 
 
 @router.post("/api/settings")
-async def save_settings(hf_token: str = Form("")) -> dict:
+async def save_settings(
+    hf_token: str | None = Form(None),
+    model: str | None = Form(None),
+    language: str | None = Form(None),
+    diarize: str | None = Form(None),
+) -> dict:
+    """Persist HF token and/or transcription defaults.
+
+    Fields are optional so the UI can save the HF token alone (existing
+    behaviour) or push model/language/diarize without clearing the token.
+    """
     settings = _load_settings()
-    settings["hf_token"] = hf_token
-    _save_settings(settings)
-    return {"ok": True}
+    if hf_token is not None:
+        settings["hf_token"] = hf_token
+        _save_settings(settings)
+    if model is not None or language is not None or diarize is not None:
+        _set_transcription_defaults(
+            model=model,
+            language=language,
+            diarize=_to_bool(diarize) if diarize is not None else None,
+        )
+    return {"ok": True, **_get_transcription_defaults()}
 
 
 @router.post("/api/settings/meeting-capture")

@@ -146,13 +146,19 @@ killed mid-call, the chip clears on its own within ~20 s (heartbeat TTL).
 |-----|---------|---------|
 | `AMICOSCRIPT_URL` | `http://localhost:8002` | AmicoScript base URL |
 | `AMICOSCRIPT_WATCHER_OUT` | `STORAGE_ROOT/meetings` (`~/.amicoscript/data/meetings`, or `./amicoscript-data/meetings` in portable mode) | where captured WAVs go |
-| `AMICOSCRIPT_MODEL` | `small` | Whisper model |
-| `AMICOSCRIPT_DIARIZE` | `true` | speaker diarization (needs HF token in app) |
+| `AMICOSCRIPT_MODEL` | *(follows the app's sidebar)* | pin the Whisper model for auto-captured meetings |
+| `AMICOSCRIPT_LANGUAGE` | *(follows the app's sidebar)* | pin the language (empty = auto-detect) |
+| `AMICOSCRIPT_DIARIZE` | *(follows the app's Speakers toggle)* | pin speaker diarization on/off (needs an HF token in the app) |
 | `AMICOSCRIPT_MIX_MIC` | `true` | mix mic into recording (`false` = remote only) |
 | `AMICOSCRIPT_CALL_APPS` | `teams,zoom,webex,gotomeeting,bluejeans,whereby,ringcentral` | meeting apps detected on **speaker alone** |
 | `AMICOSCRIPT_CHAT_APPS` | `whatsapp,telegram,signal,messenger,slack,discord` | chat apps detected only on **mic + speaker** (avoids voice-note false triggers) |
 | `AMICOSCRIPT_BLOCK_APPS` | `spotify,vlc,wmplayer` | never treat these as a meeting (keep browsers OUT) |
 | `AMICOSCRIPT_MIC_HEURISTIC` | `true` | detect calls by mic+speaker concurrency (**required** for chat apps + web meetings) |
+
+Model, language and diarization are **not** watcher settings by default: the
+watcher reads them from `GET /api/settings`, so an auto-captured meeting is
+transcribed with exactly the options shown in the AmicoScript sidebar. Set the
+env vars above only if you want auto-captures to differ from manual uploads.
 
 Tuning constants (`START_DEBOUNCE`, `STOP_DEBOUNCE`, `MIN_MEETING_SECONDS`) are
 at the top of `watcher.py`.
