@@ -854,6 +854,35 @@
             </div>
           </details>
 
+          <!-- Meeting auto-capture -->
+          <details class="group mt-2">
+            <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>Meeting auto-capture</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2">
+            <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+              <button id="meeting-capture-toggle" role="switch" aria-checked="false" aria-label="Enable meeting auto-capture"
+                class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-slate-200 transition focus:outline-none focus:ring-2 focus:ring-brand">
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow translate-x-0 transition-transform duration-200"></span>
+              </button>
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold text-slate-700">Auto-record meetings</span>
+                <span class="text-[10px] text-slate-500 leading-tight">Meeting and chat apps — records &amp; transcribes calls</span>
+              </div>
+            </div>
+            <p id="watcher-state-line" class="text-[10px] leading-tight text-slate-400">Checking helper…</p>
+            <a id="watcher-setup-link" href="/scripts/meeting_watcher/setup.bat" download
+              class="hidden text-[10px] font-semibold text-brand hover:underline">Download one-click setup</a>
+            <p class="text-[10px] text-slate-400 leading-tight mt-1">
+              Recording meetings may need all-party consent — check your policy.
+            </p>
+            </div>
+          </details>
+
           <!-- Benchmark -->
           <details id="benchmark-details" class="group">
             <summary
@@ -1152,9 +1181,25 @@
     <!-- Mobile sidebar backdrop -->
     <div id="sidebar-backdrop" onclick="closeDrawer()"></div>
 
-    <!-- Floating queue widget -->
-    <div id="queue-widget" class="hidden fixed right-4 z-[60] flex flex-col items-end gap-2"
+    <!-- Floating bottom-right stack: meeting-recording indicator + job queue -->
+    <div id="floating-stack" class="fixed right-4 z-[60] flex flex-col items-end gap-2"
       style="bottom: calc(var(--console-h, 36px) + 1rem);">
+
+      <!-- Meeting-recording indicator — driven by the external meeting watcher
+           (scripts/meeting_watcher) via GET /api/watcher/status. -->
+      <div id="recording-chip" role="status" aria-live="polite"
+        class="hidden flex items-center gap-2 bg-red-600 text-white rounded-full shadow-lg px-3.5 py-2 text-sm font-medium">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-300 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+        </span>
+        <span>Recording</span>
+        <span id="recording-chip-timer" class="text-xs opacity-90 font-mono"></span>
+        <span id="recording-chip-app" class="text-xs opacity-80"></span>
+      </div>
+
+      <!-- Floating queue widget -->
+      <div id="queue-widget" class="hidden flex flex-col items-end gap-2">
       <div id="queue-panel" class="hidden w-80 max-w-[90vw] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
         <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Job queue</span>
@@ -1174,6 +1219,7 @@
         <span id="queue-pill-count">0</span>
         <span class="hidden sm:inline text-xs opacity-80" id="queue-pill-label">jobs</span>
       </button>
+      </div>
     </div>
 
     <!-- ===================================================================
@@ -1197,6 +1243,59 @@
             rel="noopener">View release</a>
           <button id="update-banner-dismiss"
             class="text-sm text-yellow-700 bg-transparent border-0 px-2 py-1 rounded hover:bg-yellow-100">Dismiss</button>
+        </div>
+      </div>
+
+      <!-- Meeting auto-capture onboarding: shown once, until the host watcher
+           is running. The app runs in Docker and can't install the helper on
+           the host itself, so it offers a one-click setup.bat instead. -->
+      <div id="watcher-onboard-banner"
+        class="hidden bg-brand-muted/30 border-b border-brand/20 text-slate-700 px-4 py-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <svg class="w-5 h-5 text-brand shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 1v11m0 0a3 3 0 003-3V4a3 3 0 00-6 0v5a3 3 0 003 3zm0 0v6m-4 0h8" />
+          </svg>
+          <div class="text-sm min-w-0">
+            <span class="font-semibold">Auto-record &amp; transcribe your meetings?</span>
+            <span class="text-slate-500">One-time setup installs a small background helper on this PC.</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <a id="watcher-onboard-setup" href="/scripts/meeting_watcher/setup.bat" download
+            class="text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">Set it up</a>
+          <button id="watcher-onboard-dismiss"
+            class="text-sm text-slate-500 bg-transparent border-0 px-2 py-1 rounded hover:bg-slate-100">Not now</button>
+        </div>
+      </div>
+
+      <!-- Setup steps, revealed after clicking "Set it up". -->
+      <div id="watcher-onboard-steps"
+        class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 text-sm">
+        Downloaded <code>setup.bat</code> — <strong>double-click it</strong> (in Downloads, or run
+        <code>scripts\meeting_watcher\setup.bat</code> from the project). It installs the helper and
+        starts it; this bar disappears automatically once it's running.
+      </div>
+
+      <!-- Meeting-watcher update banner: shown when the installed helper's
+           heartbeat version is older than the one bundled with this running
+           app. "Update now" asks the backend to reinstall in place; if that
+           fails (e.g. backend runs in Docker, not on this Windows host) we
+           fall back to the manual setup.bat download. -->
+      <div id="watcher-update-banner"
+        class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-5.3M20 15a8 8 0 01-14 5.3" />
+          </svg>
+          <div class="text-sm min-w-0">
+            <span id="watcher-update-text" class="font-semibold">A newer meeting-watcher helper is available.</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="watcher-update-now"
+            class="text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2">Update now</button>
+          <button id="watcher-update-dismiss"
+            class="text-sm text-amber-700 bg-transparent border-0 px-2 py-1 rounded hover:bg-amber-100">Not now</button>
         </div>
       </div>
 
@@ -2202,6 +2301,7 @@
       clientLog(`Model selected: ${id}`);
       state.selectedModel = id;
       localStorage.setItem('selectedModel', id);
+      _saveTranscriptionDefaults();
       const sel = document.getElementById('model-select');
       if (sel) sel.value = id;
     }
@@ -2515,6 +2615,7 @@
           const hfSection = document.getElementById('hf-section');
           if (hfSection) hfSection.classList.toggle('hidden', !state.diarize);
           localStorage.setItem('diarize', String(state.diarize));
+          _saveTranscriptionDefaults();
         });
       }
 
@@ -2576,6 +2677,47 @@
           localStorage.setItem('colabUrl', state.colabUrl);
         });
       }
+    }
+
+    function setMeetingCaptureToggle(on) {
+      const btn = document.getElementById('meeting-capture-toggle');
+      if (!btn) return;
+      btn.setAttribute('aria-checked', String(on));
+      const dot = btn.querySelector('span');
+      if (dot) dot.style.transform = on ? 'translateX(16px)' : 'translateX(0)';
+      btn.classList.toggle('bg-brand', on);
+      btn.classList.toggle('bg-slate-200', !on);
+    }
+
+    async function ensureSessionToken() {
+      if (state.exitToken) return state.exitToken;
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.exit_token) state.exitToken = data.exit_token;
+        }
+      } catch (_) {}
+      return state.exitToken || '';
+    }
+
+    function initMeetingCaptureToggle() {
+      const btn = document.getElementById('meeting-capture-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const next = btn.getAttribute('aria-checked') !== 'true';
+        try {
+          const token = await ensureSessionToken();
+          setMeetingCaptureToggle(next);
+          const fd = new FormData();
+          fd.append('enabled', String(next));
+          fd.append('token', token);
+          const res = await fetch('/api/settings/meeting-capture', { method: 'POST', body: fd });
+          if (!res.ok) throw new Error('save failed');
+        } catch (_) {
+          setMeetingCaptureToggle(!next); // revert on failure
+        }
+      });
     }
 
     // =========================================================================
@@ -3869,6 +4011,14 @@
     // =========================================================================
     // HF Token server persistence
     // =========================================================================
+    function _saveTranscriptionDefaults() {
+      const fd = new FormData();
+      fd.append('model', state.selectedModel);
+      fd.append('language', state.selectedLanguage);
+      fd.append('diarize', String(state.diarize));
+      fetch('/api/settings', { method: 'POST', body: fd }).catch(() => {});
+    }
+
     let _hfSaveTimer = null;
     function _saveHfTokenDebounced(token) {
       clearTimeout(_hfSaveTimer);
@@ -3903,11 +4053,6 @@
 
       if (localStorage.getItem('diarize') === 'true') {
         state.diarize = true;
-        const btn = document.getElementById('diarize-toggle');
-        btn.setAttribute('aria-checked', 'true');
-        btn.querySelector('span').style.transform = 'translateX(16px)';
-        btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
-        document.getElementById('hf-section').classList.remove('hidden');
       }
 
       if (localStorage.getItem('cloudPower') === 'true') {
@@ -3927,7 +4072,7 @@
         if (cInp) cInp.value = savedColabUrl;
       }
 
-      // Load HF token and exit token from server only (not stored in localStorage)
+      // Load HF token, exit token, and transcription defaults from server
       let tok = '';
       try {
         const res = await fetch('/api/settings');
@@ -3935,9 +4080,36 @@
           const data = await res.json();
           tok = data.hf_token || '';
           if (data.exit_token) state.exitToken = data.exit_token;
+          setMeetingCaptureToggle(!!data.meeting_capture_enabled);
+          // Use server defaults when localStorage has no value
+          if (!localStorage.getItem('selectedModel') && data.default_model) {
+            state.selectedModel = data.default_model;
+          }
+          if (localStorage.getItem('selectedLanguage') === null && data.default_language) {
+            state.selectedLanguage = data.default_language;
+            document.getElementById('language-select').value = data.default_language;
+          }
+          if (!localStorage.getItem('diarize') && data.default_diarize) {
+            state.diarize = true;
+          }
         }
       } catch (_) { /* server not available */ }
       if (tok) { state.hfToken = tok; document.getElementById('hf-token-input').value = tok; }
+
+      // Apply diarize toggle UI after resolving the value
+      if (state.diarize) {
+        const btn = document.getElementById('diarize-toggle');
+        btn.setAttribute('aria-checked', 'true');
+        btn.querySelector('span').style.transform = 'translateX(16px)';
+        btn.classList.add('bg-brand'); btn.classList.remove('bg-slate-200');
+        document.getElementById('hf-section').classList.remove('hidden');
+      }
+
+      // Push the resolved values back so the server (and therefore the meeting
+      // watcher) matches what the sidebar shows. Without this an existing user
+      // whose settings live only in localStorage would have their auto-captured
+      // meetings transcribed with different options than their manual uploads.
+      _saveTranscriptionDefaults();
 
       // Load LLM settings from server
       try {
@@ -4881,10 +5053,10 @@
       }
     }
 
-    async function openRecording(rec) {
+    async function openRecording(rec, silent = false) {
       if (rec.status !== 'done') {
-        alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
-        return;
+        if (!silent) alert(`This recording has status "${rec.status}" and cannot be opened yet.`);
+        return false;
       }
       clientLog(`Opening recording: ${rec.filename}`);
       try {
@@ -4933,8 +5105,10 @@
         const transcriptBtn = document.getElementById('tab-btn-transcript');
         transcriptBtn.disabled = false;
         switchTab('transcript');
+        return true;
       } catch (err) {
-        alert(`Failed to open recording: ${err.message}`);
+        if (!silent) alert(`Failed to open recording: ${err.message}`);
+        return false;
       }
     }
 
@@ -6005,6 +6179,7 @@
       initDropZone();
       initDiarizeToggle();
       initCloudPowerToggle();
+      initMeetingCaptureToggle();
       initAudioPlayer();
       initExportButtons();
       initShortcuts();
@@ -6013,6 +6188,7 @@
         state.selectedLanguage = e.target.value;
         clientLog(`Language set: ${e.target.value || 'auto-detect'}`);
         localStorage.setItem('selectedLanguage', e.target.value);
+        _saveTranscriptionDefaults();
       });
 
       document.getElementById('start-btn').addEventListener('click', startTranscription);
@@ -6254,17 +6430,244 @@
     }
     window.attachToJob = attachToJob;
 
+    const _queueSeenDone = new Set();
     async function refreshQueueWidget() {
       try {
         const res = await fetch('/api/jobs');
         if (!res.ok) return;
         const data = await res.json();
-        _renderQueueWidget(data.jobs || []);
+        const jobs = data.jobs || [];
+        _renderQueueWidget(jobs);
+        // A job can finish without the UI having started it (e.g. the meeting
+        // watcher posting to /api/transcribe in the background) — refresh the
+        // Library so a newly finished recording shows up without a manual reload.
+        let justFinished = false;
+        for (const j of jobs) {
+          if (j.status === 'done' && !_queueSeenDone.has(j.id)) {
+            _queueSeenDone.add(j.id);
+            justFinished = true;
+          }
+        }
+        if (justFinished && state.activeTab === 'library') fetchLibrary();
+        // Prune the seen-done set once the queue drains so it can't grow
+        // unbounded over a long-lived session (only tracked across consecutive
+        // polls with active jobs).
+        if (jobs.length === 0) _queueSeenDone.clear();
+        if (_watcherAutoOpenPending && !_watcherWasRecording) {
+          _maybeOpenLatestWatcherRecording();
+        }
       } catch (_) {}
     }
 
     setInterval(refreshQueueWidget, 2000);
     document.addEventListener('DOMContentLoaded', () => { refreshQueueWidget(); });
+
+    // ---------- Meeting watcher: recording chip + first-run setup prompt ----------
+    // Require a couple of consecutive "not alive" polls before nagging, so the
+    // native embedded watcher (alive within ~1-2s of launch) never flashes it.
+    let _watcherMiss = 0;
+    let _watcherWasRecording = false;
+    let _watcherAutoOpenPending = false;
+    let _watcherAutoOpenInFlight = false;
+    let _watcherStoppedAt = 0;
+    let _watcherRecordingSince = 0;
+    let _watcherTimerHandle = null;
+
+    // The setup helper is a Windows .bat that installs onto the machine running
+    // the *browser* (the app may be in Docker elsewhere), so gate the setup
+    // prompts on the browser's platform. Unknown platform → assume Windows
+    // rather than hiding the feature from someone who can use it.
+    function _isWindowsHost() {
+      try {
+        const p = (navigator.userAgentData && navigator.userAgentData.platform)
+          || navigator.platform || navigator.userAgent || '';
+        return /win/i.test(p);
+      } catch (_) { return true; }
+    }
+
+    function _formatElapsed(seconds) {
+      const s = Math.max(0, Math.floor(seconds));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+    }
+
+    function _tickRecordingTimer() {
+      const timerEl = document.getElementById('recording-chip-timer');
+      if (!timerEl || !_watcherRecordingSince) return;
+      timerEl.textContent = _formatElapsed(Date.now() / 1000 - _watcherRecordingSince);
+    }
+
+    async function _maybeOpenLatestWatcherRecording() {
+      if (!_watcherAutoOpenPending || _watcherAutoOpenInFlight) return;
+      if (_watcherWasRecording) return;
+      _watcherAutoOpenInFlight = true;
+      try {
+        const res = await fetch('/api/library?sort=created_at&order=desc&limit=1&status=done');
+        if (!res.ok) return;
+        const rows = await res.json();
+        const rec = rows && rows[0];
+        if (!rec) return;
+        if (_watcherStoppedAt && rec.created_at && rec.created_at + 10 < _watcherStoppedAt) return;
+        if (state.activeRecordingId === rec.id && state.result) {
+          _watcherAutoOpenPending = false;
+          return;
+        }
+        const opened = await openRecording(rec, true);
+        if (opened) _watcherAutoOpenPending = false;
+      } catch (_) {
+        // Try again on the next poll.
+      } finally {
+        _watcherAutoOpenInFlight = false;
+      }
+    }
+
+    function _setWatcherUI(d) {
+      const wasRecording = _watcherWasRecording;
+      _watcherWasRecording = !!d.recording;
+      if (!d.recording && wasRecording) {
+        _watcherAutoOpenPending = true;
+        _watcherStoppedAt = Date.now() / 1000;
+      }
+
+      // Bottom-right recording chip.
+      const chip = document.getElementById('recording-chip');
+      if (chip) {
+        if (d.recording) {
+          const appEl = document.getElementById('recording-chip-app');
+          if (appEl) appEl.textContent = d.app ? `· ${d.app}` : '';
+          chip.classList.remove('hidden');
+          _watcherRecordingSince = d.since || _watcherRecordingSince || (Date.now() / 1000);
+          _tickRecordingTimer();
+          if (!_watcherTimerHandle) _watcherTimerHandle = setInterval(_tickRecordingTimer, 1000);
+        } else {
+          chip.classList.add('hidden');
+          _watcherRecordingSince = 0;
+          if (_watcherTimerHandle) { clearInterval(_watcherTimerHandle); _watcherTimerHandle = null; }
+        }
+      }
+
+      // Sidebar helper-status line + download link.
+      const canInstall = _isWindowsHost();
+      const line = document.getElementById('watcher-state-line');
+      if (line) {
+        if (d.alive) {
+          line.textContent = d.recording ? '● Helper running — recording' : '● Helper running';
+          line.className = 'text-[10px] leading-tight text-emerald-600';
+        } else if (canInstall) {
+          line.textContent = '● Helper not running';
+          line.className = 'text-[10px] leading-tight text-amber-600';
+        } else {
+          line.textContent = '● Helper not running — meeting capture is Windows-only for now';
+          line.className = 'text-[10px] leading-tight text-slate-400';
+        }
+      }
+      const link = document.getElementById('watcher-setup-link');
+      if (link) link.classList.toggle('hidden', !!d.alive || !canInstall);
+
+      // First-run onboarding banner: ask once; auto-hide as soon as the helper
+      // is alive; stay hidden if the user dismissed it or can't run the setup.
+      const banner = document.getElementById('watcher-onboard-banner');
+      const steps = document.getElementById('watcher-onboard-steps');
+      if (d.alive || !canInstall) {
+        if (d.alive) _watcherMiss = 0;
+        if (banner) banner.classList.add('hidden');
+        if (steps) steps.classList.add('hidden');
+      } else {
+        _watcherMiss++;
+        let dismissed = false;
+        try { dismissed = localStorage.getItem('watcherSetupDismissed') === '1'; } catch (_) {}
+        if (banner && !dismissed && _watcherMiss >= 2) banner.classList.remove('hidden');
+      }
+
+      if (_watcherAutoOpenPending && !d.recording) {
+        _maybeOpenLatestWatcherRecording();
+      }
+
+      // Outdated installed-watcher banner. Re-shows for each newly-seen
+      // current_version even if a previous version was dismissed.
+      const updateBanner = document.getElementById('watcher-update-banner');
+      if (updateBanner) {
+        if (d.update_available) {
+          let dismissedVersion = '';
+          try { dismissedVersion = localStorage.getItem('watcherUpdateDismissedFor') || ''; } catch (_) {}
+          updateBanner.classList.toggle('hidden', dismissedVersion === d.current_version);
+        } else {
+          updateBanner.classList.add('hidden');
+        }
+      }
+    }
+
+    async function refreshRecordingChip() {
+      try {
+        const res = await fetch('/api/watcher/status');
+        if (!res.ok) return;
+        _setWatcherUI(await res.json());
+      } catch (_) { /* server momentarily unreachable — leave UI as-is */ }
+    }
+    window.refreshRecordingChip = refreshRecordingChip;
+
+    function initWatcherOnboarding() {
+      const dismiss = document.getElementById('watcher-onboard-dismiss');
+      const setup = document.getElementById('watcher-onboard-setup');
+      const banner = document.getElementById('watcher-onboard-banner');
+      const steps = document.getElementById('watcher-onboard-steps');
+      if (dismiss) dismiss.addEventListener('click', () => {
+        try { localStorage.setItem('watcherSetupDismissed', '1'); } catch (_) {}
+        if (banner) banner.classList.add('hidden');
+        if (steps) steps.classList.add('hidden');
+      });
+      // The link downloads setup.bat natively; just reveal the next-step hint.
+      if (setup) setup.addEventListener('click', () => { if (steps) steps.classList.remove('hidden'); });
+    }
+
+    function initWatcherUpdateBanner() {
+      const banner = document.getElementById('watcher-update-banner');
+      const text = document.getElementById('watcher-update-text');
+      const updateBtn = document.getElementById('watcher-update-now');
+      const dismiss = document.getElementById('watcher-update-dismiss');
+      if (!banner) return;
+      if (dismiss) dismiss.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/api/watcher/status');
+          const d = res.ok ? await res.json() : {};
+          localStorage.setItem('watcherUpdateDismissedFor', d.current_version || '');
+        } catch (_) {}
+        banner.classList.add('hidden');
+      });
+      if (updateBtn) updateBtn.addEventListener('click', async () => {
+        const originalLabel = updateBtn.textContent;
+        updateBtn.textContent = 'Updating…';
+        updateBtn.disabled = true;
+        try {
+          const token = await ensureSessionToken();
+          const fd = new FormData();
+          fd.append('token', token);
+          const res = await fetch('/api/watcher/install', { method: 'POST', body: fd });
+          const data = res.ok ? await res.json() : { ok: false };
+          if (data.ok) {
+            if (text) text.textContent = 'Helper updated — restarting…';
+            setTimeout(refreshRecordingChip, 2000);
+          } else {
+            if (text) {
+              text.textContent = data.error === 'not_windows'
+                ? "Can't auto-update from here — download and run setup.bat on this PC instead."
+                : `Auto-update failed (${data.error || 'unknown error'}) — try setup.bat instead.`;
+            }
+            const onboardBanner = document.getElementById('watcher-onboard-banner');
+            if (onboardBanner) onboardBanner.classList.remove('hidden');
+          }
+        } finally {
+          updateBtn.textContent = originalLabel;
+          updateBtn.disabled = false;
+        }
+      });
+    }
+
+    setInterval(refreshRecordingChip, 1000);
+    document.addEventListener('DOMContentLoaded', () => { initWatcherOnboarding(); initWatcherUpdateBanner(); refreshRecordingChip(); });
 
     document.addEventListener('DOMContentLoaded', init);
   </script>

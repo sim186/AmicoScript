@@ -55,6 +55,14 @@ jobs:
           pip install -r requirements-pyinstaller.txt
         shell: bash
 
+      # Windows-only audio/tray deps for the embedded meeting watcher. Without
+      # them package.py silently drops the watcher from the bundle and meeting
+      # auto-capture is dead in the shipped app.
+      - name: Install meeting-watcher dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: pip install -r scripts/meeting_watcher/requirements.txt
+        shell: bash
+
       - name: Build with PyInstaller
         run: |
           if [ "${{ matrix.variant }}" = "gpu" ]; then
