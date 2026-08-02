@@ -1,5 +1,16 @@
 PyInstaller==6.19.0
 
+# Native desktop shell (WKWebView on macOS, WebView2 on Windows). Kept out of
+# backend/requirements.txt on purpose: the Docker image and the TUI run headless
+# and must not pull a GUI toolkit.
+#
+# Linux is excluded deliberately. There the backend is WebKitGTK via PyGObject,
+# which lives in system packages (gir1.2-webkit2-4.1) that PyInstaller cannot
+# relocate into the bundle. Linux builds fall back to a browser tab; a real
+# Linux window is Tauri's job (see docs/desktop-shell.md).
+pywebview>=5.3; sys_platform != "linux"
+pythonnet>=3.0.3; sys_platform == "win32"
+
 # NOTE: keep only the packaging/runtime tools required for PyInstaller analysis.
 # Heavy runtime dependencies (torch, torchaudio, faster-whisper, pyannote.audio,
 # pydantic, sqlmodel, etc.) are intentionally omitted to ensure minimal bundles.

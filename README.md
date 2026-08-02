@@ -121,6 +121,19 @@ pip install -r backend/requirements.txt
 python run.py
 ```
 
+`run.py` opens a native desktop window when `pywebview` is installed, and falls
+back to a system browser tab when it is not. Override with `AMICOSCRIPT_UI`:
+
+| Value | Behaviour |
+|-------|-----------|
+| `window` (default) | Native window — WKWebView on macOS, WebView2 on Windows |
+| `browser` | Serve only, open the default browser |
+| `none` | Serve only, open nothing (same as `AMICOSCRIPT_NO_BROWSER=1`) |
+
+On Linux the native window needs system WebKitGTK (`gir1.2-webkit2-4.1` +
+`python3-gi`); without it the app degrades to a browser tab. See
+[docs/desktop-shell.md](docs/desktop-shell.md).
+
 ### Tests
 
 ```bash
@@ -243,7 +256,7 @@ Docker tip: if your LLM runs outside the container, use `host.docker.internal` i
 
 Full documentation (API, setup, details):
 
-[Documentation](docs/doc.md)
+[Documentation](docs/doc.md) · [Desktop shell (window, packaging, Tauri roadmap)](docs/desktop-shell.md)
 
 ---
 

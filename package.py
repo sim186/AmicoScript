@@ -71,6 +71,27 @@ def build(gpu: bool = False):
         if _importlib_util.find_spec('huggingface_hub') is not None:
             # Imported dynamically via importlib in backend/resource_downloader.py
             args.append('--hidden-import=huggingface_hub')
+        # Native desktop shell. Without pywebview the bundle still builds and
+        # runs, it just falls back to opening a system browser tab (run.py).
+        if _importlib_util.find_spec('webview') is not None:
+            # collect-all: pywebview ships JS shims under webview/js/ and,
+            # on Windows, the WebView2 interop DLLs under webview/lib/.
+            args.append('--collect-all=webview')
+            if is_macos:
+                # The Cocoa backend reaches pyobjc frameworks lazily; static
+                # analysis doesn't see them.
+                for mod in ('objc', 'Foundation', 'AppKit', 'WebKit', 'Quartz'):
+                    args.append(f'--hidden-import={mod}')
+            elif is_windows:
+                # EdgeChromium backend goes through pythonnet -> clr_loader.
+                for pkg in ('clr_loader', 'pythonnet'):
+                    if _importlib_util.find_spec(pkg) is not None:
+                        args.append(f'--collect-all={pkg}')
+                args.append('--hidden-import=clr')
+        else:
+            print('WARNING: pywebview not installed — the build will open the UI '
+                  'in a system browser instead of a native window. Run '
+                  '"pip install -r requirements-pyinstaller.txt" first.')
         # Embedded meeting watcher (Windows native build only): bundle the
         # watcher module + its Windows-only audio deps if they're installed in
         # the build env. Minimal/Docker builds skip this and stay lean.
