@@ -6,10 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AmicoScript</title>
   <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Vendored, not CDN: the app is local-first and must render with no network
+       at all. See docs/desktop-shell.md and frontend/vendor/README.md. -->
+  <link href="vendor/inter.css" rel="stylesheet" />
+  <script src="vendor/tailwind-3.4.16.min.js"></script>
+  <script src="vendor/marked-15.0.12.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -22,7 +23,7 @@
       }
     }
   </script>
-  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <script src="vendor/wavesurfer-7.12.11.min.js"></script>
   <style>
     /* tab panels */
     .tab-panel {
