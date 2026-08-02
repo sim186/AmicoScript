@@ -6,6 +6,9 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+
+
+## [1.13.0] - 2026-08-02
 ### ✨ Meeting auto-capture (Windows, beta)
 
 - **Automatic meeting recording:** A background helper detects an in-progress call — Teams, Zoom, Webex, Google Meet in a browser, plus WhatsApp/Telegram/Signal/Slack/Discord voice calls — records both system audio (WASAPI loopback) and your microphone, and submits the result to the normal transcription queue when the call ends. Detection is fully local (pycaw audio-session inspection); no meeting APIs, no cloud.
@@ -25,7 +28,10 @@ Keep a Changelog format.
 - **Long meeting uploads no longer time out** at 60 s.
 - **The Windows release actually ships the watcher.** The release workflow never installed `scripts/meeting_watcher/requirements.txt`, so `package.py`'s dependency check silently dropped the embedded watcher from the bundle and meeting auto-capture was dead in the packaged app. The build now installs them, warns loudly if they're missing, and bundles the tray dependencies too.
 
+### 🔧 Maintenance
 
+- **Repo rename:** in-app GitHub links (repo, changelog, issues, releases, Colab notebook) now point at `sim186/AmicoScript` instead of the old `sim186/amico-script`.
+- **Watcher tests run in CI:** `test_meeting_watcher.py` and `test_watcher_status.py` existed but were missing from the workflow's explicit test list.
 
 ## [1.12.2] - 2026-06-03
 ### ✨ UI

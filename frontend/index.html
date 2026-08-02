@@ -838,7 +838,7 @@
                 <p class="mt-1 text-[10px] text-slate-400">The URL changes every session — re-paste it after restarting
                   the notebook.</p>
                 <p class="mt-2 text-xs flex items-center justify-between">
-                  <a href="https://colab.research.google.com/github/sim186/amico-script/blob/main/scripts/colab_bridge.ipynb"
+                  <a href="https://colab.research.google.com/github/sim186/AmicoScript/blob/main/scripts/colab_bridge.ipynb"
                     target="_blank" rel="noopener"
                     class="text-brand hover:underline flex items-center gap-1 font-medium">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
@@ -1150,7 +1150,7 @@
         <!-- Version + GitHub -->
         <div class="flex items-center justify-between text-xs">
           <span class="text-slate-400">v<span id="app-version" class="font-medium text-slate-600">—</span></span>
-          <a id="github-link" href="https://github.com/sim186/amico-script" target="_blank" rel="noopener"
+          <a id="github-link" href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener"
             class="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path
@@ -1166,7 +1166,7 @@
           <span class="text-slate-200">·</span>
           <button id="changelog-view-btn" type="button"
             class="text-slate-500 hover:text-slate-700 transition bg-transparent border-0 p-0">Changelog</button>
-          <a id="changelog-remote-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md"
+          <a id="changelog-remote-link" href="https://github.com/sim186/AmicoScript/blob/main/CHANGELOG.md"
             target="_blank" rel="noopener" class="text-slate-300 hover:text-slate-500 transition">↗</a>
           <span class="text-slate-200">·</span>
           <button id="help-view-btn" type="button"
@@ -2142,8 +2142,8 @@
     // Version fetch
     // =========================================================================
     async function fetchVersion() {
-      const repoBase = 'https://github.com/sim186/amico-script';
-      const rawVersionUrl = 'https://raw.githubusercontent.com/sim186/amico-script/main/VERSION';
+      const repoBase = 'https://github.com/sim186/AmicoScript';
+      const rawVersionUrl = 'https://raw.githubusercontent.com/sim186/AmicoScript/main/VERSION';
       const remoteChangelog = `${repoBase}/blob/main/CHANGELOG.md`;
       const el = document.getElementById('app-version');
       const githubLinkEl = document.getElementById('github-link');
@@ -2209,7 +2209,7 @@
         if (updateAvailable && banner && link && text) {
           const tag = latest.tag_name || '';
           const name = latest.name || tag || 'New release';
-          const url = latest.html_url || (`https://github.com/sim186/amico-script/releases`);
+          const url = latest.html_url || (`https://github.com/sim186/AmicoScript/releases`);
           text.textContent = `Update available: ${name} (local: ${local || 'n/a'})`;
           link.href = url;
           link.textContent = 'View release';
@@ -5781,7 +5781,7 @@
 
       const title = encodeURIComponent(`[Benchmark] ${machineLabel} — ${d.date}`);
       const bodyEnc = encodeURIComponent(body);
-      const url = `https://github.com/sim186/amico-script/issues/new?labels=benchmark-result&title=${title}&body=${bodyEnc}`;
+      const url = `https://github.com/sim186/AmicoScript/issues/new?labels=benchmark-result&title=${title}&body=${bodyEnc}`;
       window.open(url, '_blank', 'noopener');
     }
 
@@ -6294,8 +6294,8 @@
     // Changelog viewer (fetch raw markdown from GitHub or local fallback)
     // =========================================================================
     async function fetchAndShowChangelog() {
-      const repoBlob = 'https://github.com/sim186/amico-script/blob/main/CHANGELOG.md';
-      const rawUrl = 'https://raw.githubusercontent.com/sim186/amico-script/main/CHANGELOG.md';
+      const repoBlob = 'https://github.com/sim186/AmicoScript/blob/main/CHANGELOG.md';
+      const rawUrl = 'https://raw.githubusercontent.com/sim186/AmicoScript/main/CHANGELOG.md';
       const localUrl = '/CHANGELOG.md';
       const contentEl = document.getElementById('changelog-content');
       const modal = document.getElementById('changelog-modal');
@@ -6679,7 +6679,7 @@
       <div class="flex items-start justify-between mb-3">
         <h3 class="text-sm font-semibold text-slate-800">Changelog</h3>
         <div class="flex items-center gap-2">
-          <a id="changelog-github-link" href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md"
+          <a id="changelog-github-link" href="https://github.com/sim186/AmicoScript/blob/main/CHANGELOG.md"
             target="_blank" rel="noopener" class="text-xs text-slate-500 hover:underline">Open on GitHub ↗</a>
           <button id="changelog-close-btn" class="text-sm text-slate-400 hover:text-slate-700">Close</button>
         </div>
@@ -6711,7 +6711,7 @@
         </div>
         <!-- Links -->
         <div class="space-y-2">
-          <a href="https://github.com/sim186/amico-script#readme" target="_blank" rel="noopener"
+          <a href="https://github.com/sim186/AmicoScript#readme" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
               stroke="currentColor" stroke-width="2">
@@ -6720,7 +6720,7 @@
             </svg>
             README — setup &amp; usage guide ↗
           </a>
-          <a href="https://github.com/sim186/amico-script/blob/main/CHANGELOG.md" target="_blank" rel="noopener"
+          <a href="https://github.com/sim186/AmicoScript/blob/main/CHANGELOG.md" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
               stroke="currentColor" stroke-width="2">
@@ -6729,7 +6729,7 @@
             </svg>
             CHANGELOG — version history ↗
           </a>
-          <a href="https://github.com/sim186/amico-script/issues" target="_blank" rel="noopener"
+          <a href="https://github.com/sim186/AmicoScript/issues" target="_blank" rel="noopener"
             class="flex items-center gap-2 text-brand hover:underline text-xs">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
               stroke="currentColor" stroke-width="2">
