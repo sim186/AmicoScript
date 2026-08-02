@@ -71,27 +71,151 @@ def open_browser(url):
     time.sleep(1.5)
     webbrowser.open(url)
 
+
+def resolve_ui_mode() -> str:
+    """Decide how the frontend is shown: native window, browser tab, or nothing.
+
+    AMICOSCRIPT_NO_BROWSER=1 still wins outright — the TUI and the CI smoke test
+    rely on it to get a headless backend.
+    """
+    if os.environ.get("AMICOSCRIPT_NO_BROWSER", "0") == "1":
+        return "none"
+    mode = os.environ.get("AMICOSCRIPT_UI", "window").strip().lower()
+    if mode not in ("window", "browser", "none"):
+        mode = "window"
+    return mode
+
+
+def make_server(host: str, port: int):
+    """Build the uvicorn server without starting it.
+
+    uvicorn.run() would do this too, but we need the Server object so the
+    webview can ask it to shut down when the window closes.
+    """
+    import main  # noqa: F401 - imported for side effects + app lookup
+    import uvicorn
+    # In windowed/"noconsole" builds, stderr can be missing; avoid uvicorn's
+    # default formatter setup that expects a TTY-backed stream.
+    config = uvicorn.Config(
+        main.app, host=host, port=port, log_level="info", log_config=None
+    )
+    return uvicorn.Server(config)
+
+
+def wait_until_serving(server, thread, timeout: float = 90.0) -> bool:
+    """Block until uvicorn accepts connections, or the server thread dies.
+
+    Opening the window before the port is up shows a blank error page, so the
+    wait is not optional.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if server.started:
+            return True
+        if not thread.is_alive():
+            return False
+        time.sleep(0.1)
+    return False
+
+
+def webview_storage_path():
+    """Persistent profile dir, so the frontend keeps its localStorage."""
+    try:
+        import config
+        path = config.STORAGE_ROOT / "webview"
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+    except Exception:
+        return None
+
+
+def run_windowed(url: str, host: str, port: int) -> int:
+    import webview
+
+    # Defaults are restrictive: downloads are off and the profile is wiped on
+    # exit. Both matter here — the library exports via <a download> and the
+    # frontend keeps its settings in localStorage.
+    webview.settings["ALLOW_DOWNLOADS"] = True
+
+    server = make_server(host, port)
+    thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
+    thread.start()
+
+    if not wait_until_serving(server, thread):
+        print(f"Backend did not come up on {url}; aborting.")
+        return 1
+
+    version = ""
+    try:
+        version = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+
+    try:
+        webview.create_window(
+            f"AmicoScript {version}".strip(),
+            url,
+            width=1440,
+            height=900,
+            min_size=(1024, 680),
+            # Both default to False in pywebview and both are load-bearing here:
+            # the whole app is transcripts you copy out of, at your own zoom.
+            text_select=True,
+            zoomable=True,
+        )
+        webview.start(
+            private_mode=False,
+            storage_path=webview_storage_path(),
+            debug=os.environ.get("AMICOSCRIPT_WEBVIEW_DEBUG", "0") == "1",
+        )
+    except Exception as exc:
+        # No usable webview engine (missing WebKitGTK / WebView2 runtime).
+        # The backend is already serving, so degrade to a browser tab rather
+        # than dying with a stack trace.
+        print(f"Native window unavailable ({exc}); opening in the system browser.")
+        webbrowser.open(url)
+        try:
+            thread.join()
+        except KeyboardInterrupt:
+            server.should_exit = True
+            thread.join(timeout=10)
+        return 0
+
+    # webview.start() returns once the last window closes.
+    server.should_exit = True
+    thread.join(timeout=10)
+    return 0
+
+
 if __name__ == "__main__":
     # Ensure frontend and uploads dirs are found
     os.chdir(BASE_DIR)
-    
+
     # Path to the frontend folder
     # In a bundle, BASE_DIR/frontend should exist
-    
+
     # Start server
     host = "127.0.0.1"
     port = 8002
     url = f"http://{host}:{port}"
-    
+
     print(f"Starting AmicoScript at {url}...")
-    
-    # Start browser in a background thread
-    if os.environ.get("AMICOSCRIPT_NO_BROWSER", "0") != "1":
+
+    ui_mode = resolve_ui_mode()
+    if ui_mode == "window":
+        try:
+            import webview  # noqa: F401
+        except ImportError:
+            # Dev checkouts and Docker images don't install pywebview (it drags
+            # in GTK/pyobjc); the browser path stays the fallback.
+            print("pywebview not available — opening in the system browser instead.")
+            ui_mode = "browser"
+
+    if ui_mode == "window":
+        sys.exit(run_windowed(url, host, port))
+
+    if ui_mode == "browser":
         threading.Thread(target=open_browser, args=(url,), daemon=True).start()
-    
-    # Run uvicorn
-    import main
-    import uvicorn
-    # In windowed/"noconsole" builds, stderr can be missing; avoid uvicorn's
-    # default formatter setup that expects a TTY-backed stream.
-    uvicorn.run(main.app, host=host, port=port, log_level="info", log_config=None)
+
+    server = make_server(host, port)
+    server.run()

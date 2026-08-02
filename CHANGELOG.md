@@ -8,6 +8,37 @@ Keep a Changelog format.
 
 
 
+## [1.15.0] - 2026-08-02
+- No change details provided.
+
+## [1.14.0] - 2026-08-02
+- No change details provided.
+
+## [1.13.0] - 2026-08-02
+### ✨ Meeting auto-capture (Windows, beta)
+
+- **Automatic meeting recording:** A background helper detects an in-progress call — Teams, Zoom, Webex, Google Meet in a browser, plus WhatsApp/Telegram/Signal/Slack/Discord voice calls — records both system audio (WASAPI loopback) and your microphone, and submits the result to the normal transcription queue when the call ends. Detection is fully local (pycaw audio-session inspection); no meeting APIs, no cloud.
+- **Driven from the web UI:** New "Meeting auto-capture" section in the sidebar toggles recording on/off. The helper polls the toggle, so nothing records until you opt in.
+- **Bundled with the Windows app:** The native build runs the watcher in-process — no separate install, no scheduled task. Docker and source installs can still install the standalone helper via a one-click `setup.bat`, offered by a first-run banner that disappears once the helper is alive.
+- **Live recording indicator:** A red "Recording" chip with an elapsed timer and the detected app appears in the bottom-right stack while a meeting is being captured, and the finished transcript opens automatically once it's ready. A crashed helper can't leave the chip stuck on — the server expires a stale heartbeat.
+- **Helper update prompt:** The watcher reports its version in its heartbeat; the UI offers a one-click in-place update when an installed helper is older than the one shipped with the running app.
+- **Tray icon:** colour-coded status (grey off / green idle / red recording) with pause/resume auto-capture and "Open AmicoScript". Shown by the embedded watcher too, so the native app always has a visible recording indicator even with the browser tab closed.
+- **Captures are written at 16 kHz mono**, the rate Whisper transcribes at — a 2 h meeting is ~230 MB instead of ~700 MB. Decimation goes through a windowed-sinc low-pass so nothing above 8 kHz aliases back into the speech band.
+
+### 🐛 Fixes
+
+- **Auto-captured meetings now use your actual transcription settings.** The watcher previously hard-coded `diarize=true` and `model=small` and never sent a language, so every recorded meeting was diarized regardless of the sidebar Speakers toggle. Model, language and diarization are now read from the app's saved settings, which the web UI keeps in sync; `AMICOSCRIPT_MODEL` / `AMICOSCRIPT_LANGUAGE` / `AMICOSCRIPT_DIARIZE` remain available to pin an option for auto-captures only.
+- **No more Windows-only setup nag on macOS/Linux/Docker browsers:** the `setup.bat` onboarding banner and download link are hidden unless the browser is running on Windows.
+- **Uninstalling the helper actually stops it:** `uninstall-windows.ps1` now kills the running watcher process instead of leaving it recording until the next logoff.
+- **Orphaned capture scratch files** (`capture-*.raw`, hundreds of MB after a hard kill mid-meeting) are cleaned up on watcher start.
+- **Long meeting uploads no longer time out** at 60 s.
+- **The Windows release actually ships the watcher.** The release workflow never installed `scripts/meeting_watcher/requirements.txt`, so `package.py`'s dependency check silently dropped the embedded watcher from the bundle and meeting auto-capture was dead in the packaged app. The build now installs them, warns loudly if they're missing, and bundles the tray dependencies too.
+
+### 🔧 Maintenance
+
+- **Repo rename:** in-app GitHub links (repo, changelog, issues, releases, Colab notebook) now point at `sim186/AmicoScript` instead of the old `sim186/amico-script`.
+- **Watcher tests run in CI:** `test_meeting_watcher.py` and `test_watcher_status.py` existed but were missing from the workflow's explicit test list.
+
 ## [1.12.2] - 2026-06-03
 ### ✨ UI
 

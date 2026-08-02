@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+.venv-win/
 venv/
 *.egg-info/
 
@@ -22,6 +23,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Meeting watcher output (runtime recordings — never commit audio)
+meetings/
 
 # PyInstaller / Build artifacts
 build/

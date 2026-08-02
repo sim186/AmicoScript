@@ -6,7 +6,6 @@ import pytest
 
 import backend.settings as settings
 
-
 def _patch_settings_file(monkeypatch, tmp_path):
     sf = tmp_path / "settings.json"
     monkeypatch.setattr(settings, "_settings_file", lambda: sf)
@@ -62,12 +61,11 @@ def test_save_settings_atomic_no_corruption_on_error(tmp_path, monkeypatch):
 
 
 def test_settings_respects_portable_mode(tmp_path, monkeypatch):
-    """PORTABLE_MODE should use cwd/amicoscript-data, not ~/.amicoscript."""
+    """PORTABLE_MODE should use cwd/amicoscript-data."""
     monkeypatch.setenv("AMICOSCRIPT_PORTABLE", "1")
     monkeypatch.chdir(tmp_path)
     sf = settings._settings_file()
-    assert "amicoscript-data" in str(sf)
-    assert str(Path.home()) not in str(sf)
+    assert sf == tmp_path / "amicoscript-data" / "settings.json"
 
 
 def test_settings_standard_mode(tmp_path, monkeypatch):
@@ -75,3 +73,28 @@ def test_settings_standard_mode(tmp_path, monkeypatch):
     monkeypatch.delenv("AMICOSCRIPT_PORTABLE", raising=False)
     sf = settings._settings_file()
     assert str(Path.home()) in str(sf)
+
+
+def test_meeting_capture_enabled_defaults_off(tmp_path, monkeypatch):
+    _patch_settings_file(monkeypatch, tmp_path)
+    assert settings._get_meeting_capture_enabled() is False
+
+
+def test_meeting_capture_enabled_persistence(tmp_path, monkeypatch):
+    sf = _patch_settings_file(monkeypatch, tmp_path)
+    settings._set_meeting_capture_enabled(True)
+    assert settings._get_meeting_capture_enabled() is True
+    assert json.loads(sf.read_text())["meeting_capture_enabled"] is True
+    # Round-trip back to False; other keys must be preserved.
+    settings._set_meeting_capture_enabled(False)
+    assert settings._get_meeting_capture_enabled() is False
+    assert "meeting_capture_enabled" in json.loads(sf.read_text())
+
+
+def test_meeting_capture_enabled_preserves_other_keys(tmp_path, monkeypatch):
+    sf = _patch_settings_file(monkeypatch, tmp_path)
+    settings._save_settings({"hf_token": "keep-me", "meeting_capture_enabled": True})
+    settings._set_meeting_capture_enabled(False)
+    data = json.loads(sf.read_text())
+    assert data["hf_token"] == "keep-me"
+    assert data["meeting_capture_enabled"] is False

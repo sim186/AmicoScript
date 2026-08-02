@@ -38,6 +38,7 @@ def build(gpu: bool = False):
         '--onedir',                        # Better for large apps (faster launch/debug)
         '--paths=backend',                 # Make backend modules importable during analysis/runtime
         _add_data_arg('frontend', 'frontend'),   # Include frontend files
+        _add_data_arg('scripts', 'scripts'),     # Include scripts (e.g. meeting_watcher/setup.bat)
         _add_data_arg('VERSION', '.'),           # Include VERSION at bundle root
         _add_data_arg('CHANGELOG.md', '.'),      # Include changelog
         '--hidden-import=main',            # backend/main.py imported dynamically in run.py
@@ -70,6 +71,57 @@ def build(gpu: bool = False):
         if _importlib_util.find_spec('huggingface_hub') is not None:
             # Imported dynamically via importlib in backend/resource_downloader.py
             args.append('--hidden-import=huggingface_hub')
+        # Native desktop shell. Without pywebview the bundle still builds and
+        # runs, it just falls back to opening a system browser tab (run.py).
+        if _importlib_util.find_spec('webview') is not None:
+            # collect-all: pywebview ships JS shims under webview/js/ and,
+            # on Windows, the WebView2 interop DLLs under webview/lib/.
+            args.append('--collect-all=webview')
+            if is_macos:
+                # The Cocoa backend reaches pyobjc frameworks lazily; static
+                # analysis doesn't see them.
+                for mod in ('objc', 'Foundation', 'AppKit', 'WebKit', 'Quartz'):
+                    args.append(f'--hidden-import={mod}')
+            elif is_windows:
+                # EdgeChromium backend goes through pythonnet -> clr_loader.
+                for pkg in ('clr_loader', 'pythonnet'):
+                    if _importlib_util.find_spec(pkg) is not None:
+                        args.append(f'--collect-all={pkg}')
+                args.append('--hidden-import=clr')
+        else:
+            print('WARNING: pywebview not installed — the build will open the UI '
+                  'in a system browser instead of a native window. Run '
+                  '"pip install -r requirements-pyinstaller.txt" first.')
+        # Embedded meeting watcher (Windows native build only): bundle the
+        # watcher module + its Windows-only audio deps if they're installed in
+        # the build env. Minimal/Docker builds skip this and stay lean.
+        if is_windows and _importlib_util.find_spec('pyaudiowpatch') is not None:
+            args.append('--paths=scripts/meeting_watcher')
+            args.append('--hidden-import=watcher')
+            args.append('--hidden-import=pyaudiowpatch')
+            if _importlib_util.find_spec('pycaw') is not None:
+                args.append('--collect-submodules=pycaw')
+            if _importlib_util.find_spec('comtypes') is not None:
+                # Submodules, not just the package: pycaw reaches into
+                # comtypes.client / comtypes.automation lazily at runtime, which
+                # PyInstaller's static analysis doesn't see.
+                args.append('--collect-submodules=comtypes')
+            if _importlib_util.find_spec('winotify') is not None:
+                args.append('--collect-all=winotify')
+            # Tray icon: the embedded watcher's only always-visible recording
+            # indicator once the browser tab is closed.
+            if _importlib_util.find_spec('pystray') is not None:
+                args.append('--collect-submodules=pystray')
+            if _importlib_util.find_spec('PIL') is not None:
+                args.append('--hidden-import=PIL.Image')
+                args.append('--hidden-import=PIL.ImageDraw')
+        elif is_windows:
+            # Loud, because the failure is silent otherwise: the app builds and
+            # runs fine, meeting auto-capture just never works. Install
+            # scripts/meeting_watcher/requirements.txt before building.
+            print('WARNING: pyaudiowpatch not installed — the Windows build will '
+                  'NOT include the embedded meeting watcher. Run '
+                  '"pip install -r scripts/meeting_watcher/requirements.txt" first.')
     except Exception:
         # Fall back to not collecting heavy package data in minimal environments
         pass

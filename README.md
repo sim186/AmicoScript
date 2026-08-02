@@ -59,6 +59,7 @@ AmicoScript keeps everything local.
 
 - 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, AAC, MP4, MOV, MKV)
 - 🎙️ Record directly from your microphone (with pause support)
+- 📞 Auto-record meetings (Windows, beta) — detects Teams/Zoom/Meet/WhatsApp calls and transcribes them automatically
 - 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
@@ -119,6 +120,19 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 pip install -r backend/requirements.txt
 python run.py
 ```
+
+`run.py` opens a native desktop window when `pywebview` is installed, and falls
+back to a system browser tab when it is not. Override with `AMICOSCRIPT_UI`:
+
+| Value | Behaviour |
+|-------|-----------|
+| `window` (default) | Native window — WKWebView on macOS, WebView2 on Windows |
+| `browser` | Serve only, open the default browser |
+| `none` | Serve only, open nothing (same as `AMICOSCRIPT_NO_BROWSER=1`) |
+
+On Linux the native window needs system WebKitGTK (`gir1.2-webkit2-4.1` +
+`python3-gi`); without it the app degrades to a browser tab. See
+[docs/desktop-shell.md](docs/desktop-shell.md).
 
 ### Tests
 
@@ -181,6 +195,43 @@ Your files will now be seamlessly processed on the cloud GPU, but saved and mana
 
 ---
 
+## 📞 Optional: Automatic Meeting Recording (Windows, beta)
+
+AmicoScript can notice when you are in a call, record it, and hand the audio to
+the normal transcription queue when the call ends — so a meeting turns into a
+searchable transcript without you touching anything.
+
+Detection is entirely local: it inspects which processes hold active Windows
+audio sessions. No meeting APIs, no calendar access, nothing leaves your machine.
+It recognises dedicated meeting apps (Teams, Zoom, Webex, GoToMeeting, Whereby,
+RingCentral) whenever they play audio, and catches browser meetings such as
+Google Meet plus chat-app calls (WhatsApp, Telegram, Signal, Slack, Discord) by
+spotting any app using your microphone and speakers at the same time.
+
+**Turning it on:** open the sidebar → **Meeting auto-capture** → *Auto-record
+meetings*. Nothing is ever recorded until you flip that switch.
+
+- **Windows app:** the helper is built in. Just use the toggle.
+- **Docker / running from source:** the app cannot reach your host's audio, so a
+  small background helper is installed separately. A banner offers a one-click
+  `setup.bat`, or run `scripts\meeting_watcher\setup.bat` yourself. No admin
+  rights needed. See [scripts/meeting_watcher/README.md](scripts/meeting_watcher/README.md).
+
+While a meeting is being captured you get a red **Recording** chip with a live
+timer in the app, a coloured tray icon (right-click to pause), and desktop
+notifications when recording starts and stops. Recordings shorter than 15
+seconds are discarded as false triggers. Meetings are transcribed with the same
+model, language and diarization settings shown in your sidebar.
+
+> ⚠️ **Recording a conversation may require the consent of everyone involved and
+> may be restricted by your employer's policy or local law. Make sure you are
+> allowed to record before enabling this.**
+
+macOS and Linux are not supported yet — the capture and detection layers are
+Windows-specific.
+
+---
+
 ## 🧩 Optional: Speaker Diarization
 
 Uses `pyannote` and requires a Hugging Face token.
@@ -205,7 +256,7 @@ Docker tip: if your LLM runs outside the container, use `host.docker.internal` i
 
 Full documentation (API, setup, details):
 
-[Documentation](docs/doc.md)
+[Documentation](docs/doc.md) · [Desktop shell (window, packaging, Tauri roadmap)](docs/desktop-shell.md)
 
 ---
 

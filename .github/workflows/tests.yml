@@ -29,4 +29,4 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -q tests/test_diarization.py tests/test_audio_utils.py tests/test_transcription_model_cache.py tests/test_error_classifiers.py tests/test_transcription_flow.py tests/test_colab_proxy_flow.py tests/test_job_helpers_sync_retry.py tests/test_settings.py
+          pytest -q tests/test_diarization.py tests/test_audio_utils.py tests/test_transcription_model_cache.py tests/test_error_classifiers.py tests/test_transcription_flow.py tests/test_colab_proxy_flow.py tests/test_job_helpers_sync_retry.py tests/test_settings.py tests/test_meeting_watcher.py tests/test_watcher_status.py

@@ -115,6 +115,111 @@ async def _startup() -> None:
         asyncio.create_task(_release_poller_loop())
     except Exception:
         pass
+    _maybe_start_embedded_watcher()
+
+
+# Handle to the embedded meeting watcher (thread + module), set by
+# _maybe_start_embedded_watcher so the shutdown hook can signal a clean stop
+# and let an in-progress capture finalize instead of being lost with the
+# daemon thread. None when the watcher isn't running (Docker / non-Windows).
+_watcher_thread = None
+_watcher_module = None
+
+
+def _watcher_output_dir() -> Path:
+    """User-writable folder for meeting captures (never Program Files)."""
+    try:
+        from config import STORAGE_ROOT
+        return Path(STORAGE_ROOT) / "meetings"
+    except Exception:
+        return Path.home() / "AmicoScript" / "meetings"
+
+
+def _maybe_start_external_watcher_task() -> None:
+    """Start the installed per-user watcher task, if setup.bat registered it."""
+    import platform
+    import subprocess
+
+    if platform.system() != "Windows":
+        return
+    task_name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
+    try:
+        proc = subprocess.run(
+            ["schtasks", "/Run", "/TN", task_name],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except Exception as exc:
+        print(f"External meeting watcher task could not be started ({exc}).")
+        return
+    if proc.returncode == 0:
+        print(f"External meeting watcher task started: {task_name}")
+    else:
+        msg = (proc.stderr or proc.stdout or "").strip()
+        print(f"External meeting watcher task not available: {task_name}. {msg}")
+
+
+def _maybe_start_embedded_watcher() -> None:
+    """Run the meeting watcher in-process on the native Windows host.
+
+    The watcher needs WASAPI/mic access, which only exists when AmicoScript runs
+    directly on the host (the PyInstaller build), not inside the Linux Docker
+    image. So we start it here only on Windows; Docker/other platforms fall back
+    to the external watcher (scripts/meeting_watcher). Override with
+    AMICOSCRIPT_EMBEDDED_WATCHER=on|off|auto (default auto).
+    """
+    import platform
+
+    mode = os.environ.get("AMICOSCRIPT_EMBEDDED_WATCHER", "auto").lower()
+    if mode in {"0", "off", "false", "no"}:
+        _maybe_start_external_watcher_task()
+        return
+    if mode == "auto" and platform.system() != "Windows":
+        return
+
+    watcher_dir = SCRIPTS_DIR / "meeting_watcher"
+    if watcher_dir.exists() and str(watcher_dir) not in sys.path:
+        sys.path.insert(0, str(watcher_dir))
+    os.environ.setdefault("AMICOSCRIPT_WATCHER_OUT", str(_watcher_output_dir()))
+    os.environ.setdefault("AMICOSCRIPT_URL", "http://127.0.0.1:8002")
+
+    def _run() -> None:
+        global _watcher_module
+        try:
+            import watcher  # noqa: imports pyaudiowpatch/pycaw — Windows-only
+        except Exception as exc:
+            # Audio deps not bundled, or not on a host that supports them.
+            print(f"Embedded meeting watcher unavailable ({exc}); "
+                  "use the external watcher (scripts/meeting_watcher) instead.")
+            if mode == "auto":
+                _maybe_start_external_watcher_task()
+            return
+        _watcher_module = watcher
+        print("Embedded meeting watcher started (enable via the UI toggle).")
+        watcher.run_embedded(base_url="http://127.0.0.1:8002")
+
+    import threading
+    global _watcher_thread
+    _watcher_thread = threading.Thread(target=_run, daemon=True, name="meeting-watcher")
+    _watcher_thread.start()
+
+
+@app.on_event("shutdown")
+async def _shutdown() -> None:
+    """Signal the embedded meeting watcher to stop so an in-progress capture
+    is finalized (WAV saved + transcription queued) before the process exits."""
+    mod = _watcher_module
+    if mod is None or not hasattr(mod, "stop_embedded"):
+        return
+    try:
+        mod.stop_embedded()
+    except Exception:
+        return
+    # Give the watcher a moment to finalize a capture; don't block shutdown long.
+    if _watcher_thread is not None:
+        _watcher_thread.join(timeout=10)
 
 
 def _recover_interrupted_jobs() -> None:

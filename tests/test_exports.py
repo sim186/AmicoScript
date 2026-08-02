@@ -43,7 +43,8 @@ def test_format_txt_missing_segments_key():
 
 def test_format_md_missing_segments_key():
     out = _format_md({"language": "en", "duration": 5.0})
-    assert "AmicoScript Transcript" in out
+    assert out.startswith("# Transcript")
+    assert "**Language:** EN" in out
 
 
 def test_format_srt_with_speaker():
