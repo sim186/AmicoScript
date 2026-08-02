@@ -1962,6 +1962,21 @@
 
       // Currently open recording (set when opening from library)
       currentRecording: null,
+
+      // Meeting watcher. One object rather than seven module globals: these
+      // fields are a single state machine (idle → recording → stopped →
+      // auto-open) advanced by two independent pollers, and while they were
+      // split it was impossible to see which combinations were legal.
+      // The interval handle is deliberately NOT here — it's a live resource,
+      // not state (see _watcherTimerHandle).
+      watcher: {
+        recording: false,        // recording flag from the last poll
+        recordingSince: 0,       // epoch seconds; 0 when not recording
+        stoppedAt: 0,            // epoch seconds of the last recording → idle edge
+        autoOpenPending: false,  // a finished capture still needs opening
+        autoOpenInFlight: false, // guard against overlapping open attempts
+        missedPolls: 0,          // consecutive "helper not alive" polls
+      },
     };
 
     // Color palette constant and helpers
@@ -6454,7 +6469,7 @@
         // unbounded over a long-lived session (only tracked across consecutive
         // polls with active jobs).
         if (jobs.length === 0) _queueSeenDone.clear();
-        if (_watcherAutoOpenPending && !_watcherWasRecording) {
+        if (state.watcher.autoOpenPending && !state.watcher.recording) {
           _maybeOpenLatestWatcherRecording();
         }
       } catch (_) {}
@@ -6464,14 +6479,13 @@
     document.addEventListener('DOMContentLoaded', () => { refreshQueueWidget(); });
 
     // ---------- Meeting watcher: recording chip + first-run setup prompt ----------
+    // State lives in state.watcher (declared with the rest of the app state).
     // Require a couple of consecutive "not alive" polls before nagging, so the
     // native embedded watcher (alive within ~1-2s of launch) never flashes it.
-    let _watcherMiss = 0;
-    let _watcherWasRecording = false;
-    let _watcherAutoOpenPending = false;
-    let _watcherAutoOpenInFlight = false;
-    let _watcherStoppedAt = 0;
-    let _watcherRecordingSince = 0;
+    const WATCHER_MISS_THRESHOLD = 2;
+
+    // Interval handle for the recording-chip timer. Stays a module local: it's
+    // a live resource, not application state.
     let _watcherTimerHandle = null;
 
     // The setup helper is a Windows .bat that installs onto the machine running
@@ -6497,40 +6511,40 @@
 
     function _tickRecordingTimer() {
       const timerEl = document.getElementById('recording-chip-timer');
-      if (!timerEl || !_watcherRecordingSince) return;
-      timerEl.textContent = _formatElapsed(Date.now() / 1000 - _watcherRecordingSince);
+      if (!timerEl || !state.watcher.recordingSince) return;
+      timerEl.textContent = _formatElapsed(Date.now() / 1000 - state.watcher.recordingSince);
     }
 
     async function _maybeOpenLatestWatcherRecording() {
-      if (!_watcherAutoOpenPending || _watcherAutoOpenInFlight) return;
-      if (_watcherWasRecording) return;
-      _watcherAutoOpenInFlight = true;
+      if (!state.watcher.autoOpenPending || state.watcher.autoOpenInFlight) return;
+      if (state.watcher.recording) return;
+      state.watcher.autoOpenInFlight = true;
       try {
         const res = await fetch('/api/library?sort=created_at&order=desc&limit=1&status=done');
         if (!res.ok) return;
         const rows = await res.json();
         const rec = rows && rows[0];
         if (!rec) return;
-        if (_watcherStoppedAt && rec.created_at && rec.created_at + 10 < _watcherStoppedAt) return;
+        if (state.watcher.stoppedAt && rec.created_at && rec.created_at + 10 < state.watcher.stoppedAt) return;
         if (state.activeRecordingId === rec.id && state.result) {
-          _watcherAutoOpenPending = false;
+          state.watcher.autoOpenPending = false;
           return;
         }
         const opened = await openRecording(rec, true);
-        if (opened) _watcherAutoOpenPending = false;
+        if (opened) state.watcher.autoOpenPending = false;
       } catch (_) {
         // Try again on the next poll.
       } finally {
-        _watcherAutoOpenInFlight = false;
+        state.watcher.autoOpenInFlight = false;
       }
     }
 
     function _setWatcherUI(d) {
-      const wasRecording = _watcherWasRecording;
-      _watcherWasRecording = !!d.recording;
+      const wasRecording = state.watcher.recording;
+      state.watcher.recording = !!d.recording;
       if (!d.recording && wasRecording) {
-        _watcherAutoOpenPending = true;
-        _watcherStoppedAt = Date.now() / 1000;
+        state.watcher.autoOpenPending = true;
+        state.watcher.stoppedAt = Date.now() / 1000;
       }
 
       // Bottom-right recording chip.
@@ -6540,12 +6554,12 @@
           const appEl = document.getElementById('recording-chip-app');
           if (appEl) appEl.textContent = d.app ? `· ${d.app}` : '';
           chip.classList.remove('hidden');
-          _watcherRecordingSince = d.since || _watcherRecordingSince || (Date.now() / 1000);
+          state.watcher.recordingSince = d.since || state.watcher.recordingSince || (Date.now() / 1000);
           _tickRecordingTimer();
           if (!_watcherTimerHandle) _watcherTimerHandle = setInterval(_tickRecordingTimer, 1000);
         } else {
           chip.classList.add('hidden');
-          _watcherRecordingSince = 0;
+          state.watcher.recordingSince = 0;
           if (_watcherTimerHandle) { clearInterval(_watcherTimerHandle); _watcherTimerHandle = null; }
         }
       }
@@ -6573,17 +6587,22 @@
       const banner = document.getElementById('watcher-onboard-banner');
       const steps = document.getElementById('watcher-onboard-steps');
       if (d.alive || !canInstall) {
-        if (d.alive) _watcherMiss = 0;
+        if (d.alive) state.watcher.missedPolls = 0;
         if (banner) banner.classList.add('hidden');
         if (steps) steps.classList.add('hidden');
       } else {
-        _watcherMiss++;
+        // Clamped: this polls once a second, and only the threshold matters —
+        // an unclamped counter would climb all day in a long-lived session.
+        state.watcher.missedPolls = Math.min(
+          state.watcher.missedPolls + 1, WATCHER_MISS_THRESHOLD);
         let dismissed = false;
         try { dismissed = localStorage.getItem('watcherSetupDismissed') === '1'; } catch (_) {}
-        if (banner && !dismissed && _watcherMiss >= 2) banner.classList.remove('hidden');
+        if (banner && !dismissed && state.watcher.missedPolls >= WATCHER_MISS_THRESHOLD) {
+          banner.classList.remove('hidden');
+        }
       }
 
-      if (_watcherAutoOpenPending && !d.recording) {
+      if (state.watcher.autoOpenPending && !d.recording) {
         _maybeOpenLatestWatcherRecording();
       }
 
