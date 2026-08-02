@@ -81,7 +81,10 @@ def build(gpu: bool = False):
             if _importlib_util.find_spec('pycaw') is not None:
                 args.append('--collect-submodules=pycaw')
             if _importlib_util.find_spec('comtypes') is not None:
-                args.append('--hidden-import=comtypes')
+                # Submodules, not just the package: pycaw reaches into
+                # comtypes.client / comtypes.automation lazily at runtime, which
+                # PyInstaller's static analysis doesn't see.
+                args.append('--collect-submodules=comtypes')
             if _importlib_util.find_spec('winotify') is not None:
                 args.append('--collect-all=winotify')
             # Tray icon: the embedded watcher's only always-visible recording

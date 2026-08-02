@@ -95,13 +95,18 @@ Persistent env overrides are inherited by the task if set with `setx`
 
 ### Building the native app with the embedded watcher
 
-`package.py` / `AmicoScript.spec` bundle this watcher **only if its deps are
-installed in the build environment**, so install them before building on Windows:
+`package.py` bundles this watcher **only if its deps are installed in the build
+environment** (it prints a warning and builds without it otherwise), so install
+them before building on Windows:
 
 ```powershell
 pip install -r scripts/meeting_watcher/requirements.txt
 python package.py
 ```
+
+The release workflow does this for both Windows variants, and
+`scripts/smoke_test_bundle.py` fails the build if the watcher didn't make it
+into the bundle.
 
 To try embedded mode from source (`python run.py`) on Windows, install the same
 requirements into that venv — otherwise the app logs *"Embedded meeting watcher

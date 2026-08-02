@@ -10,6 +10,7 @@ comes up.
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import subprocess
@@ -78,6 +79,47 @@ def _wait_http(
     )
 
 
+def _watcher_status() -> dict:
+    with urllib.request.urlopen("http://127.0.0.1:8002/api/watcher/status", timeout=5) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _check_meeting_watcher(output_tail: deque[str]) -> None:
+    """Windows only: verify the embedded meeting watcher survived packaging.
+
+    This regressed silently once already — the release build didn't install the
+    watcher's dependencies, package.py's find_spec check quietly skipped it, and
+    the shipped app ran fine with meeting auto-capture simply dead. So assert on
+    it here rather than trusting the build.
+    """
+    if not sys.platform.startswith("win"):
+        return
+
+    # Hard check: the bundled scripts/ tree. Pure filesystem read, can't flake.
+    status = _watcher_status()
+    if not status.get("current_version"):
+        raise RuntimeError(
+            "Bundle is missing scripts/meeting_watcher/watcher.py "
+            "(/api/watcher/status returned an empty current_version). "
+            "Check the --add-data=scripts argument in package.py."
+        )
+
+    # Soft check: the watcher thread actually importing and heartbeating. Not
+    # fatal because a CI runner's audio stack is not a user's machine, but a
+    # failure here means auto-capture is broken in the shipped app.
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if _watcher_status().get("alive"):
+            print("Embedded meeting watcher is running.")
+            return
+        time.sleep(1)
+    print(
+        "WARNING: embedded meeting watcher never sent a heartbeat within 30s. "
+        "Meeting auto-capture may be broken in this build.\n"
+        f"Output tail:\n{_format_output_tail(output_tail)}"
+    )
+
+
 def main() -> int:
     gpu = '--gpu' in sys.argv
     repo_root = Path(__file__).resolve().parents[1]
@@ -111,6 +153,7 @@ def main() -> int:
         ).start()
 
         _wait_http(url, timeout_seconds=timeout_seconds, proc=proc, output_tail=output_tail)
+        _check_meeting_watcher(output_tail)
         return 0
     finally:
         if proc is not None and proc.poll() is None:

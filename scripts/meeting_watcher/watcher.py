@@ -193,13 +193,21 @@ except Exception:  # pystray/Pillow optional; fall back to headless
 
 
 def _logo_path() -> str | None:
-    """Path to the AmicoScript .ico, used for both the toast and tray icon.
+    """Path to the AmicoScript .ico, used for the notification toasts.
 
     Checked next to this file first (deployed/standalone layout — setup.bat
     downloads logo.ico alongside watcher.py), then the repo's images/ dir
-    (running from source)."""
-    for c in (Path(__file__).parent / "logo.ico",
-              Path(__file__).parent.parent.parent / "images" / "logo.ico"):
+    (running from source), then the PyInstaller bundle: frozen into the app
+    this module lives in the PYZ archive, so __file__ points at _MEIPASS and
+    the icon is only reachable through the bundled scripts/ data tree."""
+    candidates = [
+        Path(__file__).parent / "logo.ico",
+        Path(__file__).parent.parent.parent / "images" / "logo.ico",
+    ]
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        candidates.append(Path(meipass) / "scripts" / "meeting_watcher" / "logo.ico")
+    for c in candidates:
         if c.exists():
             return str(c)
     return None
