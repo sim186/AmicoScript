@@ -8,6 +8,12 @@ Keep a Changelog format.
 
 
 
+## [1.15.0] - 2026-08-02
+- No change details provided.
+
+## [1.14.0] - 2026-08-02
+- No change details provided.
+
 ## [1.13.0] - 2026-08-02
 ### ✨ Meeting auto-capture (Windows, beta)
 
