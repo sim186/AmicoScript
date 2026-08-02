@@ -1902,6 +1902,55 @@
     // =========================================================================
     // State
     // =========================================================================
+
+    // A Set that reports its own mutations.
+    //
+    // Set methods are invisible to a Proxy `set` trap — `selectedIds.add(x)`
+    // never assigns a property — so a plain Set can never participate in a
+    // reactive layer. Wrapping it keeps every existing call site working
+    // (.has / .add / .delete / .clear / .size / .forEach / spread / Array.from)
+    // while making the mutation observable.
+    class ObservableSet {
+      constructor(onChange) {
+        this._set = new Set();
+        this._onChange = onChange || (() => {});
+        this._queued = false;
+      }
+      get size() { return this._set.size; }
+      has(v) { return this._set.has(v); }
+      forEach(fn, thisArg) { this._set.forEach(fn, thisArg); }
+      values() { return this._set.values(); }
+      keys() { return this._set.keys(); }
+      entries() { return this._set.entries(); }
+      [Symbol.iterator]() { return this._set[Symbol.iterator](); }
+
+      // Only a real change notifies: re-adding a member is not an edit.
+      add(v) {
+        const before = this._set.size;
+        this._set.add(v);
+        if (this._set.size !== before) this._notify();
+        return this;
+      }
+      delete(v) {
+        const removed = this._set.delete(v);
+        if (removed) this._notify();
+        return removed;
+      }
+      clear() {
+        if (this._set.size) { this._set.clear(); this._notify(); }
+      }
+
+      // Coalesced to a microtask: selection changes happen in loops — a
+      // shift-range select adds one id per row — and re-rendering a toolbar
+      // once per row would thrash. Deferring also keeps the callback out of
+      // the middle of a forEach that is deleting as it iterates.
+      _notify() {
+        if (this._queued) return;
+        this._queued = true;
+        queueMicrotask(() => { this._queued = false; this._onChange(); });
+      }
+    }
+
     const state = {
       activeTab: 'transcribe',
       selectedFile: null,
@@ -1936,7 +1985,10 @@
       searchQuery: '',
       filteredSegments: [],
       activeSpeakerFilter: null,
-      selectedSegmentIds: new Set(),
+      // Self-rendering: mutating the selection refreshes the segment toolbar,
+      // so a caller can no longer forget updateSelectionBar() and leave the
+      // count stale.
+      selectedSegmentIds: new ObservableSet(() => updateSelectionBar()),
       lastSelectedSegmentId: null,
 
       // Library mode — set when opening a recording from the library
@@ -1956,7 +2008,7 @@
         selectedTagId: null,
         sort: 'created_at',
         order: 'desc',
-        selectedIds: new Set(),
+        selectedIds: new ObservableSet(() => updateBulkBar()),  // refreshes the library bulk bar
         lastSelectedIdx: null,  // for Shift+click range selection
       },
 
@@ -3594,6 +3646,9 @@
     }
 
     function updateSelectionBar() {
+      // Now reachable from any selection mutation, including before the
+      // toolbar exists; it used to be called only from post-render code.
+      if (!document.getElementById('toolbar-search')) return;
       const n = state.selectedSegmentIds.size;
       const bulkMode = n > 0;
       document.getElementById('toolbar-search').classList.toggle('hidden', bulkMode);
@@ -4586,6 +4641,8 @@
       const normalBar = document.getElementById('lib-normal-toolbar');
       const countEl = document.getElementById('lib-bulk-count');
       const selectAllCb = document.getElementById('lib-select-all');
+      // Same reason as updateSelectionBar: any selection mutation can land here.
+      if (!bulkBar || !normalBar) return;
       const n = sel.size;
       const total = state.library.recordings.length;
 
