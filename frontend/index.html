@@ -1951,7 +1951,104 @@
       }
     }
 
-    const state = {
+    // ---- Reactive state -----------------------------------------------------
+    //
+    // `state` is a Proxy tree: assigning anywhere under it notifies the
+    // subscribers registered for that path. Render functions no longer depend
+    // on every one of ~139 mutation sites remembering to call them.
+    //
+    // Only plain objects and arrays are proxied. Anything with another
+    // prototype — File, EventSource, WaveSurfer, ObservableSet, DOM nodes — is
+    // handed back untouched. Those are live resources, and wrapping a class
+    // instance breaks private-field access and `this` binding.
+
+    const _subscribers = [];        // [{ prefix, fn }]
+    const _pendingFns = new Set();
+    let _flushQueued = false;
+
+    // subscribe('library.recordings', fn) -> unsubscribe()
+    function subscribe(prefix, fn) {
+      _subscribers.push({ prefix, fn });
+      return () => {
+        const i = _subscribers.findIndex(s => s.fn === fn && s.prefix === prefix);
+        if (i >= 0) _subscribers.splice(i, 1);
+      };
+    }
+
+    function _notifyPath(path) {
+      for (const { prefix, fn } of _subscribers) {
+        // Match in both directions: a write to 'library.recordings' wakes a
+        // subscriber on 'library', and replacing 'library' wholesale wakes a
+        // subscriber on 'library.recordings'.
+        if (path === prefix || path.startsWith(prefix + '.') || prefix.startsWith(path + '.')) {
+          _pendingFns.add(fn);
+        }
+      }
+      if (!_pendingFns.size || _flushQueued) return;
+      // Coalesced, for the same reason ObservableSet defers: mutations come in
+      // bursts (a fetch assigning several fields in a row) and each subscriber
+      // should run once per burst, not once per field.
+      _flushQueued = true;
+      queueMicrotask(() => {
+        _flushQueued = false;
+        const fns = [..._pendingFns];
+        _pendingFns.clear();
+        for (const fn of fns) {
+          // One broken subscriber must not stop the others.
+          try { fn(); } catch (e) { console.error('[state] subscriber failed', e); }
+        }
+      });
+    }
+
+    function _isPlain(v) {
+      if (v === null || typeof v !== 'object') return false;
+      const proto = Object.getPrototypeOf(v);
+      return proto === Object.prototype || proto === Array.prototype || proto === null;
+    }
+
+    // Cached so repeated reads return the same proxy: identity comparisons and
+    // WeakMap/Set membership on state values keep working.
+    const _proxyCache = new WeakMap();
+
+    // Reading a container yields a proxy, so `state.x = state.x` would compare
+    // a proxy against the raw value it wraps and look like a change. Unwrap on
+    // the way in: the target tree stores raw values only.
+    const RAW = Symbol('raw');
+    function toRaw(v) {
+      return (v && typeof v === 'object' && v[RAW]) ? v[RAW] : v;
+    }
+
+    function reactive(target, path = '') {
+      if (!_isPlain(target)) return target;
+      const cached = _proxyCache.get(target);
+      if (cached && cached.path === path) return cached.proxy;
+      const child = (key) => (path ? `${path}.${key}` : String(key));
+      const proxy = new Proxy(target, {
+        get(t, k) {
+          if (k === RAW) return t;
+          const v = Reflect.get(t, k);
+          if (typeof k === 'symbol' || typeof v === 'function') return v;
+          return _isPlain(v) ? reactive(v, child(k)) : v;
+        },
+        set(t, k, v) {
+          const next = toRaw(v);
+          const before = t[k];
+          const ok = Reflect.set(t, k, next);
+          if (ok && before !== next && typeof k !== 'symbol') _notifyPath(child(k));
+          return ok;
+        },
+        deleteProperty(t, k) {
+          const existed = k in t;
+          const ok = Reflect.deleteProperty(t, k);
+          if (ok && existed && typeof k !== 'symbol') _notifyPath(child(k));
+          return ok;
+        },
+      });
+      _proxyCache.set(target, { proxy, path });
+      return proxy;
+    }
+
+    const state = reactive({
       activeTab: 'transcribe',
       selectedFile: null,
       selectedModel: 'small',
@@ -2029,7 +2126,18 @@
         autoOpenInFlight: false, // guard against overlapping open attempts
         missedPolls: 0,          // consecutive "helper not alive" polls
       },
-    };
+    });
+
+    // Which render follows which slice of state. Declared once, here, instead
+    // of being re-derived at every mutation site. The existing explicit render
+    // calls are left in place — they are idempotent, and the point is that
+    // forgetting one can no longer leave the DOM stale.
+    subscribe('library.recordings', () => renderLibrary());
+    subscribe('library.folders', () => renderFolderTree());
+    subscribe('library.tags', () => renderTagSidebar());
+    subscribe('jobStatus', () => updateProcessingUI());
+    subscribe('jobProgress', () => updateProcessingUI());
+    subscribe('jobMessage', () => updateProcessingUI());
 
     // Color palette constant and helpers
     const PALETTE = ['#6c63ff', '#f59e0b', '#10b981', '#f472b6', '#60a5fa', '#fb7185', '#a78bfa', '#fbbf24', '#16a34a', '#ef4444', '#ff0000', '#111111', '#1877f2', '#e1306c', '#25f4ee', '#1ab7ea', '#9146ff'];
