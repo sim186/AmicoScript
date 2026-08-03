@@ -44,8 +44,7 @@ class WelcomeScreen(Screen):
         align: center middle;
     }
     #app-title {
-        color: #7c79f0;
-        text-style: bold;
+        color: #dde1ff;
         width: 100%;
         text-align: center;
         height: auto;
