@@ -2,6 +2,10 @@
 
 Terminal interface for AmicoScript. Wraps the FastAPI backend over HTTP/SSE.
 
+## Screenshot
+
+![AmicoScript TUI welcome screen](../images/tui_welcome.png)
+
 ## Install
 
 ```bash
