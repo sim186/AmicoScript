@@ -6,15 +6,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import OptionList, Static
+from textual.widgets import Input, OptionList, Static
 
 from ..clipboard import copy_to_clipboard
 from ..playback import Player
 from ..waveform import compute_levels_async
 from ..widgets.chrome import CommandBar, ContextHint, TitleBar
-from ..widgets.segment_list import SegmentList
+from ..widgets.segment_list import SegmentList, parse_timestamp
 from ..widgets.status_bar import StatusBar
 from ..widgets.waveform_view import WaveformView
 
@@ -31,6 +31,7 @@ class TranscriptScreen(Screen):
         Binding("space", "toggle_play", "Play/Pause"),
         Binding("s", "stop_play", "Stop"),
         Binding("ctrl+a", "analyze", "Analyze"),
+        Binding("slash", "focus_search", "Find"),
     ]
 
     DEFAULT_CSS = """
@@ -48,6 +49,26 @@ class TranscriptScreen(Screen):
         background: #0c0e1a;
         color: #6b6e9a;
         border-bottom: solid #2a2860;
+    }
+    #findline {
+        height: 3;
+        padding: 0 2;
+        background: #12152a;
+        color: #dde1ff;
+        border-bottom: solid #2a2860;
+        display: none;
+    }
+    #findline Static {
+        width: 6;
+        height: 3;
+        content-align: left middle;
+        color: #7c79f0;
+    }
+    #findline Input {
+        height: 3;
+        background: #12152a;
+        color: #dde1ff;
+        border: none;
     }
     """
 
@@ -73,17 +94,21 @@ class TranscriptScreen(Screen):
         yield TitleBar(id="titlebar")
         yield Static("loading…", id="meta")
         yield Static("", id="legend")
+        with Horizontal(id="findline"):
+            yield Static("find:", id="findlabel")
+            yield Input(placeholder="text, or a timestamp like 1:23…", id="findinput")
         with Vertical():
             yield WaveformView(id="wave")
             yield SegmentList(id="segments")
         yield ContextHint(
-            "Space play  ·  y copy seg  ·  Y copy all  ·  /export json|srt|txt|md  ·  ^A analyze",
+            "Space play  ·  y copy seg  ·  Y copy all  ·  / find  ·  /export json|srt|txt|md  ·  ^A analyze",
             id="ctxhint",
         )
         yield CommandBar(id="cmdbar")
         yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
+        self.query_one(SegmentList).focus()
         self.run_worker(self._load(), exclusive=True)
         self._anim_timer = self.set_interval(1 / 15, self._tick, pause=False)
 
@@ -186,7 +211,49 @@ class TranscriptScreen(Screen):
         self._play_from(float(seg.get("start", 0.0)))
 
     def action_pop(self) -> None:
+        findline = self.query_one("#findline", Horizontal)
+        if findline.display:
+            self.action_clear_search()
+            return
         self.app.pop_screen()
+
+    def action_focus_search(self) -> None:
+        self.query_one("#findline", Horizontal).display = True
+        self.query_one("#findinput", Input).focus()
+
+    def action_clear_search(self) -> None:
+        self.query_one("#findinput", Input).value = ""
+        self.query_one("#findline", Horizontal).display = False
+        self.query_one(SegmentList).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "findinput":
+            return
+        self._run_find(event.value, cycle=False)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "findinput":
+            return
+        self._run_find(event.value, cycle=True)
+
+    def _run_find(self, query: str, cycle: bool) -> None:
+        seg_list = self.query_one(SegmentList)
+        query = query.strip()
+        if not query:
+            return
+        seconds = parse_timestamp(query)
+        if seconds is not None:
+            idx = seg_list.jump_to_time(seconds)
+            if idx is not None:
+                seg_list.highlighted = idx
+                self.query_one(StatusBar).flash(f"jumped to {query}")
+            return
+        start_from = ((seg_list.highlighted or 0) + 1) if cycle else 0
+        idx = seg_list.find_first(query, start_from=start_from)
+        if idx is None:
+            self.query_one(StatusBar).flash(f"no matches for “{query}”")
+            return
+        seg_list.highlighted = idx
 
     def action_copy_segment(self) -> None:
         seg = self.query_one(SegmentList).selected_segment()

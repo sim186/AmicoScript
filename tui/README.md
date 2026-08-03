@@ -90,17 +90,24 @@ switches mode and filters a different source:
 ### Transcript
 | Key | Action |
 |-----|--------|
-| `j` / `k` | Move segment |
-| `g g` / `G` | First / last segment |
+| `↑↓` / `j` `k` | Move segment |
+| `Home`/`End` · `g g` / `G` | First / last segment |
+| `PageUp`/`PageDown` | Page through segments |
 | `n` / `N` | Next / previous speaker change |
+| `/` | Find in transcript — type text to jump to the first match, `Enter` cycles to the next; type a timestamp (`83`, `1:23`, `1:02:03`) to jump straight there |
 | `y` | Copy current segment |
 | `Y` | Copy full transcript |
 | `Space` | Play / pause |
 | `s` | Stop |
 | `Ctrl+A` | Run LLM analysis on this recording |
-| `Escape` / `q` | Back to library |
+| `Escape` / `q` | Close find if open, else back to library |
 
 ### Job screen
+While transcribing, the log shows each segment's text as it's produced
+(streamed over the same SSE connection as progress), not just a generic
+"Transcribing... 00:12 / 05:30" line — so you can read along as it works
+instead of waiting for the job to finish.
+
 | Key | Action |
 |-----|--------|
 | `c` | Cancel job |

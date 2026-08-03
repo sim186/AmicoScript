@@ -17,6 +17,15 @@ if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
+def _fmt_ts(seconds: float) -> str:
+    s = int(seconds)
+    h, rem = divmod(s, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h:d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+
 class JobDetailScreen(Screen):
     BINDINGS = [
         Binding("escape", "pop", "Back"),
@@ -73,6 +82,15 @@ class JobDetailScreen(Screen):
                         pass
                 if "message" in evt and evt["message"]:
                     prog.label = str(evt["message"])
+                # Each transcribed segment arrives as evt["data"]["segment"] —
+                # show the actual words as they're produced instead of just
+                # the generic "Transcribing... 00:12 / 05:30" progress line.
+                segment = (evt.get("data") or {}).get("segment")
+                text = (segment or {}).get("text", "").strip()
+                if text:
+                    ts = _fmt_ts(float(segment.get("start", 0.0)))
+                    log.write_line(f"[{ts}] {text}")
+                elif "message" in evt and evt["message"]:
                     log.write_line(str(evt["message"]))
                 if "log" in evt and evt["log"]:
                     log.write_line(str(evt["log"]))

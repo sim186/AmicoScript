@@ -1,12 +1,16 @@
 """Scrollable list of transcript segments."""
 from __future__ import annotations
 
+import re
+
 from textual.binding import Binding
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 
 SPEAKER_COLORS = ["#22c55e", "#2dd4bf", "#f59e0b", "#7c79f0", "#ef4444", "#dde1ff"]
+
+_TIMESTAMP_RE = re.compile(r"^\d+$|^\d{1,2}:\d{2}(:\d{2})?$")
 
 
 def _fmt_ts(seconds: float) -> str:
@@ -16,6 +20,21 @@ def _fmt_ts(seconds: float) -> str:
     if h:
         return f"{h:d}:{m:02d}:{s:02d}"
     return f"{m:02d}:{s:02d}"
+
+
+def parse_timestamp(text: str) -> float | None:
+    """Parse "83", "1:23" or "1:02:03" into seconds; None if not timestamp-shaped."""
+    text = text.strip()
+    if not _TIMESTAMP_RE.match(text):
+        return None
+    parts = [int(p) for p in text.split(":")]
+    if len(parts) == 1:
+        return float(parts[0])
+    if len(parts) == 2:
+        m, s = parts
+        return float(m * 60 + s)
+    h, m, s = parts
+    return float(h * 3600 + m * 60 + s)
 
 
 class SegmentList(OptionList):
@@ -68,6 +87,34 @@ class SegmentList(OptionList):
         if idx is None or not (0 <= idx < len(self.segments)):
             return None
         return self.segments[idx]
+
+    def find_first(self, query: str, start_from: int = 0) -> int | None:
+        """Case-insensitive substring search over segment text, wrapping
+        around from ``start_from``. Returns the matching index, or None."""
+        query = query.strip().lower()
+        if not query or not self.segments:
+            return None
+        n = len(self.segments)
+        for offset in range(n):
+            idx = (start_from + offset) % n
+            if query in (self.segments[idx].get("text") or "").lower():
+                return idx
+        return None
+
+    def jump_to_time(self, seconds: float) -> int | None:
+        """Return the index of the segment covering ``seconds`` — or the
+        last one starting at or before it if none contains it exactly."""
+        if not self.segments:
+            return None
+        best = 0
+        for i, seg in enumerate(self.segments):
+            start = float(seg.get("start", 0) or 0)
+            end = float(seg.get("end", start) or start)
+            if start <= seconds < end:
+                return i
+            if start <= seconds:
+                best = i
+        return best
 
     def action_first(self) -> None:
         if self.option_count:
