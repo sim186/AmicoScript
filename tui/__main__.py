@@ -5,9 +5,17 @@ import sys
 
 
 def main() -> int:
-    from .config import parse_args
-    from .app import AmicoTUI
-    from .server import ServerManager
+    try:
+        from .config import parse_args
+        from .app import AmicoTUI
+        from .server import ServerManager
+    except ImportError as e:
+        print(
+            f"Missing TUI dependency ({e.name or e}).\n"
+            "Install with:  pip install -r tui/requirements.txt",
+            file=sys.stderr,
+        )
+        return 1
 
     cfg = parse_args(sys.argv[1:])
     server = ServerManager(cfg.api_url, spawn=cfg.spawn_server)

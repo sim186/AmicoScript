@@ -3162,6 +3162,35 @@
       }
     }
 
+    // Terminal UI (tui/) run command — includes --api-url only when this
+    // page isn't served from the TUI's own default, so the copied command
+    // still works unmodified against Docker / remote / custom-port setups.
+    function tuiCommand() {
+      const origin = window.location.origin;
+      const isDefault = origin === 'http://127.0.0.1:8002' || origin === 'http://localhost:8002';
+      const urlFlag = isDefault ? '' : ` --api-url ${origin}`;
+      return `pip install -r tui/requirements.txt && python -m tui${urlFlag}`;
+    }
+
+    function updateTuiCommand() {
+      const el = document.getElementById('tui-command');
+      if (el) el.textContent = tuiCommand();
+    }
+
+    async function copyTuiCommand() {
+      const btn = document.getElementById('tui-copy-btn');
+      try {
+        await navigator.clipboard.writeText(tuiCommand());
+        if (btn) {
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        }
+      } catch (_) {
+        // clipboard may be blocked by browser policy
+      }
+    }
+
     // =========================================================================
     // SSE
     // =========================================================================
@@ -6272,11 +6301,18 @@
       // Help modal
       (function attachHelpHandlers() {
         const btn = document.getElementById('help-view-btn');
-        if (btn) btn.addEventListener('click', () => { clientLog('Help modal opened'); document.getElementById('help-modal').classList.remove('hidden'); });
+        if (btn) btn.addEventListener('click', () => {
+          clientLog('Help modal opened');
+          document.getElementById('help-modal').classList.remove('hidden');
+          updateTuiCommand();
+        });
         const closeBtn = document.getElementById('help-close-btn');
         if (closeBtn) closeBtn.addEventListener('click', () => document.getElementById('help-modal').classList.add('hidden'));
         const overlay = document.getElementById('help-modal-overlay');
         if (overlay) overlay.addEventListener('click', () => document.getElementById('help-modal').classList.add('hidden'));
+
+        const copyBtn = document.getElementById('tui-copy-btn');
+        if (copyBtn) copyBtn.addEventListener('click', copyTuiCommand);
       })();
     }
 
@@ -6709,6 +6745,22 @@
             class="text-xs px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition">
             Set host.docker.internal
           </button>
+        </div>
+        <!-- Terminal UI tip -->
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-4">
+          <h4 class="font-semibold text-slate-800 mb-1">Prefer the terminal?</h4>
+          <p class="text-xs text-slate-500 mb-2">AmicoScript also ships a keyboard-driven terminal
+            interface (TUI) — same backend, no browser needed.</p>
+          <code id="tui-command"
+            class="block bg-slate-100 text-slate-700 px-2 py-1.5 rounded font-mono text-xs mb-2 break-all"></code>
+          <div class="flex items-center gap-2">
+            <button id="tui-copy-btn" type="button"
+              class="text-xs px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-hover transition">
+              Copy command
+            </button>
+            <a href="https://github.com/sim186/AmicoScript/blob/main/tui/README.md" target="_blank"
+              rel="noopener" class="text-xs text-brand hover:underline">TUI docs ↗</a>
+          </div>
         </div>
         <!-- Links -->
         <div class="space-y-2">

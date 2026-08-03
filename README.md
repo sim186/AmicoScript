@@ -134,6 +134,19 @@ On Linux the native window needs system WebKitGTK (`gir1.2-webkit2-4.1` +
 `python3-gi`); without it the app degrades to a browser tab. See
 [docs/desktop-shell.md](docs/desktop-shell.md).
 
+### Terminal (TUI)
+
+Prefer the keyboard? AmicoScript also ships a terminal interface — same
+backend, no browser needed.
+
+```bash
+./tui.sh      # macOS/Linux — installs TUI deps on first run, then launches
+tui.bat       # Windows
+```
+
+See [tui/README.md](tui/README.md) for keybindings and screenshots. The web
+UI's Help modal also has a one-click "Copy command" for this.
+
 ### Tests
 
 ```bash
