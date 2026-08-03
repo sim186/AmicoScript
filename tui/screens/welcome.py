@@ -2,22 +2,9 @@
 from __future__ import annotations
 
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Vertical
 from textual.screen import Screen
 from textual.widgets import Static
-
-
-LOGO_ART = (
-    "[#7c79f0]▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]                               [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]   [#7c79f0]█████[/]  [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/] [#7c79f0]█████[/]  [#7c79f0]█████[/]   [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▀▀▀▀▀█[/][#7c79f0]▌[/] [#7c79f0]███▌[/] [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/]     [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]  [#7c79f0]███████▌[/] [#7c79f0]█ █▌[/] [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]████▄[/]   [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▀▀▀▀▀█[/][#7c79f0]▌[/] [#7c79f0]█ █▌[/] [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▀▀[/]    [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]  [#7c79f0]█[/][#dde1ff]▌[/]   [#7c79f0]█▌[/] [#7c79f0]█ █▌[/] [#7c79f0]█████▌[/] [#7c79f0]█████[/]   [#7c79f0]▐██[/]\n"
-    "[#7c79f0]██[/][#dde1ff]▌[/]                               [#7c79f0]▐██[/]\n"
-    "[#7c79f0]▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[/]"
-)
 
 
 class WelcomeScreen(Screen):
@@ -45,91 +32,72 @@ class WelcomeScreen(Screen):
     WelcomeScreen {
         layout: vertical;
     }
-    WelcomeScreen Container {
+    WelcomeScreen > Container {
         height: 1fr;
         align: center middle;
     }
     #welcome-panel {
         width: auto;
         height: auto;
+        border: round #4a47c0;
+        padding: 1 5;
         align: center middle;
-    }
-    #left-col {
-        width: 1fr;
-        height: auto;
-        padding: 0 4;
-    }
-    #logo-ascii {
-        width: 48;
-        height: auto;
-        content-align: center middle;
     }
     #app-title {
         color: #7c79f0;
         text-style: bold;
-        content-align: center middle;
+        width: 100%;
+        text-align: center;
         height: auto;
-        width: auto;
     }
     #tagline {
         color: #6b6e9a;
-        content-align: center middle;
+        width: 100%;
+        text-align: center;
         height: auto;
+        padding: 0 0 1 0;
+    }
+    #quick-actions {
+        color: #dde1ff;
         width: auto;
+        height: auto;
         padding: 1 0;
     }
     #keyref {
         color: #3a3d6a;
-        content-align: center middle;
+        width: 100%;
+        text-align: center;
         height: auto;
-        width: auto;
-        padding: 1 0;
-    }
-    #quick-actions {
-        color: #dde1ff;
-        content-align: center middle;
-        height: auto;
-        width: auto;
-        padding: 1 0;
-    }
-    #quick-actions Static {
-        width: auto;
-        color: #6b6e9a;
+        padding: 1 0 0 0;
     }
     """
 
     def compose(self):
         with Container():
-            with Horizontal(id="welcome-panel"):
-                with Vertical(id="left-col"):
-                    yield Static("AmicoScript TUI", id="app-title")
-                    yield Static(
-                        "local-first audio & video transcription",
-                        id="tagline",
-                    )
-                    yield Static(
-                        "[bold #7c79f0]/[/] [bold #dde1ff]library[/]      browse recordings\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]transcribe[/]   upload & transcribe a file\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]import[/]       browse filesystem\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]jobs[/]         active & completed jobs\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]settings[/]     configure models & tokens\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]search[/]       full-text search transcripts\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]models[/]       pick Whisper model\n"
-                        "[bold #7c79f0]/[/] [bold #dde1ff]llm[/]          pick LLM model",
-                        id="quick-actions",
-                    )
-                    yield Static(
-                        "[dim]ctrl+k / ctrl+p[/] command palette  ·  "
-                        "[dim]space[/] leader chords  ·  "
-                        "[dim]space ?[/] help  ·  "
-                        "[dim]ctrl+c[/] quit",
-                        id="keyref",
-                    )
-                yield Static(LOGO_ART, id="logo-ascii")
+            with Vertical(id="welcome-panel"):
+                yield Static("AmicoScript", id="app-title")
+                yield Static(
+                    "local-first audio & video transcription", id="tagline"
+                )
+                yield Static(
+                    "[bold #7c79f0]/[/] [bold #dde1ff]library[/]      browse recordings\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]transcribe[/]   upload & transcribe a file\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]import[/]       browse filesystem\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]jobs[/]         active & completed jobs\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]settings[/]     configure models & tokens\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]search[/]       full-text search transcripts\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]models[/]       pick Whisper model\n"
+                    "[bold #7c79f0]/[/] [bold #dde1ff]llm[/]          pick LLM model",
+                    id="quick-actions",
+                )
+                yield Static(
+                    "[dim]ctrl+k[/] palette  ·  [dim]space[/] leader\n"
+                    "[dim]space ?[/] help  ·  [dim]ctrl+c[/] quit",
+                    id="keyref",
+                )
         from ..widgets.status_bar import StatusBar
         yield StatusBar(id="statusbar")
 
     def action_goto(self, cmd: str) -> None:
         from ..commands import run_command
         self.run_worker(run_command(self.app, cmd), exclusive=False)
-

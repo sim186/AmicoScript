@@ -15,17 +15,35 @@ if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
-class TitleBar(Static):
-    """Top band: app name + API URL + commands hint."""
+class TitleBar(Widget):
+    """Top band: app name + API URL on the left, commands hint on the right.
+
+    Two real widgets (``1fr`` / ``auto``) instead of a single string padded
+    with a fixed run of spaces — that broke (clipped the right side) on
+    narrower terminals.
+    """
 
     DEFAULT_CSS = """
     TitleBar {
         height: 1;
         background: #1e1b52;
+        layout: horizontal;
+    }
+    TitleBar #title-left {
+        width: 1fr;
+        color: #7c79f0;
+        padding: 0 2;
+    }
+    TitleBar #title-right {
+        width: auto;
         color: #7c79f0;
         padding: 0 2;
     }
     """
+
+    def compose(self):
+        yield Static(id="title-left")
+        yield Static("[dim]^p Commands[/dim]", id="title-right")
 
     def on_mount(self) -> None:
         try:
@@ -34,9 +52,8 @@ class TitleBar(Static):
         except Exception:
             api = ""
         screen_name = getattr(self.screen, "title", None) or "AmicoScript"
-        self.update(
+        self.query_one("#title-left", Static).update(
             f"AmicoScript — {api}  ·  [b]{screen_name}[/b]"
-            f"                                                 [dim]^p Commands[/dim]"
         )
 
 
