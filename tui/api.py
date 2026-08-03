@@ -293,6 +293,11 @@ class ApiClient:
             }),
         )
 
+    # --- meeting watcher ----------------------------------------------
+
+    async def watcher_status(self) -> dict:
+        return await self._get("/api/watcher/status")
+
 
 # --- helpers --------------------------------------------------------
 

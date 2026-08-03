@@ -160,12 +160,15 @@ class LibraryPanel(Widget):
         if not confirmed:
             return
         app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
         try:
             await app.api.delete_recording(rec_id)
             app.notify(f"deleted {rec_id[:8]}")
             self.refresh_library()
         except Exception as e:
             app.notify(f"delete failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
 
     def action_copy_name(self) -> None:
         rec_id = self._selected_id()

@@ -90,9 +90,8 @@ class LeaderDispatcher:
         self._notify_bars("clear_chord_hints")
 
     def _notify_bars(self, method: str, *args) -> None:
-        from .widgets.status_bar import StatusBar
         try:
-            for bar in self.app.query(StatusBar):
+            for bar in self.app.status_bars():
                 fn = getattr(bar, method, None)
                 if callable(fn):
                     fn(*args)

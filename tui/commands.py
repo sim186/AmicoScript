@@ -49,10 +49,13 @@ async def run_command(app: "AmicoTUI", raw: str) -> None:
     if cmd is None:
         app.notify(f"unknown command: /{cmd_name}")
         return
+    app.push_busy()
     try:
         await cmd.handler(app, args)
     except Exception as e:
         app.notify(f"/{cmd_name} failed: {e}")
+    finally:
+        app.pop_busy()
 
 
 # --- handlers --------------------------------------------------------

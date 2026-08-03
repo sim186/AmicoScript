@@ -138,12 +138,43 @@ class AmicoTUI(App):
         self.sub_title = cfg.api_url
         self._palette_mru: deque = deque(maxlen=30)
         self.leader = LeaderDispatcher(self)
+        self._busy_count = 0
 
     def on_mount(self) -> None:
         from .screens.welcome import WelcomeScreen
         self.push_screen(WelcomeScreen())
         self.run_worker(self._health_loop(), exclusive=True, name="health")
         self.run_worker(self._jobs_loop(), exclusive=True, name="jobs_poll")
+        self.run_worker(self._watcher_loop(), exclusive=True, name="watcher_poll")
+
+    def status_bars(self) -> list:
+        """Every mounted StatusBar, across the whole screen stack.
+
+        ``self.query(StatusBar)`` looks broken but isn't what it seems:
+        ``App._get_dom_base()`` roots App-level queries at the App's hidden
+        default screen, not the active one — so it silently never finds
+        anything pushed on top (which is every screen this app shows).
+        Querying each stacked screen directly is what actually works.
+        """
+        from .widgets.status_bar import StatusBar
+        bars = []
+        for screen in self.screen_stack:
+            bars.extend(screen.query(StatusBar))
+        return bars
+
+    # --- busy indicator (commands.run_command wraps handlers with this) --
+
+    def push_busy(self) -> None:
+        self._busy_count += 1
+        self._sync_busy()
+
+    def pop_busy(self) -> None:
+        self._busy_count = max(0, self._busy_count - 1)
+        self._sync_busy()
+
+    def _sync_busy(self) -> None:
+        for bar in self.status_bars():
+            bar.busy = self._busy_count > 0
 
     async def on_unmount(self) -> None:
         await self.api.aclose()
@@ -174,14 +205,30 @@ class AmicoTUI(App):
         leave the Jobs screen."""
         import asyncio
 
-        from .widgets.status_bar import StatusBar
-
         while True:
             try:
                 data = await self.api.jobs()
                 rows = data.get("jobs", []) if isinstance(data, dict) else []
-                for bar in self.query(StatusBar):
+                for bar in self.status_bars():
                     bar.active_jobs = len(rows)
+            except Exception:
+                pass
+            await asyncio.sleep(3.0)
+
+    async def _watcher_loop(self) -> None:
+        """Poll the meeting auto-capture watcher so an in-progress meeting
+        recording (started outside the TUI, by the watcher daemon) is
+        visible here too — not just in the web UI's tray badge."""
+        import asyncio
+
+        while True:
+            try:
+                st = await self.api.watcher_status()
+                is_recording = bool(st.get("recording"))
+                label = str(st.get("app") or "") if is_recording else ""
+                for bar in self.status_bars():
+                    bar.recording = is_recording
+                    bar.recording_label = label
             except Exception:
                 pass
             await asyncio.sleep(3.0)

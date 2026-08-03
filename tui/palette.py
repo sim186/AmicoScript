@@ -567,6 +567,7 @@ class Palette(ModalScreen):
             )
             if not confirmed:
                 return
+            app.push_busy()
             try:
                 await app.api.delete_recording(rec_id)
                 app.notify(f"deleted {rec_id[:8]}")
@@ -575,6 +576,8 @@ class Palette(ModalScreen):
                     screen.refresh_library()
             except Exception as e:
                 app.notify(f"delete failed: {e}", severity="error")
+            finally:
+                app.pop_busy()
             return
 
         # In analyze mode, picking a recording opens the type chooser.
