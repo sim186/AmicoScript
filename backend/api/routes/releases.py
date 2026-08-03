@@ -3,6 +3,9 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
+
+from settings import _get_whisper_settings, _save_whisper_settings
 
 MODELS_META = [
     {"id": "tiny", "name": "Tiny", "params": "~39M", "ram": "~1 GB", "speed": 5, "accuracy": 1},
@@ -30,6 +33,23 @@ def get_version() -> dict:
 @router.get("/api/models")
 def get_models() -> list:
     return MODELS_META
+
+
+@router.get("/api/whisper/models")
+def get_whisper_models() -> dict:
+    ws = _get_whisper_settings()
+    return {"models": MODELS_META, "default": ws["whisper_model"]}
+
+
+class WhisperModelPayload(BaseModel):
+    model: str
+
+
+@router.post("/api/whisper/models")
+async def set_whisper_model(payload: WhisperModelPayload) -> dict:
+    ws = _get_whisper_settings()
+    _save_whisper_settings(payload.model, ws["whisper_device"], ws["whisper_compute"])
+    return {"ok": True, "model": payload.model}
 
 
 @router.get("/api/latest-release")
