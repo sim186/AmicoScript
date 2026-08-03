@@ -21,18 +21,22 @@ class StatusBar(Widget):
 
     connection: reactive[str] = reactive("connecting")
     message: reactive[str] = reactive("")
-    hint: reactive[str] = reactive("Space leader  ·  / palette  ·  ? help")
+    hint: reactive[str] = reactive("Space leader  ·  / palette")
     leader_hint: reactive[str] = reactive("")
+    active_jobs: reactive[int] = reactive(0)
 
     def render(self) -> str:
         if self.leader_hint:
             return f"LEADER · {self.leader_hint}"
         conn_color = "#22c55e" if self.connection in ("connected", "connecting") else "#ef4444"
         left = f"[{conn_color}]●[/] {self.connection}"
+        if self.active_jobs:
+            noun = "job" if self.active_jobs == 1 else "jobs"
+            left += f"  ·  [#f59e0b]⚙ {self.active_jobs} {noun} running[/]"
         if self.message:
             left += f"  ·  {self.message}"
         left += f"  ·  {self.hint}"
-        right = "[dim]? Help[/]   [#ef4444]q[/] Quit"
+        right = "[dim]Space ?[/] Help   [#ef4444]Space q[/] Quit"
         # Padding via spaces between left/right not reliable; use just left and let widget align.
         return f"{left}                                                                 {right}"
 

@@ -130,6 +130,8 @@ class JobsListScreen(Screen):
         "l": ("Library", "/library"),
         "s": ("Settings", "/settings"),
         "i": ("Import", "/import"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
         "q": ("Quit", "/quit"),
     }
 

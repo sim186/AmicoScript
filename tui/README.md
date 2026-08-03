@@ -68,7 +68,8 @@ switches mode and filters a different source:
 | `/folder ` | folder | folders | open library scoped to folder |
 | `/tag ` | tag | tags | open library scoped to tag |
 | `/analyze ` | analyze | recordings | choose analysis type, then queue |
-| `/models ` | model | LLM models | set as default model |
+| `/models ` | model | Whisper models | set as default transcription model |
+| `/llm ` | llm_model | LLM models | set as default LLM model |
 | `@` | transcript | recordings | open transcript |
 
 ### Library
@@ -126,8 +127,8 @@ Press `/` to open the command palette.
 | `/folder` | Pick a folder (or `/folder new <name>` to create) |
 | `/tag` | Pick a tag |
 | `/analyze` | Pick a recording and run summary / action_items / translate / custom |
-| `/models` | Pick an LLM model (sets as default) |
-| `/llm` | Open LLM settings |
+| `/models` | Pick a Whisper transcription model (sets as default) |
+| `/llm` | Pick an LLM model (sets as default) |
 | `/jobs` | Open the active-jobs list |
 | `/welcome` | Return to the welcome screen |
 | `/settings` | Open settings screen |
@@ -159,7 +160,6 @@ soundfile, and discarded on screen exit.
 ## Limitations (v1)
 
 - No segment editing (view + copy only)
-- No audio playback
 - No multi-select copy across segments (single segment via `y`, full
   transcript via `Y`)
 - Folder/tag pickers not yet wired into library filtering UI

@@ -49,11 +49,14 @@ class ImportScreen(Screen):
         Binding("ctrl+f", "focus_search", "Search"),
     ]
 
+    # No Space-h chord here — bare "h" already means "filesystem home" on
+    # this screen; a second "Welcome" meaning behind the leader would clash.
     leader_chords = {
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
-        "q": ("Back", "/quit"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
     }
 
     DEFAULT_CSS = """

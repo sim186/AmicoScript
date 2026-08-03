@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
-from textual.widgets import Header, Log, Static
+from textual.widgets import Log, Static
 
 from ..sse import stream_job
+from ..widgets.chrome import CommandBar, ContextHint, TitleBar
 from ..widgets.progress_bar import JobProgress
 from ..widgets.status_bar import StatusBar
 
@@ -23,6 +24,15 @@ class JobDetailScreen(Screen):
         Binding("c", "cancel", "Cancel job"),
     ]
 
+    leader_chords = {
+        "l": ("Library", "/library"),
+        "j": ("Jobs", "/jobs"),
+        "s": ("Settings", "/settings"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
+    }
+
     DEFAULT_CSS = """
     JobDetailScreen { layout: vertical; }
     #title { padding: 0 1; height: 1; }
@@ -32,14 +42,17 @@ class JobDetailScreen(Screen):
     def __init__(self, job_id: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.job_id = job_id
+        self.title = f"Job · {job_id[:8]}"
 
     def compose(self):
-        yield Header()
+        yield TitleBar(id="titlebar")
         with Vertical():
             yield Static(f"job [b]{self.job_id}[/b]", id="title")
             yield JobProgress(id="prog")
             yield Log(id="log", highlight=False, max_lines=2000)
-            yield StatusBar(id="statusbar")
+        yield ContextHint("c cancel job  ·  Esc / q back", id="ctxhint")
+        yield CommandBar(id="cmdbar")
+        yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
         self.run_worker(self._stream(), exclusive=True)

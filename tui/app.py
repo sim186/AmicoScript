@@ -143,6 +143,7 @@ class AmicoTUI(App):
         from .screens.welcome import WelcomeScreen
         self.push_screen(WelcomeScreen())
         self.run_worker(self._health_loop(), exclusive=True, name="health")
+        self.run_worker(self._jobs_loop(), exclusive=True, name="jobs_poll")
 
     async def on_unmount(self) -> None:
         await self.api.aclose()
@@ -166,6 +167,24 @@ class AmicoTUI(App):
                 last_ok = False
                 await asyncio.sleep(backoff)
                 backoff = min(30.0, backoff * 2)
+
+    async def _jobs_loop(self) -> None:
+        """Poll active-job count so every screen's StatusBar can show it —
+        without this, background transcriptions vanish from view once you
+        leave the Jobs screen."""
+        import asyncio
+
+        from .widgets.status_bar import StatusBar
+
+        while True:
+            try:
+                data = await self.api.jobs()
+                rows = data.get("jobs", []) if isinstance(data, dict) else []
+                for bar in self.query(StatusBar):
+                    bar.active_jobs = len(rows)
+            except Exception:
+                pass
+            await asyncio.sleep(3.0)
 
     # --- key intercept (leader) -----------------------------------------
 

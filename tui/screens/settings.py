@@ -152,7 +152,9 @@ class SettingsScreen(Screen):
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
         "i": ("Import", "/import"),
-        "q": ("Back", "/quit"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
     }
 
     DEFAULT_CSS = """

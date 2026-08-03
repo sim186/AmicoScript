@@ -1,6 +1,7 @@
 """Welcome / home screen — root layer, always visible when closing palette or ESC."""
 from __future__ import annotations
 
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Static
@@ -28,8 +29,17 @@ class WelcomeScreen(Screen):
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
         "m": ("Models", "/models"),
+        "question_mark": ("Help", "/help"),
         "q": ("Quit", "/quit"),
     }
+
+    # Bare l/j/s jump directly on the welcome screen (README "Keys" section);
+    # every other screen requires the Space leader first.
+    BINDINGS = [
+        Binding("l", "goto('/library')", show=False),
+        Binding("j", "goto('/jobs')", show=False),
+        Binding("s", "goto('/settings')", show=False),
+    ]
 
     DEFAULT_CSS = """
     WelcomeScreen {
@@ -111,11 +121,15 @@ class WelcomeScreen(Screen):
                     yield Static(
                         "[dim]ctrl+k / ctrl+p[/] command palette  ·  "
                         "[dim]space[/] leader chords  ·  "
-                        "[dim]?[/] help  ·  "
+                        "[dim]space ?[/] help  ·  "
                         "[dim]ctrl+c[/] quit",
                         id="keyref",
                     )
                 yield Static(LOGO_ART, id="logo-ascii")
         from ..widgets.status_bar import StatusBar
         yield StatusBar(id="statusbar")
+
+    def action_goto(self, cmd: str) -> None:
+        from ..commands import run_command
+        self.run_worker(run_command(self.app, cmd), exclusive=False)
 

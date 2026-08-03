@@ -55,7 +55,9 @@ class TranscriptScreen(Screen):
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
-        "q": ("Back", "/quit"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
     }
 
     def __init__(self, recording_id: str, *args, **kwargs) -> None:

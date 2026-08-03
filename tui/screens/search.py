@@ -41,7 +41,9 @@ class SearchScreen(Screen):
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
-        "q": ("Back", "/quit"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
     }
 
     DEFAULT_CSS = """

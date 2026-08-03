@@ -556,11 +556,17 @@ class Palette(ModalScreen):
             self.app.pop_screen()
             await self._ad_hoc_on_pick(self.app, entry)
             return
-        # In delete mode, picking a recording deletes it immediately.
+        # In delete mode, picking a recording confirms, then deletes.
         if self._mode == "delete" and entry.kind == "recording":
             rec_id = entry.key.split(":", 1)[1]
             app: "AmicoTUI" = self.app  # type: ignore[assignment]
             self.app.pop_screen()
+            from .widgets.confirm import ConfirmDialog
+            confirmed = await app.push_screen_wait(
+                ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
+            )
+            if not confirmed:
+                return
             try:
                 await app.api.delete_recording(rec_id)
                 app.notify(f"deleted {rec_id[:8]}")

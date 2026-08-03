@@ -72,8 +72,15 @@ async def _whisper_options(app) -> dict:
 
 @command("help", "show command reference")
 async def _help(app, args):
-    lines = [f"/{c.name} — {c.help}" for c in list_commands()]
-    app.notify("\n".join(lines), timeout=10)
+    from .screens.help import HelpScreen
+    app.push_screen(HelpScreen())
+
+
+@command("welcome", "return to the welcome screen")
+async def _welcome(app, args):
+    from .screens.welcome import WelcomeScreen
+    while not isinstance(app.screen, WelcomeScreen) and len(app.screen_stack) > 1:
+        app.pop_screen()
 
 
 @command("transcribe", "upload <path> and transcribe")
@@ -166,8 +173,15 @@ async def _delete(app, args):
         app.push_screen(pal)
         pal.call_after_refresh(seed_palette, pal, "/delete ")
         return
-    await app.api.delete_recording(args[0])
-    app.notify(f"deleted {args[0]}")
+    rec_id = args[0]
+    from .widgets.confirm import ConfirmDialog
+    confirmed = await app.push_screen_wait(
+        ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
+    )
+    if not confirmed:
+        return
+    await app.api.delete_recording(rec_id)
+    app.notify(f"deleted {rec_id}")
     screen = app.screen
     if hasattr(screen, "refresh_library"):
         screen.refresh_library()

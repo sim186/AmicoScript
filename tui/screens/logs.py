@@ -1,7 +1,6 @@
 """Live server log tail screen."""
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from textual.binding import Binding
@@ -16,9 +15,6 @@ if TYPE_CHECKING:
     from ..app import AmicoTUI
 
 
-LEVEL_RE = re.compile(r"\b(INFO|WARN(?:ING)?|ERROR|DEBUG|CRITICAL)\b")
-
-
 class LogsScreen(Screen):
     BINDINGS = [
         Binding("escape", "pop", "Back"),
@@ -30,7 +26,9 @@ class LogsScreen(Screen):
         "l": ("Library", "/library"),
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
-        "q": ("Back", "/quit"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
+        "q": ("Quit", "/quit"),
     }
 
     DEFAULT_CSS = """
@@ -88,20 +86,8 @@ class LogsScreen(Screen):
         self._last_n = len(lines)
 
     def _style(self, line: str) -> str:
-        m = LEVEL_RE.search(line)
-        if not m:
-            return line
-        level = m.group(1)
-        color = {
-            "INFO": "#2dd4bf",
-            "WARN": "#f59e0b",
-            "WARNING": "#f59e0b",
-            "ERROR": "#ef4444",
-            "CRITICAL": "#ef4444",
-            "DEBUG": "#6b6e9a",
-        }.get(level, "#6b6e9a")
-        # Log widget supports limited markup via highlight=False — strip styling.
-        # Return plain text; coloring via inline markup not supported in Log widget cleanly.
+        # Log widget is highlight=False (no markup rendering), so levels
+        # can't be colorized here — passed through as-is.
         return line
 
     def action_clear(self) -> None:

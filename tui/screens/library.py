@@ -150,7 +150,22 @@ class LibraryPanel(Widget):
         rec_id = self._selected_id()
         if rec_id is None:
             return
-        self.app.notify(f"/delete {rec_id} to confirm deletion")
+        self.run_worker(self._delete_selected(rec_id), exclusive=False)
+
+    async def _delete_selected(self, rec_id: str) -> None:
+        from ..widgets.confirm import ConfirmDialog
+        confirmed = await self.app.push_screen_wait(
+            ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
+        )
+        if not confirmed:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        try:
+            await app.api.delete_recording(rec_id)
+            app.notify(f"deleted {rec_id[:8]}")
+            self.refresh_library()
+        except Exception as e:
+            app.notify(f"delete failed: {e}", severity="error")
 
     def action_copy_name(self) -> None:
         rec_id = self._selected_id()
@@ -234,6 +249,8 @@ class LibraryScreen(Screen):
         "j": ("Jobs", "/jobs"),
         "s": ("Settings", "/settings"),
         "i": ("Import", "/import"),
+        "h": ("Welcome", "/welcome"),
+        "question_mark": ("Help", "/help"),
         "q": ("Quit", "/quit"),
     }
 
