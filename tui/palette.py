@@ -756,6 +756,95 @@ async def _noop(app: "AmicoTUI") -> None:
     return None
 
 
+def _open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
+    async def build_and_push() -> None:
+        try:
+            folders = await app.api.folders()
+        except Exception as e:
+            app.notify(f"folders load failed: {e}", severity="error")
+            return
+        entries = [
+            Entry(
+                kind="folder",
+                key="folder:",
+                display="▢ (no folder)",
+                subtitle="remove from any folder",
+                search_text="no folder none",
+                on_select=_noop,
+            )
+        ]
+        entries += [
+            Entry(
+                kind="folder",
+                key=f"folder:{f.get('id')}",
+                display=f"▣ {f.get('name', '?')}",
+                subtitle=f"folder · id {str(f.get('id'))[:8]}",
+                search_text=str(f.get("name", "")),
+                on_select=_noop,
+            )
+            for f in (folders or []) if f.get("id") is not None
+        ]
+
+        async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
+            folder_id = entry.key.split(":", 1)[1]
+            try:
+                await app.api.update_recording(rec_id, folder_id=folder_id)
+                app.notify("moved to folder" if folder_id else "removed from folder")
+                screen = app.screen
+                if hasattr(screen, "refresh_library"):
+                    screen.refresh_library()
+            except Exception as e:
+                app.notify(f"move failed: {e}", severity="error")
+
+        app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"move {rec_id[:8]} to…"))
+
+    app.run_worker(build_and_push(), exclusive=False)
+
+
+def _open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
+    async def build_and_push() -> None:
+        try:
+            rec = await app.api.recording(rec_id)
+            all_tags = await app.api.tags()
+        except Exception as e:
+            app.notify(f"tags load failed: {e}", severity="error")
+            return
+        if not all_tags:
+            app.notify("no tags yet — create one with /tag new <name>")
+            return
+        applied_ids = {str(t.get("id")) for t in (rec.get("tags") or [])}
+        entries = [
+            Entry(
+                kind="tag",
+                key=f"tag:{t.get('id')}",
+                display=f"{'●' if str(t.get('id')) in applied_ids else '○'} {t.get('name', '?')}",
+                subtitle="applied — enter removes" if str(t.get("id")) in applied_ids else "enter adds",
+                search_text=str(t.get("name", "")),
+                on_select=_noop,
+            )
+            for t in all_tags if t.get("id") is not None
+        ]
+
+        async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
+            tag_id = entry.key.split(":", 1)[1]
+            try:
+                if tag_id in applied_ids:
+                    await app.api.remove_tag(rec_id, tag_id)
+                    app.notify("tag removed")
+                else:
+                    await app.api.add_tag(rec_id, tag_id)
+                    app.notify("tag added")
+                screen = app.screen
+                if hasattr(screen, "refresh_library"):
+                    screen.refresh_library()
+            except Exception as e:
+                app.notify(f"tag update failed: {e}", severity="error")
+
+        app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"toggle tags on {rec_id[:8]}"))
+
+    app.run_worker(build_and_push(), exclusive=False)
+
+
 def entries_from_folders(folders: list[dict] | None) -> list[Entry]:
     return [
         Entry(

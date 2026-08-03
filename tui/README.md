@@ -83,6 +83,9 @@ switches mode and filters a different source:
 | `g g` / `G` | Top / bottom |
 | `Enter` | Open recording (transcript screen) |
 | `r` | Refresh library |
+| `R` | Rename recording (prompt) |
+| `m` | Move recording to a folder (picker) |
+| `t` | Add / remove a tag on the recording (picker) |
 | `y` | Copy filename to clipboard |
 | `d` | Delete (prompt) |
 | `Escape` | Back |
@@ -133,10 +136,12 @@ Press `/` to open the command palette.
 | `/export <id> <fmt>` | Export transcript (json/srt/txt/md) — saved to CWD |
 | `/cancel <job_id>` | Cancel running job |
 | `/delete <id>` | Delete recording |
-| `/folder new <name>` | Create folder |
+| `/rename <id> <name>` | Rename a recording |
+| `/move <id> [folder_id]` | Move a recording to a folder — opens a picker if `folder_id` omitted |
+| `/tag-toggle <id>` | Add / remove a tag on a recording (picker) |
 | `/library` | Open the recordings library (sub-picker after space) |
-| `/folder` | Pick a folder (or `/folder new <name>` to create) |
-| `/tag` | Pick a tag |
+| `/folder` | Pick a folder — or `new <name>` / `rename <id> <name>` / `delete <id>` |
+| `/tag` | Pick a tag — or `new <name>` / `rename <id> <name>` / `delete <id>` |
 | `/analyze` | Pick a recording and run summary / action_items / translate / custom |
 | `/models` | Pick a Whisper transcription model (sets as default) |
 | `/llm` | Pick an LLM model (sets as default) |

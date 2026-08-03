@@ -190,7 +190,53 @@ async def _delete(app, args):
         screen.refresh_library()
 
 
-@command("folder", "pick a folder (or 'new <name>' to create)")
+@command("rename", "rename recording <id> <new name>")
+async def _rename(app, args):
+    if len(args) < 2:
+        app.notify("usage: /rename <id> <new name>")
+        return
+    rec_id, *name_parts = args
+    alias = " ".join(name_parts)
+    try:
+        await app.api.update_recording(rec_id, alias=alias)
+        app.notify(f"renamed {rec_id[:8]} → {alias}")
+        screen = app.screen
+        if hasattr(screen, "refresh_library"):
+            screen.refresh_library()
+    except Exception as e:
+        app.notify(f"rename failed: {e}", severity="error")
+
+
+@command("move", "move recording <id> to a folder")
+async def _move(app, args):
+    if not args:
+        app.notify("usage: /move <id> [folder_id]")
+        return
+    rec_id, *rest = args
+    if rest:
+        try:
+            await app.api.update_recording(rec_id, folder_id=rest[0])
+            app.notify(f"moved {rec_id[:8]}")
+            screen = app.screen
+            if hasattr(screen, "refresh_library"):
+                screen.refresh_library()
+        except Exception as e:
+            app.notify(f"move failed: {e}", severity="error")
+        return
+    from .palette import _open_move_to_folder_picker
+    _open_move_to_folder_picker(app, rec_id)
+
+
+@command("tag-toggle", "add/remove a tag on recording <id>")
+async def _tag_toggle(app, args):
+    if not args:
+        app.notify("usage: /tag-toggle <id>")
+        return
+    from .palette import _open_tag_toggle_picker
+    _open_tag_toggle_picker(app, args[0])
+
+
+@command("folder", "pick a folder (or 'new <name>' / 'rename <id> <name>' / 'delete <id>')")
 async def _folder(app, args):
     if args and args[0] == "new":
         if len(args) < 2:
@@ -200,15 +246,85 @@ async def _folder(app, args):
         await app.api.create_folder(name)
         app.notify(f"folder created: {name}")
         return
-    # No args (or non-'new' args) — re-open palette in folder-pick mode.
+    if args and args[0] == "rename":
+        if len(args) < 3:
+            app.notify("usage: /folder rename <id> <new name>")
+            return
+        folder_id, *name_parts = args[1:]
+        name = " ".join(name_parts)
+        try:
+            await app.api.update_folder(folder_id, name=name)
+            app.notify(f"folder renamed to {name}")
+        except Exception as e:
+            app.notify(f"rename failed: {e}", severity="error")
+        return
+    if args and args[0] == "delete":
+        if len(args) < 2:
+            app.notify("usage: /folder delete <id>")
+            return
+        folder_id = args[1]
+        from .widgets.confirm import ConfirmDialog
+        confirmed = await app.push_screen_wait(
+            ConfirmDialog(
+                f"Delete folder {folder_id[:8]}…? Recordings inside move to "
+                "All Recordings, they are not deleted."
+            )
+        )
+        if not confirmed:
+            return
+        try:
+            await app.api.delete_folder(folder_id)
+            app.notify("folder deleted")
+        except Exception as e:
+            app.notify(f"delete failed: {e}", severity="error")
+        return
+    # No args (or unrecognised args) — re-open palette in folder-pick mode.
     from .palette import Palette, seed_palette
     pal = Palette()
     app.push_screen(pal)
     pal.call_after_refresh(seed_palette, pal, "/folder ")
 
 
-@command("tag", "pick a tag to scope library")
+@command("tag", "pick a tag (or 'new <name>' / 'rename <id> <name>' / 'delete <id>')")
 async def _tag(app, args):
+    if args and args[0] == "new":
+        if len(args) < 2:
+            app.notify("usage: /tag new <name>")
+            return
+        name = " ".join(args[1:])
+        await app.api.create_tag(name)
+        app.notify(f"tag created: {name}")
+        return
+    if args and args[0] == "rename":
+        if len(args) < 3:
+            app.notify("usage: /tag rename <id> <new name>")
+            return
+        tag_id, *name_parts = args[1:]
+        name = " ".join(name_parts)
+        try:
+            await app.api.update_tag(tag_id, name=name)
+            app.notify(f"tag renamed to {name}")
+        except Exception as e:
+            app.notify(f"rename failed: {e}", severity="error")
+        return
+    if args and args[0] == "delete":
+        if len(args) < 2:
+            app.notify("usage: /tag delete <id>")
+            return
+        tag_id = args[1]
+        from .widgets.confirm import ConfirmDialog
+        confirmed = await app.push_screen_wait(
+            ConfirmDialog(f"Delete tag {tag_id[:8]}…? It's removed from every recording.")
+        )
+        if not confirmed:
+            return
+        try:
+            await app.api.delete_tag(tag_id)
+            app.notify("tag deleted")
+        except Exception as e:
+            app.notify(f"delete failed: {e}", severity="error")
+        return
+    # No args (or unrecognised args) — re-open palette in tag-pick mode.
     from .palette import Palette, seed_palette
     pal = Palette()
     app.push_screen(pal)

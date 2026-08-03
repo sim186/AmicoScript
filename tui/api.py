@@ -153,6 +153,12 @@ class ApiClient:
             "/api/tags", data=_drop_none({"name": name, "color_code": color_code})
         )
 
+    async def update_tag(self, tag_id: int, **fields: Any) -> dict:
+        return await self._patch_form(f"/api/tags/{tag_id}", data=fields)
+
+    async def delete_tag(self, tag_id: int) -> dict:
+        return await self._delete(f"/api/tags/{tag_id}")
+
     async def add_tag(self, recording_id: str, tag_id: int) -> dict:
         return await self._post(
             f"/api/recordings/{recording_id}/tags/{tag_id}"

@@ -86,6 +86,9 @@ class LibraryPanel(Widget):
         Binding("G", "cursor_bottom", show=False),
         Binding("g,g", "cursor_top", show=False),
         Binding("d", "delete_row", "Delete"),
+        Binding("R", "rename_row", "Rename"),
+        Binding("m", "move_row", "Move"),
+        Binding("t", "tag_row", "Tag"),
         Binding("y", "copy_name", "Copy name"),
         Binding("enter", "open", "Open"),
     ]
@@ -170,6 +173,45 @@ class LibraryPanel(Widget):
         finally:
             app.pop_busy()
 
+    def action_rename_row(self) -> None:
+        rec_id = self._selected_id()
+        if rec_id is None:
+            return
+        self.run_worker(self._rename_selected(rec_id), exclusive=False)
+
+    async def _rename_selected(self, rec_id: str) -> None:
+        from ..widgets.prompt import PromptDialog
+        current = self._selected_name() or ""
+        new_name = await self.app.push_screen_wait(
+            PromptDialog("Rename recording to:", initial=current)
+        )
+        if not new_name or new_name == current:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            await app.api.update_recording(rec_id, alias=new_name)
+            app.notify(f"renamed to {new_name}")
+            self.refresh_library()
+        except Exception as e:
+            app.notify(f"rename failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
+
+    def action_move_row(self) -> None:
+        rec_id = self._selected_id()
+        if rec_id is None:
+            return
+        from ..palette import _open_move_to_folder_picker
+        _open_move_to_folder_picker(self.app, rec_id)  # type: ignore[arg-type]
+
+    def action_tag_row(self) -> None:
+        rec_id = self._selected_id()
+        if rec_id is None:
+            return
+        from ..palette import _open_tag_toggle_picker
+        _open_tag_toggle_picker(self.app, rec_id)  # type: ignore[arg-type]
+
     def action_copy_name(self) -> None:
         rec_id = self._selected_id()
         if rec_id is None or self.table is None:
@@ -240,6 +282,13 @@ class LibraryPanel(Widget):
             return self.row_keys[idx]
         return None
 
+    def _selected_name(self) -> str | None:
+        if not self.table or self.table.row_count == 0:
+            return None
+        row = self.table.get_row_at(self.table.cursor_row)
+        name_cell = row[0]
+        return name_cell.plain if isinstance(name_cell, Text) else str(name_cell)
+
 
 class LibraryScreen(Screen):
     """Full-screen library view."""
@@ -289,7 +338,7 @@ class LibraryScreen(Screen):
                 id="library_panel",
             )
         yield ContextHint(
-            "↑↓ navigate  ·  ↵ open  ·  /import  ·  /export  ·  /delete  ·  /folder  ·  /search",
+            "↑↓ navigate  ·  ↵ open  ·  R rename  ·  m move  ·  t tag  ·  d delete  ·  /search",
             id="ctxhint",
         )
         yield CommandBar(id="cmdbar")
@@ -304,7 +353,7 @@ class LibraryScreen(Screen):
         try:
             self.query_one("#ctxhint", ContextHint).set_text(
                 f"{count} recordings  ·  {h}h {m:02d}m total  "
-                f"|  ↑↓ navigate  ·  ↵ open  ·  /import  ·  /export  ·  /delete  ·  /search"
+                f"|  ↑↓ navigate  ·  ↵ open  ·  R rename  ·  m move  ·  t tag  ·  d delete"
             )
         except Exception:
             pass
