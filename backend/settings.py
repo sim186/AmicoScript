@@ -119,3 +119,22 @@ def _save_llm_settings(base_url: str, model_name: str, api_key: str) -> None:
     settings["llm_model_name"] = model_name
     settings["llm_api_key"] = api_key
     _save_settings(settings)
+
+
+def _get_whisper_settings() -> dict:
+    """Return Whisper config: model, device, compute_type."""
+    settings = _load_settings()
+    return {
+        "whisper_model": settings.get("whisper_model", "small"),
+        "whisper_device": settings.get("whisper_device", "auto"),
+        "whisper_compute": settings.get("whisper_compute", "float16"),
+    }
+
+
+def _save_whisper_settings(model: str, device: str, compute: str) -> None:
+    """Persist Whisper settings to disk."""
+    settings = _load_settings()
+    settings["whisper_model"] = model
+    settings["whisper_device"] = device
+    settings["whisper_compute"] = compute
+    _save_settings(settings)

@@ -14,8 +14,10 @@ from fastapi import APIRouter, Form, HTTPException
 from settings import (
     _get_meeting_capture_enabled,
     _get_transcription_defaults,
+    _get_whisper_settings,
     _load_settings,
     _save_settings,
+    _save_whisper_settings,
     _set_meeting_capture_enabled,
     _set_transcription_defaults,
 )
@@ -66,6 +68,7 @@ def get_settings() -> dict:
     import state
     settings = _load_settings()
     defaults = _get_transcription_defaults()
+    ws = _get_whisper_settings()
     return {
         "hf_token": settings.get("hf_token", ""),
         "exit_token": getattr(state, "exit_token", ""),
@@ -75,6 +78,9 @@ def get_settings() -> dict:
         "default_model": defaults["default_model"],
         "default_language": defaults["default_language"],
         "default_diarize": defaults["default_diarize"],
+        "whisper_model": ws["whisper_model"],
+        "whisper_device": ws["whisper_device"],
+        "whisper_compute": ws["whisper_compute"],
     }
 
 
@@ -84,6 +90,9 @@ async def save_settings(
     model: str | None = Form(None),
     language: str | None = Form(None),
     diarize: str | None = Form(None),
+    whisper_model: str | None = Form(None),
+    whisper_device: str | None = Form(None),
+    whisper_compute: str | None = Form(None),
 ) -> dict:
     """Persist HF token and/or transcription defaults.
 
@@ -100,7 +109,14 @@ async def save_settings(
             language=language,
             diarize=_to_bool(diarize) if diarize is not None else None,
         )
-    return {"ok": True, **_get_transcription_defaults()}
+    if whisper_model:
+        ws = _get_whisper_settings()
+        _save_whisper_settings(
+            whisper_model,
+            whisper_device or ws["whisper_device"],
+            whisper_compute or ws["whisper_compute"],
+        )
+    return {"ok": True, **_get_transcription_defaults(), **_get_whisper_settings()}
 
 
 @router.post("/api/settings/meeting-capture")
