@@ -88,6 +88,26 @@ class SegmentList(OptionList):
             return None
         return self.segments[idx]
 
+    def update_segment_text(self, index: int, text: str) -> None:
+        """Patch one segment's text in place (after an edit/reset) without
+        losing scroll position / highlight the way a full reload would."""
+        if not (0 <= index < len(self.segments)):
+            return
+        self.segments[index]["text"] = text
+        self.replace_option_prompt_at_index(index, self._format_row(self.segments[index]))
+
+    def update_segment_speaker(self, index: int, speaker: str) -> None:
+        if not (0 <= index < len(self.segments)):
+            return
+        self.segments[index]["speaker"] = speaker
+        self.replace_option_prompt_at_index(index, self._format_row(self.segments[index]))
+
+    def rename_speaker_everywhere(self, old_name: str, new_name: str) -> None:
+        for i, seg in enumerate(self.segments):
+            if (seg.get("speaker") or seg.get("speaker_label") or "") == old_name:
+                seg["speaker"] = new_name
+                self.replace_option_prompt_at_index(i, self._format_row(seg))
+
     def find_first(self, query: str, start_from: int = 0) -> int | None:
         """Case-insensitive substring search over segment text, wrapping
         around from ``start_from``. Returns the matching index, or None."""

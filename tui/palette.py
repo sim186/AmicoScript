@@ -550,12 +550,18 @@ class Palette(ModalScreen):
         )
         if entry is None:
             return
-        _push_mru(self.app, entry.key)
-        # Ad-hoc mini-picker (e.g. analysis-type chooser) — defer to caller.
+        # Ad-hoc mini-pickers (analysis type, bulk actions, move/tag…) are
+        # rebuilt fresh on every open and often reuse the same entry keys
+        # across unrelated invocations (e.g. "bulk:delete" for whichever
+        # recordings happen to be selected this time) — MRU-boosting those
+        # would silently reorder the list and make a bare Enter trigger a
+        # different action than the one actually on top. Only the
+        # persistent command/recording palette benefits from MRU ranking.
         if self._ad_hoc_on_pick is not None:
             self.app.pop_screen()
             await self._ad_hoc_on_pick(self.app, entry)
             return
+        _push_mru(self.app, entry.key)
         # In delete mode, picking a recording confirms, then deletes.
         if self._mode == "delete" and entry.kind == "recording":
             rec_id = entry.key.split(":", 1)[1]
@@ -756,6 +762,46 @@ async def _noop(app: "AmicoTUI") -> None:
     return None
 
 
+def _folder_entries(folders: list[dict] | None, include_none: bool = True) -> list[Entry]:
+    entries: list[Entry] = []
+    if include_none:
+        entries.append(Entry(
+            kind="folder",
+            key="folder:",
+            display="▢ (no folder)",
+            subtitle="remove from any folder",
+            search_text="no folder none",
+            on_select=_noop,
+        ))
+    entries += [
+        Entry(
+            kind="folder",
+            key=f"folder:{f.get('id')}",
+            display=f"▣ {f.get('name', '?')}",
+            subtitle=f"folder · id {str(f.get('id'))[:8]}",
+            search_text=str(f.get("name", "")),
+            on_select=_noop,
+        )
+        for f in (folders or []) if f.get("id") is not None
+    ]
+    return entries
+
+
+def _tag_entries(tags: list[dict] | None, applied_ids: set[str] | None = None) -> list[Entry]:
+    applied_ids = applied_ids or set()
+    return [
+        Entry(
+            kind="tag",
+            key=f"tag:{t.get('id')}",
+            display=f"{'●' if str(t.get('id')) in applied_ids else '○'} {t.get('name', '?')}",
+            subtitle="applied — enter removes" if str(t.get("id")) in applied_ids else "enter adds",
+            search_text=str(t.get("name", "")),
+            on_select=_noop,
+        )
+        for t in (tags or []) if t.get("id") is not None
+    ]
+
+
 def _open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
     async def build_and_push() -> None:
         try:
@@ -763,27 +809,7 @@ def _open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
         except Exception as e:
             app.notify(f"folders load failed: {e}", severity="error")
             return
-        entries = [
-            Entry(
-                kind="folder",
-                key="folder:",
-                display="▢ (no folder)",
-                subtitle="remove from any folder",
-                search_text="no folder none",
-                on_select=_noop,
-            )
-        ]
-        entries += [
-            Entry(
-                kind="folder",
-                key=f"folder:{f.get('id')}",
-                display=f"▣ {f.get('name', '?')}",
-                subtitle=f"folder · id {str(f.get('id'))[:8]}",
-                search_text=str(f.get("name", "")),
-                on_select=_noop,
-            )
-            for f in (folders or []) if f.get("id") is not None
-        ]
+        entries = _folder_entries(folders)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             folder_id = entry.key.split(":", 1)[1]
@@ -813,17 +839,7 @@ def _open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
             app.notify("no tags yet — create one with /tag new <name>")
             return
         applied_ids = {str(t.get("id")) for t in (rec.get("tags") or [])}
-        entries = [
-            Entry(
-                kind="tag",
-                key=f"tag:{t.get('id')}",
-                display=f"{'●' if str(t.get('id')) in applied_ids else '○'} {t.get('name', '?')}",
-                subtitle="applied — enter removes" if str(t.get("id")) in applied_ids else "enter adds",
-                search_text=str(t.get("name", "")),
-                on_select=_noop,
-            )
-            for t in all_tags if t.get("id") is not None
-        ]
+        entries = _tag_entries(all_tags, applied_ids)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             tag_id = entry.key.split(":", 1)[1]
@@ -841,6 +857,69 @@ def _open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
                 app.notify(f"tag update failed: {e}", severity="error")
 
         app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"toggle tags on {rec_id[:8]}"))
+
+    app.run_worker(build_and_push(), exclusive=False)
+
+
+def open_bulk_move_picker(app: "AmicoTUI", rec_ids: list[str], on_done) -> None:
+    """Move several recordings to one folder. ``on_done()`` is called after."""
+    async def build_and_push() -> None:
+        try:
+            folders = await app.api.folders()
+        except Exception as e:
+            app.notify(f"folders load failed: {e}", severity="error")
+            return
+        entries = _folder_entries(folders)
+
+        async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
+            folder_id = entry.key.split(":", 1)[1]
+            app.push_busy()
+            errors = 0
+            for rec_id in rec_ids:
+                try:
+                    await app.api.update_recording(rec_id, folder_id=folder_id)
+                except Exception:
+                    errors += 1
+            app.pop_busy()
+            ok = len(rec_ids) - errors
+            app.notify(f"moved {ok}/{len(rec_ids)}" + (f" ({errors} failed)" if errors else ""))
+            on_done()
+
+        app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"move {len(rec_ids)} to…"))
+
+    app.run_worker(build_and_push(), exclusive=False)
+
+
+def open_bulk_tag_picker(app: "AmicoTUI", rec_ids: list[str], on_done) -> None:
+    """Add one tag to several recordings. ``on_done()`` is called after."""
+    async def build_and_push() -> None:
+        try:
+            all_tags = await app.api.tags()
+        except Exception as e:
+            app.notify(f"tags load failed: {e}", severity="error")
+            return
+        if not all_tags:
+            app.notify("no tags yet — create one with /tag new <name>")
+            return
+        entries = _tag_entries(all_tags)
+
+        async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
+            tag_id = entry.key.split(":", 1)[1]
+            app.push_busy()
+            errors = 0
+            for rec_id in rec_ids:
+                try:
+                    await app.api.add_tag(rec_id, tag_id)
+                except Exception:
+                    errors += 1
+            app.pop_busy()
+            ok = len(rec_ids) - errors
+            app.notify(f"tagged {ok}/{len(rec_ids)}" + (f" ({errors} failed)" if errors else ""))
+            on_done()
+
+        app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"tag {len(rec_ids)} recordings…"))
+
+    app.run_worker(build_and_push(), exclusive=False)
 
     app.run_worker(build_and_push(), exclusive=False)
 

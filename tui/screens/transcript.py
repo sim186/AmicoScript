@@ -32,6 +32,10 @@ class TranscriptScreen(Screen):
         Binding("s", "stop_play", "Stop"),
         Binding("ctrl+a", "analyze", "Analyze"),
         Binding("slash", "focus_search", "Find"),
+        Binding("e", "edit_segment", "Edit"),
+        Binding("ctrl+r", "reset_segment", "Reset seg"),
+        Binding("a", "assign_speaker", "Assign speaker"),
+        Binding("S", "rename_speaker", "Rename speaker"),
     ]
 
     DEFAULT_CSS = """
@@ -101,7 +105,7 @@ class TranscriptScreen(Screen):
             yield WaveformView(id="wave")
             yield SegmentList(id="segments")
         yield ContextHint(
-            "Space play  ·  y copy seg  ·  Y copy all  ·  / find  ·  /export json|srt|txt|md  ·  ^A analyze",
+            "Space play  ·  y copy  ·  / find  ·  e edit  ·  a speaker  ·  S rename speaker  ·  ^A analyze",
             id="ctxhint",
         )
         yield CommandBar(id="cmdbar")
@@ -287,6 +291,106 @@ class TranscriptScreen(Screen):
     def action_analyze(self) -> None:
         from ..palette import _open_analysis_type_picker
         _open_analysis_type_picker(self.app, self.recording_id)
+
+    def action_edit_segment(self) -> None:
+        seg_list = self.query_one(SegmentList)
+        idx = seg_list.highlighted
+        seg = seg_list.selected_segment()
+        if idx is None or seg is None:
+            return
+        self.run_worker(self._edit_segment(idx, seg.get("text") or ""), exclusive=False)
+
+    async def _edit_segment(self, index: int, current_text: str) -> None:
+        from ..widgets.prompt import PromptDialog
+        new_text = await self.app.push_screen_wait(
+            PromptDialog("Edit segment text:", initial=current_text)
+        )
+        if not new_text or new_text == current_text:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            await app.api.edit_segment(self.recording_id, index, new_text)
+            self.query_one(SegmentList).update_segment_text(index, new_text)
+            self.query_one(StatusBar).flash("segment updated")
+        except Exception as e:
+            app.notify(f"edit failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
+
+    def action_reset_segment(self) -> None:
+        seg_list = self.query_one(SegmentList)
+        idx = seg_list.highlighted
+        if idx is None:
+            return
+        self.run_worker(self._reset_segment(idx), exclusive=False)
+
+    async def _reset_segment(self, index: int) -> None:
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            result = await app.api.reset_segment(self.recording_id, index)
+            text = result.get("text", "")
+            self.query_one(SegmentList).update_segment_text(index, text)
+            self.query_one(StatusBar).flash("segment reset")
+        except Exception as e:
+            app.notify(f"reset failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
+
+    def action_assign_speaker(self) -> None:
+        seg_list = self.query_one(SegmentList)
+        idx = seg_list.highlighted
+        seg = seg_list.selected_segment()
+        if idx is None or seg is None:
+            return
+        current = seg.get("speaker") or seg.get("speaker_label") or ""
+        self.run_worker(self._assign_speaker(idx, current), exclusive=False)
+
+    async def _assign_speaker(self, index: int, current: str) -> None:
+        from ..widgets.prompt import PromptDialog
+        new_speaker = await self.app.push_screen_wait(
+            PromptDialog("Speaker for this segment:", initial=current)
+        )
+        if not new_speaker or new_speaker == current:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            await app.api.assign_speaker(self.recording_id, [index], new_speaker)
+            self.query_one(SegmentList).update_segment_speaker(index, new_speaker)
+            self.query_one(StatusBar).flash(f"speaker set to {new_speaker}")
+        except Exception as e:
+            app.notify(f"assign failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
+
+    def action_rename_speaker(self) -> None:
+        seg_list = self.query_one(SegmentList)
+        seg = seg_list.selected_segment()
+        current = (seg.get("speaker") or seg.get("speaker_label") or "") if seg else ""
+        if not current:
+            self.app.notify("select a segment with a speaker first")
+            return
+        self.run_worker(self._rename_speaker(current), exclusive=False)
+
+    async def _rename_speaker(self, old_name: str) -> None:
+        from ..widgets.prompt import PromptDialog
+        new_name = await self.app.push_screen_wait(
+            PromptDialog(f"Rename speaker “{old_name}” to:", initial=old_name)
+        )
+        if not new_name or new_name == old_name:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            await app.api.rename_speaker(self.recording_id, old_name, new_name)
+            self.query_one(SegmentList).rename_speaker_everywhere(old_name, new_name)
+            self.query_one(StatusBar).flash(f"speaker renamed to {new_name}")
+        except Exception as e:
+            app.notify(f"rename failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
 
     def _play_from(self, offset_s: float) -> None:
         if not self._tmp_audio or not self._tmp_audio.exists():

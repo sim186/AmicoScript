@@ -101,6 +101,32 @@ class ApiClient:
     async def transcript(self, recording_id: str) -> dict:
         return await self._get(f"/api/recordings/{recording_id}/transcript")
 
+    async def edit_segment(self, recording_id: str, segment_index: int, text: str) -> dict:
+        return await self._patch_form(
+            f"/api/recordings/{recording_id}/transcript/segments/{segment_index}",
+            data={"text": text},
+        )
+
+    async def reset_segment(self, recording_id: str, segment_index: int) -> dict:
+        return await self._post_form(
+            f"/api/recordings/{recording_id}/transcript/segments/{segment_index}/reset"
+        )
+
+    async def rename_speaker(self, recording_id: str, old_name: str, new_name: str) -> dict:
+        return await self._post_form(
+            f"/api/recordings/{recording_id}/transcript/rename-speaker",
+            data={"old_name": old_name, "new_name": new_name},
+        )
+
+    async def assign_speaker(self, recording_id: str, segment_indices: list[int], speaker_name: str) -> dict:
+        return await self._post_form(
+            f"/api/recordings/{recording_id}/transcript/assign-speaker",
+            data={
+                "segment_indices": ",".join(str(i) for i in segment_indices),
+                "speaker_name": speaker_name,
+            },
+        )
+
     async def update_recording(self, recording_id: str, **fields: Any) -> dict:
         return await self._patch_form(f"/api/recordings/{recording_id}", data=fields)
 
@@ -113,6 +139,17 @@ class ApiClient:
         """Return (body, filename) for a transcript export."""
         r = await self.client.get(
             f"/api/recordings/{recording_id}/export/{fmt}"
+        )
+        r.raise_for_status()
+        filename = _filename_from_disposition(
+            r.headers.get("content-disposition")
+        )
+        return r.content, filename
+
+    async def bulk_export_md(self, ids: list[str]) -> tuple[bytes, str | None]:
+        """Return (body, filename) for a combined markdown export of several recordings."""
+        r = await self.client.post(
+            "/api/recordings/bulk-export/md", json={"ids": ids}
         )
         r.raise_for_status()
         filename = _filename_from_disposition(

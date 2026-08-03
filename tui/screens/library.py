@@ -91,6 +91,8 @@ class LibraryPanel(Widget):
         Binding("t", "tag_row", "Tag"),
         Binding("y", "copy_name", "Copy name"),
         Binding("enter", "open", "Open"),
+        Binding("v", "toggle_select", "Select", show=False),
+        Binding("x", "bulk_menu", "Bulk actions"),
     ]
 
     DEFAULT_CSS = """
@@ -114,6 +116,8 @@ class LibraryPanel(Widget):
         self.folder_id = folder_id
         self.tag_id = tag_id
         self.on_loaded = on_loaded
+        self._items: list[dict] = []
+        self.selected_ids: set[str] = set()
 
     def compose(self):
         with Vertical():
@@ -121,7 +125,7 @@ class LibraryPanel(Widget):
 
     def on_mount(self) -> None:
         self.table = self.query_one(DataTable)
-        self.table.add_columns("FILE", "DATE", "DUR", "MODEL", "TAGS", "STATUS")
+        self.table.add_columns("", "FILE", "DATE", "DUR", "MODEL", "TAGS", "STATUS")
         self.refresh_library()
 
     def on_show(self) -> None:
@@ -217,10 +221,99 @@ class LibraryPanel(Widget):
         if rec_id is None or self.table is None:
             return
         row = self.table.get_row_at(self.table.cursor_row)
-        name_cell = row[0]
+        name_cell = row[1]
         name = name_cell.plain if isinstance(name_cell, Text) else str(name_cell)
         if copy_to_clipboard(name):
             self.app.notify(f"copied: {name}")
+
+    # --- multi-select / bulk actions ---------------------------------
+
+    def action_toggle_select(self) -> None:
+        rec_id = self._selected_id()
+        if rec_id is None:
+            return
+        self.selected_ids.symmetric_difference_update({rec_id})
+        self._render_rows()
+        if self.table and self.table.row_count:
+            self.table.action_cursor_down()
+
+    def action_bulk_menu(self) -> None:
+        if not self.selected_ids:
+            self.app.notify("select rows first (Space), then x for bulk actions")
+            return
+        n = len(self.selected_ids)
+        from ..palette import Entry, Palette, _noop
+
+        entries = [
+            Entry(kind="bulk", key="bulk:delete", display=f"🗑  Delete {n} selected",
+                  subtitle="", search_text="delete", on_select=_noop),
+            Entry(kind="bulk", key="bulk:export", display=f"⇩  Export {n} selected (combined markdown)",
+                  subtitle="", search_text="export", on_select=_noop),
+            Entry(kind="bulk", key="bulk:move", display=f"▣  Move {n} selected to folder…",
+                  subtitle="", search_text="move", on_select=_noop),
+            Entry(kind="bulk", key="bulk:tag", display=f"#  Tag {n} selected…",
+                  subtitle="", search_text="tag", on_select=_noop),
+            Entry(kind="bulk", key="bulk:clear", display="Clear selection",
+                  subtitle="", search_text="clear", on_select=_noop),
+        ]
+
+        async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
+            action = entry.key.split(":", 1)[1]
+            if action == "delete":
+                self.run_worker(self._bulk_delete(), exclusive=False)
+            elif action == "export":
+                self.run_worker(self._bulk_export(), exclusive=False)
+            elif action == "move":
+                from ..palette import open_bulk_move_picker
+                open_bulk_move_picker(self.app, list(self.selected_ids), self._after_bulk)  # type: ignore[arg-type]
+            elif action == "tag":
+                from ..palette import open_bulk_tag_picker
+                open_bulk_tag_picker(self.app, list(self.selected_ids), self._after_bulk)  # type: ignore[arg-type]
+            elif action == "clear":
+                self.selected_ids.clear()
+                self._render_rows()
+
+        self.app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"bulk actions ({n} selected)"))
+
+    def _after_bulk(self) -> None:
+        self.selected_ids.clear()
+        self.refresh_library()
+
+    async def _bulk_delete(self) -> None:
+        from ..widgets.confirm import ConfirmDialog
+        ids = list(self.selected_ids)
+        confirmed = await self.app.push_screen_wait(
+            ConfirmDialog(f"Delete {len(ids)} recordings…? This cannot be undone.")
+        )
+        if not confirmed:
+            return
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        errors = 0
+        for rec_id in ids:
+            try:
+                await app.api.delete_recording(rec_id)
+            except Exception:
+                errors += 1
+        app.pop_busy()
+        ok = len(ids) - errors
+        app.notify(f"deleted {ok}/{len(ids)}" + (f" ({errors} failed)" if errors else ""))
+        self._after_bulk()
+
+    async def _bulk_export(self) -> None:
+        from pathlib import Path
+        app: "AmicoTUI" = self.app  # type: ignore[assignment]
+        app.push_busy()
+        try:
+            body, filename = await app.api.bulk_export_md(list(self.selected_ids))
+            out = Path.cwd() / (filename or "transcripts.md")
+            out.write_bytes(body)
+            app.notify(f"saved: {out}")
+            self._after_bulk()
+        except Exception as e:
+            app.notify(f"bulk export failed: {e}", severity="error")
+        finally:
+            app.pop_busy()
 
     def action_open(self) -> None:
         rec_id = self._selected_id()
@@ -250,19 +343,29 @@ class LibraryPanel(Widget):
             self.app.notify(f"library load failed: {e}", severity="error")
             return
         items = data.get("items", []) if isinstance(data, dict) else data
+        self._items = items
+        live_ids = {str(r["id"]) for r in items}
+        self.selected_ids &= live_ids
+        self._render_rows()
+
+    def _render_rows(self) -> None:
         assert self.table is not None
+        cursor_row = self.table.cursor_row
         self.table.clear()
         self.row_keys.clear()
         total_dur = 0.0
-        for r in items:
-            name = r.get("alias") or r.get("filename") or f"#{r.get('id')}"
+        for r in self._items:
+            rec_id = str(r["id"])
+            name = r.get("alias") or r.get("filename") or f"#{rec_id}"
             model = r.get("model_size") or r.get("model") or ""
             dur = r.get("duration") or 0
             try:
                 total_dur += float(dur or 0)
             except (TypeError, ValueError):
                 pass
+            checked = "◉" if rec_id in self.selected_ids else " "
             self.table.add_row(
+                Text(checked, style="#7c79f0" if rec_id in self.selected_ids else "#3a3d6a"),
                 Text(name, style="#dde1ff"),
                 Text(_fmt_date(r.get("created_at")), style="#6b6e9a"),
                 Text(_fmt_duration(dur), style="#6b6e9a"),
@@ -270,9 +373,11 @@ class LibraryPanel(Widget):
                 _fmt_tags(r.get("tags")),
                 _fmt_status(r.get("status", "")),
             )
-            self.row_keys.append(str(r["id"]))
+            self.row_keys.append(rec_id)
+        if self.table.row_count:
+            self.table.move_cursor(row=min(cursor_row, self.table.row_count - 1))
         if self.on_loaded:
-            self.on_loaded(len(items), total_dur)
+            self.on_loaded(len(self._items), total_dur, len(self.selected_ids))
 
     def _selected_id(self) -> str | None:
         if not self.table or self.table.row_count == 0:
@@ -286,7 +391,7 @@ class LibraryPanel(Widget):
         if not self.table or self.table.row_count == 0:
             return None
         row = self.table.get_row_at(self.table.cursor_row)
-        name_cell = row[0]
+        name_cell = row[1]
         return name_cell.plain if isinstance(name_cell, Text) else str(name_cell)
 
 
@@ -338,7 +443,7 @@ class LibraryScreen(Screen):
                 id="library_panel",
             )
         yield ContextHint(
-            "↑↓ navigate  ·  ↵ open  ·  R rename  ·  m move  ·  t tag  ·  d delete  ·  /search",
+            "↑↓ navigate  ·  ↵ open  ·  v select  ·  x bulk  ·  R rename  ·  d delete  ·  /search",
             id="ctxhint",
         )
         yield CommandBar(id="cmdbar")
@@ -347,13 +452,14 @@ class LibraryScreen(Screen):
     def on_mount(self) -> None:
         self.query_one(LibraryPanel).query_one(DataTable).focus()
 
-    def _on_loaded(self, count: int, total_dur: float) -> None:
+    def _on_loaded(self, count: int, total_dur: float, selected: int = 0) -> None:
         h = int(total_dur // 3600)
         m = int((total_dur % 3600) // 60)
+        sel = f"{selected} selected  ·  " if selected else ""
         try:
             self.query_one("#ctxhint", ContextHint).set_text(
-                f"{count} recordings  ·  {h}h {m:02d}m total  "
-                f"|  ↑↓ navigate  ·  ↵ open  ·  R rename  ·  m move  ·  t tag  ·  d delete"
+                f"{count} recordings  ·  {h}h {m:02d}m total  ·  {sel}"
+                f"↑↓ navigate  ·  ↵ open  ·  v select  ·  x bulk  ·  R rename  ·  d delete"
             )
         except Exception:
             pass

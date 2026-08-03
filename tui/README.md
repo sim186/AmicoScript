@@ -86,6 +86,8 @@ switches mode and filters a different source:
 | `R` | Rename recording (prompt) |
 | `m` | Move recording to a folder (picker) |
 | `t` | Add / remove a tag on the recording (picker) |
+| `v` | Toggle multi-select on this row |
+| `x` | Bulk actions on selected rows — delete, export (combined markdown), move to folder, tag |
 | `y` | Copy filename to clipboard |
 | `d` | Delete (prompt) |
 | `Escape` | Back |
@@ -100,6 +102,10 @@ switches mode and filters a different source:
 | `/` | Find in transcript — type text to jump to the first match, `Enter` cycles to the next; type a timestamp (`83`, `1:23`, `1:02:03`) to jump straight there |
 | `y` | Copy current segment |
 | `Y` | Copy full transcript |
+| `e` | Edit this segment's text (prompt) |
+| `Ctrl+R` | Reset this segment to its original (pre-edit) text |
+| `a` | Set the speaker on this segment only (prompt) |
+| `S` | Rename the selected segment's speaker everywhere in this transcript (prompt) |
 | `Space` | Play / pause |
 | `s` | Stop |
 | `Ctrl+A` | Run LLM analysis on this recording |
@@ -175,7 +181,7 @@ soundfile, and discarded on screen exit.
 
 ## Limitations (v1)
 
-- No segment editing (view + copy only)
-- No multi-select copy across segments (single segment via `y`, full
-  transcript via `Y`)
+- No multi-select across transcript segments (single segment via `y`, full
+  transcript via `Y`, and speaker-rename applies to a whole speaker at once
+  rather than an arbitrary selection of segments)
 - Folder/tag pickers not yet wired into library filtering UI
