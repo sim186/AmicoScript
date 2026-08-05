@@ -13,6 +13,7 @@ import { _saveTranscriptionDefaults, initAutoSummaryToggle, restoreSettings } fr
 import { initShortcuts } from './shortcuts.js';
 import { state } from './state.js';
 import { renderModelGrid, selectModel, switchTab } from './tabs.js';
+import { initTagSuggest } from './tag-suggest.js';
 import { applyFilters, initAudioPlayer } from './transcript.js';
 import { clearFile, clientLog, copyTuiCommand, initCloudPowerToggle, initConsole, initDiarizeToggle, initDropZone, initMeetingCaptureToggle, renderBatchList, resetJobLogs, startTranscription, updateTuiCommand } from './upload.js';
 import { fetchLatestRelease, fetchVersion } from './version.js';
@@ -32,6 +33,7 @@ export function init() {
   window.addEventListener('amicoscript:llm-config-changed', () => { saveLlmSettings(); });
   initAudioPlayer();
   initExportButtons();
+  initTagSuggest();
   initShortcuts();
 
   document.getElementById('language-select').addEventListener('change', e => {

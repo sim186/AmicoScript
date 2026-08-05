@@ -74,6 +74,8 @@ AmicoScript keeps everything local.
 - 🌍 Real-time translation to English
 - 🔍 Global search across transcripts
 - 🗂️ Organize with folders and tags
+- ✨ Smart tagging — the LLM reads a transcript and proposes tags, reusing the
+  ones your library already has. Nothing is applied until you click it
 - 🏷️ Automatic platform tags for URL imports (for example: youtube, tiktok, instagram)
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)

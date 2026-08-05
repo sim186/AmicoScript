@@ -306,6 +306,27 @@ def missing_api_key(provider_id: str, api_key: str) -> bool:
     return get_provider(provider_id).api_key == "required" and not api_key
 
 
+def refusal_reason(cfg: dict) -> str:
+    """Why the LLM cannot be used for *cfg*, or "" when it can.
+
+    Every feature that sends a transcript to a model has to make the same two
+    checks — is one configured, and has the user agreed to a hosted one seeing
+    their transcripts — and has to make them *before* starting work rather than
+    failing halfway through. Returning the sentence instead of raising keeps
+    this importable from core code that has no business knowing about HTTP.
+    """
+    if not cfg.get("llm_model_name"):
+        return "No LLM model configured. Set it in AI Analysis settings."
+
+    provider = get_provider(cfg.get("llm_provider", ""))
+    if provider.cloud and not cfg.get("llm_allow_cloud"):
+        return (
+            f"{provider.label} is a hosted service, so this would send the "
+            "transcript off this machine. Confirm that in AI Analysis settings first."
+        )
+    return ""
+
+
 # --- identification and model normalization ---------------------------------
 
 

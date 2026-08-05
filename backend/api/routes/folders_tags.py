@@ -254,6 +254,56 @@ def add_recording_tag(recording_id: str, tag_id: str, session: Session = Depends
     return {"ok": True}
 
 
+@router.post("/api/recordings/{recording_id}/suggest-tags")
+def suggest_recording_tags(recording_id: str, session: Session = Depends(get_session)) -> dict:
+    """Ask the LLM for tags for this recording. Applies nothing.
+
+    Runs synchronously rather than as a queued analysis job: the output is a
+    handful of words, and a suggestion the user has to come back for later is
+    one they will not use.
+    """
+    from core.analysis import LLMError
+    from core.tagging import suggest_tags
+    from llm_providers import refusal_reason
+    from settings import _get_llm_settings
+
+    if not session.get(Recording, recording_id):
+        raise HTTPException(404, "Recording not found")
+    transcript = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not transcript or not transcript.full_text.strip():
+        raise HTTPException(404, "Transcript not found — complete transcription first")
+
+    cfg = _get_llm_settings()
+    refusal = refusal_reason(cfg)
+    if refusal:
+        raise HTTPException(400, refusal)
+
+    all_tags = {t.id: t.name for t in session.exec(select(Tag)).all()}
+    applied_ids = {
+        lnk.tag_id
+        for lnk in session.exec(
+            select(RecordingTag).where(RecordingTag.recording_id == recording_id)
+        ).all()
+    }
+    applied = [all_tags[i] for i in applied_ids if i in all_tags]
+
+    try:
+        names = suggest_tags(transcript.full_text, list(all_tags.values()), applied, cfg)
+    except LLMError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:  # transport, timeout, bad status — all read the same
+        raise HTTPException(502, f"The model could not be reached: {exc}") from exc
+
+    by_name = {name.casefold(): tag_id for tag_id, name in all_tags.items()}
+    return {
+        "suggestions": [
+            {"name": name, "tag_id": by_name.get(name.casefold())} for name in names
+        ]
+    }
+
+
 @router.delete("/api/recordings/{recording_id}/tags/{tag_id}")
 def remove_recording_tag(recording_id: str, tag_id: str, session: Session = Depends(get_session)) -> dict:
     link = session.get(RecordingTag, (recording_id, tag_id))

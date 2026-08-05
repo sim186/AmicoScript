@@ -1,7 +1,7 @@
 """Analysis endpoints."""
 
 from core.analysis_jobs import create_analysis_job
-from llm_providers import get_provider
+from llm_providers import refusal_reason
 from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException
 from models import Analysis, Recording, Transcript
@@ -27,21 +27,13 @@ async def create_analysis(
     if not tr:
         raise HTTPException(404, "Transcript not found — complete transcription first")
 
-    cfg = _get_llm_settings()
-    if not cfg["llm_model_name"]:
-        raise HTTPException(400, "No LLM model configured. Set it in AI Analysis settings.")
-
     # Refuse before queueing rather than failing the job later: a hosted
     # provider receives the whole transcript, which is the one thing this app
     # promises not to do unless asked.
-    provider = get_provider(cfg.get("llm_provider", ""))
-    if provider.cloud and not cfg.get("llm_allow_cloud"):
-        raise HTTPException(
-            400,
-            f"{provider.label} is a hosted service, so running this analysis would "
-            "send the transcript off this machine. Confirm that in AI Analysis "
-            "settings first.",
-        )
+    cfg = _get_llm_settings()
+    refusal = refusal_reason(cfg)
+    if refusal:
+        raise HTTPException(400, refusal)
 
     analysis_type = analysis_type.strip()
     target_language = target_language.strip()

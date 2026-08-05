@@ -15,16 +15,14 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
   with citations that jump to the timestamp. Today search is keyword-only
   (SQLite FTS5) and the LLM only ever sees one transcript at a time.
 
-**Tier 2 — AI & UX**
-- AI-powered smart tagging — tags exist, but every one of them is created and
-  applied by hand; nothing suggests them from the transcript
-
-**Tier 3 — Polish & ecosystem**
+**Tier 2 — Polish & ecosystem**
 - Tauri desktop shell — phase 2 of [docs/desktop-shell.md](desktop-shell.md);
   the pywebview window is phase 1 and is already shipped
 
 ### Shipped
 
+- AI-powered smart tagging — the LLM proposes tags from the transcript, reusing
+  the library's existing ones; nothing is applied without a click
 - Enhanced Markdown export — YAML frontmatter with the recording's date,
   duration, speakers, tags, folder and model, plus optional `[[wikilinks]]` for
   speakers

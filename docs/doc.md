@@ -462,6 +462,37 @@ transcription that just succeeded.
 
 ---
 
+### Smart tagging
+
+**POST /api/recordings/{id}/suggest-tags**
+
+Reads the transcript with the configured LLM and returns candidate tags:
+
+```json
+{"suggestions": [{"name": "quarterly review", "tag_id": "…"}, {"name": "hiring", "tag_id": null}]}
+```
+
+`tag_id` is the existing tag when the library already has one by that name —
+attach it with the usual `POST /api/recordings/{id}/tags/{tag_id}` — and `null`
+when it would have to be created first.
+
+**Nothing is applied.** The endpoint only proposes; the tag routes attach what
+the user picks. It also never suggests a tag the recording already carries.
+
+The prompt includes the tags the library already uses, so a second standup is
+tagged `standup` rather than `stand-up` or `Daily Standup`, and a suggestion
+that matches an existing tag apart from case comes back spelled the library's
+way. At most six are returned, each at most three words.
+
+Unlike an analysis this runs synchronously — the output is a handful of words.
+It answers 400 when no model is configured or a hosted provider has not been
+allowed to see transcripts, and 502 when the model cannot be reached. A
+transcript longer than the context budget is sampled across its whole length
+rather than truncated to the beginning, so the topics in the second half still
+reach the model.
+
+---
+
 ## Re-running a transcription
 
 **POST /api/recordings/{id}/retry**

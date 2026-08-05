@@ -6,6 +6,7 @@
 import { loadPastAnalyses } from './analysis.js';
 import { loadRecording } from './library.js';
 import { state } from './state.js';
+import { refreshTagSuggestUI } from './tag-suggest.js';
 
 export function fmtDur(s) {
   const t = Math.floor(s);
@@ -30,7 +31,34 @@ export function renderResults() {
 </div>
   `).join('');
 
-  // Folder & tags for the current recording
+  renderRecordingMeta();
+
+  // Tag suggestions — offered per recording, so any chips from the previous
+  // one are cleared here rather than left to be applied to this transcript.
+  refreshTagSuggestUI();
+
+  // Speaker legend
+  renderSpeakerLegend(r.speakers);
+
+  // Audio
+  createWaveSurfer(state.audioUrl);
+
+  // Segments
+  document.getElementById('search-input').value = '';
+  renderSegments(r.segments, '');
+
+  // Past AI analyses
+  const recId = state.activeRecordingId || state.recordingId;
+  if (recId) loadPastAnalyses(recId);
+}
+
+/** The folder and tag pills for the open recording.
+ *
+ * Separate from renderResults so that changing a tag can redraw this strip on
+ * its own — re-running the whole render would rebuild the waveform and lose
+ * the playback position.
+ */
+export function renderRecordingMeta() {
   const recMeta = state.currentRecording;
   const recMetaEl = document.getElementById('rec-folder-tag-meta');
   if (recMetaEl) {
@@ -61,20 +89,6 @@ export function renderResults() {
       recMetaEl.classList.add('hidden');
     }
   }
-
-  // Speaker legend
-  renderSpeakerLegend(r.speakers);
-
-  // Audio
-  createWaveSurfer(state.audioUrl);
-
-  // Segments
-  document.getElementById('search-input').value = '';
-  renderSegments(r.segments, '');
-
-  // Past AI analyses
-  const recId = state.activeRecordingId || state.recordingId;
-  if (recId) loadPastAnalyses(recId);
 }
 
 function renderSpeakerLegend(speakers) {

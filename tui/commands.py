@@ -250,6 +250,27 @@ async def _tag_toggle(app, args):
     _open_tag_toggle_picker(app, args[0])
 
 
+@command("tag-suggest", "suggest tags for recording <id> with the LLM")
+async def _tag_suggest(app, args):
+    if not args:
+        app.notify("usage: /tag-suggest <id>")
+        return
+    rec_id = args[0]
+    app.notify("reading the transcript…")
+    try:
+        data = await app.api.suggest_tags(rec_id)
+    except Exception as exc:
+        app.notify(explain(exc, "could not suggest tags"), severity="error")
+        return
+
+    names = [s["name"] for s in data.get("suggestions", [])]
+    if not names:
+        app.notify("no new tags to suggest")
+        return
+    # Suggestions only; /tag-toggle applies the ones that are wanted.
+    app.notify(f"suggested: {', '.join(names)} — apply with /tag-toggle {rec_id}")
+
+
 @command("folder", "pick a folder (or 'new <name>' / 'rename <id> <name>' / 'delete <id>')")
 async def _folder(app, args):
     if args and args[0] == "new":

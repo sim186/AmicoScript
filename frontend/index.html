@@ -1231,6 +1231,18 @@
             <div id="meta-items" class="space-y-1.5"></div>
             <!-- Folder & tags for the open recording -->
             <div id="rec-folder-tag-meta" class="hidden pt-1"></div>
+            <!-- LLM tag suggestions for the open recording -->
+            <div id="tag-suggest-section" class="hidden pt-1">
+              <button id="tag-suggest-btn" type="button"
+                      class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand transition focus:outline-none focus:ring-1 focus:ring-brand rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>
+                </svg>
+                <span id="tag-suggest-label">Suggest tags</span>
+              </button>
+              <div id="tag-suggest-results" class="flex flex-wrap gap-1 mt-1.5"></div>
+              <p id="tag-suggest-error" class="hidden mt-1 text-xs text-red-500"></p>
+            </div>
           </div>
 
           <!-- Speaker legend -->

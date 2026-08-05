@@ -228,6 +228,10 @@ class ApiClient:
             f"/api/recordings/{recording_id}/tags/{tag_id}"
         )
 
+    async def suggest_tags(self, recording_id: str) -> dict:
+        """Ask the LLM for tags. Suggests only — nothing is applied."""
+        return await self._post(f"/api/recordings/{recording_id}/suggest-tags")
+
     async def search(self, q: str, limit: int = 50, offset: int = 0) -> list:
         return await self._get("/api/search", q=q, limit=limit, offset=offset)
 

@@ -6,6 +6,31 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🏷️ Tags the app can suggest
+
+- **"Suggest tags" reads the transcript and proposes topics.** Tagging was
+  entirely manual: every tag had to be thought of, typed and applied by hand,
+  which is why most libraries have three tags and four hundred recordings.
+- **Nothing is applied on its own.** The model proposes, you click. A chip
+  becomes a tag only when you accept it, and a tag already on the recording is
+  never suggested again. An LLM that quietly relabels a library is worse than
+  no tagging at all.
+- **It is shown the tags you already use**, so a second standup is tagged
+  `standup` and not `stand-up`, `daily-standup` or `Standup`. A suggestion that
+  matches an existing tag apart from case comes back spelled your way and
+  reuses that tag rather than creating a twin beside it.
+- **A long recording is sampled across its whole length**, not truncated to the
+  start — otherwise a two-hour meeting gets tagged by its opening small talk.
+- **The reply is read forgivingly.** Small local models answer "reply with a
+  JSON array" with fenced JSON, an array inside a sentence, a bulleted list, or
+  `{"tags": [...]}`; all of those are understood. Prose that is not a list at
+  all — an apology, an offer to help — yields no suggestions rather than a
+  chip named "I'm sorry".
+- Available in the terminal UI as `/tag-suggest <id>`, and over the API as
+  `POST /api/recordings/{id}/suggest-tags`. Like every other feature that would
+  send a transcript to a hosted provider, it refuses until you have said that
+  is allowed.
+
 ### 📝 Markdown that a vault understands
 
 - **The Markdown export now opens with YAML frontmatter** — title, date,
