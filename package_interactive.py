@@ -96,6 +96,7 @@ def main():
     hidden = [
         "main",
         "ffmpeg_helper",
+        "cuda_runtime",
         "sse_starlette.sse",
     ]
     for h in hidden:
@@ -124,6 +125,13 @@ def main():
             args.append("--collect-data=pyannote.audio")
         if _importlib_util.find_spec('huggingface_hub') is not None:
             args.append('--hidden-import=huggingface_hub')
+        # CTranslate2's CUDA libraries arrive as `nvidia-*` packages that
+        # nothing imports, so PyInstaller never sees them. Collected here when
+        # they are present — otherwise a GPU-capable build transcribes on the
+        # CPU. See backend/cuda_runtime.py for the runtime half.
+        for pkg in ('nvidia', 'ctranslate2'):
+            if _importlib_util.find_spec(pkg) is not None:
+                args.append(f'--collect-binaries={pkg}')
     except Exception:
         pass
 

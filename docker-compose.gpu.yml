@@ -1,0 +1,19 @@
+# GPU overrides — builds the CUDA image and hands the container a GPU.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+#
+# Requires an NVIDIA GPU on the host plus the NVIDIA Container Toolkit. Without
+# the toolkit the container starts but sees no device, and AmicoScript falls
+# back to the CPU — check the job log, which now records the device every run.
+services:
+  audioscript:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -114,6 +114,18 @@ docker compose up --build
 
 Then open: http://localhost:8002
 
+The default image is CPU-only. On a machine with an NVIDIA GPU and the
+[Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+installed, build the CUDA image instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+Either way the app picks its device itself, and every job logs which one it
+got — so if the GPU is not being used, the job log says so rather than just
+running slowly.
+
 #### Production deployment with HTTPS (Traefik)
 
 If you're running behind a [Traefik](https://traefik.io/) reverse proxy, use the production override:

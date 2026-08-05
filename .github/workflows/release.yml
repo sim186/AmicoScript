@@ -50,6 +50,14 @@ jobs:
           if [ "${{ matrix.variant }}" = "gpu" ]; then
             pip install -r backend/requirements-gpu.txt
           else
+            # On Linux the default PyPI torch wheel is the CUDA build, so a
+            # plain `pip install torch` put several GB of nvidia libraries into
+            # the *CPU* artifact — and made it nearly identical to the GPU one.
+            # The Dockerfile already pins the CPU index for this reason.
+            # Windows and macOS default to CPU-only wheels, so they are left be.
+            if [ "${{ runner.os }}" = "Linux" ]; then
+              pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+            fi
             pip install -r backend/requirements.txt
           fi
           # Pulls pywebview (native window shell) on Windows/macOS only — the

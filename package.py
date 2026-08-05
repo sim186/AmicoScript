@@ -43,6 +43,7 @@ def build(gpu: bool = False):
         _add_data_arg('CHANGELOG.md', '.'),      # Include changelog
         '--hidden-import=main',            # backend/main.py imported dynamically in run.py
         '--hidden-import=ffmpeg_helper',   # backend/ffmpeg_helper.py imported dynamically in run.py
+        '--hidden-import=cuda_runtime',    # backend/cuda_runtime.py — preloads bundled CUDA libs
         '--hidden-import=sse_starlette.sse',
     ]
 
@@ -65,6 +66,20 @@ def build(gpu: bool = False):
         if _importlib_util.find_spec('faster_whisper') is not None:
             args.append('--hidden-import=faster_whisper')
             args.append('--collect-data=faster_whisper')
+        if gpu:
+            # faster-whisper does not transcribe with torch — it uses
+            # CTranslate2, which loads cuBLAS and cuDNN at runtime. Installing
+            # the CUDA torch wheels brings those in as `nvidia-*` pip packages,
+            # but PyInstaller does not follow a dependency it never sees
+            # imported, so without this the GPU bundle shipped CUDA torch (which
+            # diarization uses) while Whisper silently fell back to the CPU.
+            for pkg in ('nvidia', 'ctranslate2'):
+                if _importlib_util.find_spec(pkg) is not None:
+                    args.append(f'--collect-binaries={pkg}')
+                else:
+                    print(f'WARNING: --gpu build but {pkg} is not installed; '
+                          'Whisper will fall back to the CPU at runtime. '
+                          'Install backend/requirements-gpu.txt first.')
         if _importlib_util.find_spec('pyannote.audio') is not None:
             args.append('--hidden-import=pyannote.audio')
             args.append('--collect-data=pyannote.audio')

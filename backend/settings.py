@@ -183,12 +183,17 @@ def _set_auto_summarize_meetings(enabled: bool) -> None:
 
 
 def _get_whisper_settings() -> dict:
-    """Return Whisper config: model, device, compute_type."""
+    """Return Whisper config: model, device, compute_type.
+
+    ``whisper_compute`` defaults to "auto" rather than a fixed precision: the
+    right choice depends on the device, and float16 — the previous default —
+    is the wrong one on a CPU. See core.transcription.resolve_compute_type.
+    """
     settings = _load_settings()
     return {
         "whisper_model": settings.get("whisper_model", "small"),
         "whisper_device": settings.get("whisper_device", "auto"),
-        "whisper_compute": settings.get("whisper_compute", "float16"),
+        "whisper_compute": settings.get("whisper_compute", "auto"),
     }
 
 

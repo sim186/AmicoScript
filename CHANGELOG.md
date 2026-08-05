@@ -6,6 +6,39 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🖥️ GPU and CPU builds that actually differ
+
+- **The saved device and precision settings were write-only.** The settings
+  page offered `whisper_device` and `whisper_compute`, the terminal UI could
+  set them, `/api/settings` returned them — and no transcription ever read
+  them, because the route's own form defaults shadowed the stored values.
+  Choosing "cuda" changed nothing. A job now takes the request's value, then
+  the saved one, then `auto`.
+- **Saving only the device silently did nothing.** The save was gated on
+  `whisper_model` being present, so a request that set just the device or the
+  precision was dropped on the floor.
+- **The precision default is `auto`, not `float16`.** float16 is the right
+  choice on a GPU and the wrong one on a CPU, where CTranslate2 has to emulate
+  it; `auto` resolves against the device instead of guessing once.
+- **Transcription says which device it got**, like diarization now does:
+  `Transcribing on cuda:0 (float16)` in the job log, and a line in the progress
+  message when a GPU was wanted and the CPU is what turned up.
+- **The GPU release build shipped CUDA torch but no CUDA Whisper.**
+  faster-whisper does not transcribe with torch — it uses CTranslate2, which
+  loads cuBLAS and cuDNN at runtime. Those arrive as `nvidia-*` packages that
+  nothing imports, so PyInstaller never bundled them: diarization used the GPU
+  while Whisper quietly fell back to the CPU. They are collected now, and
+  loaded from inside the bundle before CTranslate2 starts.
+- **The Linux "CPU" release was secretly a CUDA build.** On Linux the default
+  PyPI torch wheel is the CUDA one, so the CPU artifact carried gigabytes of
+  nvidia libraries it could not use and was nearly identical to the GPU
+  artifact. The release workflow now pins the CPU index there, as the
+  Dockerfile already did.
+- **Docker can use a GPU.** `Dockerfile.gpu` plus
+  `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build`.
+  The base image is a cuDNN one, not a bare CUDA runtime, because a missing
+  cuDNN fails at the first transcription rather than at build time.
+
 ### ⚡ Diarization was running on the CPU
 
 - **Speaker diarization now uses the GPU.** pyannote's `from_pretrained`

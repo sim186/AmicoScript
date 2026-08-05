@@ -40,6 +40,16 @@ else:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+# Bundled CUDA libraries have to be loaded before anything imports CTranslate2,
+# which is why this sits above the backend imports rather than inside them.
+# No-op outside a frozen GPU build.
+try:
+    import cuda_runtime
+
+    cuda_runtime.preload()
+except Exception as e:
+    print(f"CUDA preload skipped: {e}")
+
 # Download FFmpeg on start if missing
 try:
     import config

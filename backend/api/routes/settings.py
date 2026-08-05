@@ -134,10 +134,12 @@ async def save_settings(
             language=language,
             diarize=_to_bool(diarize) if diarize is not None else None,
         )
-    if whisper_model:
+    # Any one of the three is enough to save. Gating on whisper_model meant a
+    # request that set only the device silently did nothing.
+    if whisper_model or whisper_device or whisper_compute:
         ws = _get_whisper_settings()
         _save_whisper_settings(
-            whisper_model,
+            whisper_model or ws["whisper_model"],
             whisper_device or ws["whisper_device"],
             whisper_compute or ws["whisper_compute"],
         )

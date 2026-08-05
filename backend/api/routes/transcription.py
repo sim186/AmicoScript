@@ -23,7 +23,7 @@ from exports import render_export
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from models import Recording, RecordingTag, Tag, Transcript
-from settings import _get_saved_hf_token
+from settings import _get_saved_hf_token, _get_whisper_settings
 from sqlmodel import Session, select
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
@@ -114,6 +114,12 @@ def _build_transcription_options(
         except (ValueError, TypeError):
             return default
 
+    # The saved Whisper settings are the fallback when a client does not name a
+    # device or precision — which is every client today. Without this the
+    # stored values were write-only: the settings page offered them, the TUI
+    # could set them, and no job ever read them.
+    saved = _get_whisper_settings()
+
     return TranscriptionConfig(
         model=model,
         language=language,
@@ -122,8 +128,8 @@ def _build_transcription_options(
         num_speakers=_parse_positive_int(num_speakers, None),
         min_speakers=_parse_positive_int(min_speakers, None),
         max_speakers=_parse_positive_int(max_speakers, None),
-        compute_type=(compute_type or "int8"),
-        device=(device or "auto"),
+        compute_type=(compute_type or saved["whisper_compute"] or "auto"),
+        device=(device or saved["whisper_device"] or "auto"),
         device_index=_parse_positive_int(device_index, 0) or 0,
         vad_filter=_to_bool(vad_filter, default=True),
         word_timestamps=_to_bool(word_timestamps),
@@ -238,8 +244,10 @@ async def transcribe(
     num_speakers: str = Form(""),
     min_speakers: str = Form(""),
     max_speakers: str = Form(""),
-    compute_type: str = Form("int8"),
-    device: str = Form("auto"),
+    # Empty, not "int8"/"auto": an explicit default here would shadow the
+    # saved Whisper settings, which is how they became write-only.
+    compute_type: str = Form(""),
+    device: str = Form(""),
     device_index: str = Form("0"),
     vad_filter: str = Form("true"),
     word_timestamps: str = Form("false"),
@@ -313,8 +321,10 @@ async def transcribe_from_url(
     num_speakers: str = Form(""),
     min_speakers: str = Form(""),
     max_speakers: str = Form(""),
-    compute_type: str = Form("int8"),
-    device: str = Form("auto"),
+    # Empty, not "int8"/"auto": an explicit default here would shadow the
+    # saved Whisper settings, which is how they became write-only.
+    compute_type: str = Form(""),
+    device: str = Form(""),
     device_index: str = Form("0"),
     vad_filter: str = Form("true"),
     word_timestamps: str = Form("false"),

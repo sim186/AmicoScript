@@ -238,11 +238,57 @@ device changes, so only the first diarized job pays the model load.
 
 ## GPU Support
 
-To enable GPU acceleration:
+### Which device a job uses
 
-1. Use a CUDA-enabled PyTorch base image
-2. Update the Dockerfile accordingly
-3. Enable GPU support in docker-compose
+`device` and `compute_type` come from the request, falling back to the saved
+`whisper_device` / `whisper_compute` settings, falling back to `auto`. `auto`
+picks a GPU when torch reports one and the CPU otherwise; an explicit `cuda` on
+a machine without one falls back rather than failing the job.
+
+`compute_type` defaults to `auto` too, which resolves to `float16` on a GPU and
+`int8` on a CPU — the two are each wrong on the other's hardware. Pin a specific
+precision (`int8`, `float16`, `int8_float16`, `float32`) to override it.
+
+Both phases record what they got, in the job log:
+
+```
+Transcribing on cuda:0 (float16)
+Diarization running on cuda:0
+```
+
+If a GPU was expected and the log says `cpu`, that is the answer — the app also
+says so in the progress message rather than just running slowly.
+
+### Releases
+
+Release builds come in CPU and GPU variants: CPU for Linux, Windows and macOS,
+GPU for Linux and Windows. There is no macOS GPU build because there is no CUDA
+on macOS.
+
+The GPU bundle needs more than CUDA torch. faster-whisper transcribes through
+CTranslate2, which loads cuBLAS and cuDNN by soname at runtime; those arrive as
+`nvidia-*` packages that nothing imports, so PyInstaller has to be told to
+collect them (`--collect-binaries`) and they have to be loaded from inside the
+bundle before CTranslate2 starts — see `backend/cuda_runtime.py`. Without both
+halves the GPU build runs torch (so diarization) on the GPU while Whisper
+quietly falls back to the CPU.
+
+### Docker
+
+The default image is CPU-only, and pins the CPU torch index deliberately: on
+Linux the default PyPI wheel is the CUDA build, which adds gigabytes of nvidia
+libraries to an image that cannot use them.
+
+For a GPU, build the CUDA image — it needs an NVIDIA GPU on the host plus the
+NVIDIA Container Toolkit:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+`Dockerfile.gpu` uses a `cudnn`-flavoured base image rather than a bare
+`cuda-runtime` one, because CTranslate2 needs cuDNN as well as cuBLAS and a
+missing cuDNN fails at the first transcription rather than at build time.
 
 ---
 

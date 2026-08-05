@@ -12,7 +12,7 @@ import ffmpeg_helper
 import state
 from core.audio_utils import _convert_audio_for_transcription
 from core.colab_proxy import _handle_colab_job
-from core.diarization import _run_diarization_phase
+from core.diarization import _run_diarization_phase, resolve_device
 from core.job_helpers import (
     _append_job_log,
     _cleanup_job_temp_files,
@@ -52,6 +52,20 @@ def _is_missing_vad_asset_error(exc: Exception) -> bool:
     return "silero_vad_v6.onnx" in message or (
         "onnxruntimeerror" in message and "file doesn't exist" in message
     )
+
+
+def resolve_compute_type(requested: str, device: str) -> str:
+    """Pick a precision when the user has not pinned one.
+
+    float16 is the right choice on a GPU and the wrong one on a CPU, where
+    CTranslate2 has to emulate it; int8 is the reverse. "auto" — the default —
+    therefore has to be resolved against the device rather than baked into a
+    setting, which is what the old fixed default got wrong.
+    """
+    wanted = (requested or "auto").strip().lower()
+    if wanted and wanted != "auto":
+        return wanted
+    return "int8" if resolve_device(device) == "cpu" else "float16"
 
 
 def _get_whisper_model(
@@ -124,12 +138,27 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
         TRANSCRIPTION_LOADING_MODEL.format(model=opts["model"]),
     )
 
+    requested_device = opts.get("device", "auto")
+    compute_type = resolve_compute_type(opts.get("compute_type", "auto"), requested_device)
     model, model_device = _get_whisper_model(
         opts["model"],
-        compute_type=opts.get("compute_type", "int8"),
-        device=opts.get("device", "auto"),
+        compute_type=compute_type,
+        device=requested_device,
         device_index=opts.get("device_index", 0),
     )
+
+    # Which device this actually landed on was previously invisible: a GPU
+    # build quietly falling back to the CPU looked exactly like a slow machine.
+    _append_job_log(
+        job_id, "INFO", f"Transcribing on {model_device} ({compute_type})"
+    )
+    if model_device == "cpu" and requested_device not in {"cpu"}:
+        _push_event(
+            job_id,
+            "loading_model",
+            max(current_progress, 0.03),
+            "No usable GPU found — transcribing on the CPU, which is much slower.",
+        )
 
     _push_event(
         job_id,
