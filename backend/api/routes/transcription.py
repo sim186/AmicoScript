@@ -16,9 +16,10 @@ import aiofiles
 import state
 from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
+from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
 from db import get_session, new_session
-from exports import _format_json, _format_md, _format_srt, _format_txt
+from exports import render_export
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from models import Recording, RecordingTag, Tag, Transcript
@@ -31,6 +32,10 @@ from storage import ingest_file
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".mp4", ".mov", ".mkv", ".opus"}
+
+# Where a recording came from. 'meeting' marks an auto-captured call, which is
+# what the auto-summary feature keys off.
+_VALID_SOURCES = {"upload", "url", "meeting"}
 
 PLATFORM_TAG_COLORS = {
     "youtube": "#ff0000",
@@ -47,6 +52,25 @@ def _get_job(job_id: str) -> dict:
     job = state.jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _get_live_job(job_id: str) -> dict:
+    """Like _get_job, but rejects tombstones left by the hourly cleanup.
+
+    An expired job answers 410 with the recording id, so the client knows the
+    transcript is still available under /api/recordings/{id} rather than being
+    told the job never existed.
+    """
+    job = _get_job(job_id)
+    if job.get("expired"):
+        raise HTTPException(
+            status_code=410,
+            detail={
+                "message": "This job has expired; its transcript lives in the library.",
+                "recording_id": job.get("recording_id"),
+            },
+        )
     return job
 
 
@@ -115,6 +139,7 @@ def _create_recording_row(
     file_path: str,
     folder_id: str,
     opts_dict: dict[str, Any],
+    source: str = "upload",
 ) -> None:
     try:
         with new_session() as session:
@@ -124,6 +149,7 @@ def _create_recording_row(
                 file_path=file_path,
                 folder_id=folder_id or None,
                 status="queued",
+                source=source if source in _VALID_SOURCES else "upload",
                 transcription_options=json.dumps(opts_dict),
             )
             session.add(recording)
@@ -167,6 +193,9 @@ def _create_job(
     }
     _append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
     state.JOB_QUEUE.put_nowait(job_id)
+    # URL imports start fetching immediately instead of waiting for the model
+    # stage to reach them; see core/transcription.start_download_prefetch.
+    start_download_prefetch(job_id)
 
 
 def _ensure_recording_platform_tag(recording_id: str, platform: str) -> None:
@@ -218,6 +247,7 @@ async def transcribe(
     best_of: str = Form("5"),
     force_normalize_audio: str = Form("false"),
     folder_id: str = Form(""),
+    source: str = Form("upload"),
 ) -> dict:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -257,6 +287,7 @@ async def transcribe(
         file_path=str(permanent_path),
         folder_id=folder_id,
         opts_dict=opts_dict,
+        source=source,
     )
 
     _create_job(
@@ -340,6 +371,7 @@ async def transcribe_from_url(
             file_path="",
             folder_id=folder_id,
             opts_dict=opts_dict,
+            source="url",
         )
         _ensure_recording_platform_tag(recording_id, candidate.platform)
 
@@ -374,7 +406,7 @@ async def transcribe_from_url(
 
 @router.get("/api/jobs/{job_id}/stream")
 async def stream_job(job_id: str):
-    _get_job(job_id)
+    _get_live_job(job_id)
 
     async def event_generator():
         q = state.jobs[job_id]["sse_queue"]
@@ -424,7 +456,7 @@ def list_jobs() -> dict:
 
 @router.post("/api/jobs/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict:
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     job["cancel_flag"].set()
     # Terminalize immediately so the UI (queue widget, transcript view)
     # reflects the cancelled state without waiting for the worker to reach
@@ -439,7 +471,7 @@ def cancel_job(job_id: str) -> dict:
 @router.get("/api/audio/{job_id}")
 def get_audio(job_id: str):
     from config import STORAGE_ROOT
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     fp = job.get("file_path", "")
     if not fp or not os.path.exists(fp):
         raise HTTPException(404, "Audio file not found (may have expired)")
@@ -455,7 +487,7 @@ def get_audio(job_id: str):
 
 @router.get("/api/jobs/{job_id}/result")
 def get_result(job_id: str) -> dict:
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, f"Job not complete (status: {job['status']})")
     return job["result"]
@@ -463,7 +495,7 @@ def get_result(job_id: str) -> dict:
 
 @router.get("/api/jobs/{job_id}/logs")
 def get_job_logs(job_id: str, limit: int = 300) -> dict:
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     safe_limit = max(1, min(limit, 1000))
     logs = job.get("logs", [])
     if not isinstance(logs, list):
@@ -479,7 +511,7 @@ def get_job_logs(job_id: str, limit: int = 300) -> dict:
 @router.post("/api/jobs/{job_id}/rename-speaker")
 async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str = Form(...)) -> dict:
     from core.job_helpers import _sync_job_to_db
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
     result = job["result"]
@@ -501,34 +533,22 @@ async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str =
 
 @router.get("/api/jobs/{job_id}/export/{fmt}")
 def export_job(job_id: str, fmt: str):
-    job = _get_job(job_id)
+    job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
     result = job["result"]
     if not result:
         raise HTTPException(404, "Result not available")
     filename = Path(job["original_filename"]).stem
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    formatters = {
-        "json": (_format_json, "application/json", "json"),
-        "srt": (_format_srt, "text/plain", "srt"),
-        "txt": (_format_txt, "text/plain", "txt"),
-    }
-    if fmt == "md":
-        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        content = _format_md(result, title=filename, date=date_str)
-        return StreamingResponse(
-            iter([content.encode("utf-8")]),
-            media_type="text/markdown",
-            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
-        )
-    if fmt not in formatters:
-        raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
+    try:
+        content, media_type, ext = render_export(fmt, result, title=filename, date=date_str)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    fn, media_type, ext = formatters[fmt]
-    content = fn(result)
     return StreamingResponse(
-        iter([content.encode("utf-8")]),
+        iter([content]),
         media_type=media_type,
         headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )

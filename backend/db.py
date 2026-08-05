@@ -16,7 +16,6 @@ Usage in background threads (worker):
 """
 from contextlib import contextmanager
 
-from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
 from config import DB_PATH
@@ -29,68 +28,23 @@ engine = create_engine(
 )
 
 
-def init_db() -> None:
-    """Create all tables and set up the FTS5 virtual table + sync triggers."""
+def init_db(target_engine=None) -> int:
+    """Create tables and apply pending migrations. Returns the schema version.
+
+    Schema changes live in backend/migrations.py as numbered steps recorded in
+    the `schema_version` table — never as ad-hoc ALTERs here. A failing
+    migration raises MigrationError instead of being swallowed, because
+    continuing against a half-known schema produces far more confusing errors
+    later on.
+    """
+    from migrations import run_migrations
+
     # Import models so SQLModel.metadata is populated before create_all.
     import models  # noqa: F401
 
-    SQLModel.metadata.create_all(engine)
-
-    with engine.begin() as conn:
-        # Ensure `folder` table has a color_code column for older DBs.
-        try:
-            rows = conn.execute(text("PRAGMA table_info('folder')")).fetchall()
-            col_names = [r[1] for r in rows]
-            if "color_code" not in col_names:
-                conn.execute(text("ALTER TABLE folder ADD COLUMN color_code TEXT DEFAULT '#6c63ff'"))
-        except Exception:
-            pass
-
-        # Ensure `recording` table has an alias column for older DBs.
-        try:
-            rows = conn.execute(text("PRAGMA table_info('recording')")).fetchall()
-            col_names = [r[1] for r in rows]
-            if "alias" not in col_names:
-                conn.execute(text("ALTER TABLE recording ADD COLUMN alias TEXT"))
-        except Exception:
-            pass
-        # FTS5 content table — does NOT duplicate full_text; reads from
-        # the transcript table via the triggers defined below.
-        conn.execute(text("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS transcript_fts
-            USING fts5(full_text, content='transcript', content_rowid='rowid')
-        """))
-
-        # Triggers keep the FTS index in sync with the transcript table.
-        conn.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS transcript_ai
-            AFTER INSERT ON transcript BEGIN
-                INSERT INTO transcript_fts(rowid, full_text)
-                VALUES (new.rowid, new.full_text);
-            END
-        """))
-        conn.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS transcript_ad
-            AFTER DELETE ON transcript BEGIN
-                INSERT INTO transcript_fts(transcript_fts, rowid, full_text)
-                VALUES ('delete', old.rowid, old.full_text);
-            END
-        """))
-        conn.execute(text("""
-            CREATE TRIGGER IF NOT EXISTS transcript_au
-            AFTER UPDATE ON transcript BEGIN
-                INSERT INTO transcript_fts(transcript_fts, rowid, full_text)
-                VALUES ('delete', old.rowid, old.full_text);
-                INSERT INTO transcript_fts(rowid, full_text)
-                VALUES (new.rowid, new.full_text);
-            END
-        """))
-
-        # Backfill indexes for older DBs that predate indexed SQLModel fields.
-        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_recording_status ON recording(status)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_recording_created_at ON recording(created_at)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_transcript_recording_id ON transcript(recording_id)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_transcript_created_at ON transcript(created_at)"))
+    eng = target_engine if target_engine is not None else engine
+    SQLModel.metadata.create_all(eng)
+    return run_migrations(eng)
 
 
 def get_session():

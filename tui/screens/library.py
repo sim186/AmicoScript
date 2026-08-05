@@ -26,16 +26,40 @@ STATUS_DISPLAY = {
     "done":        ("●", "done",        "#22c55e"),
     "completed":   ("●", "done",        "#22c55e"),
     "error":       ("✗", "error",       "#ef4444"),
+    # A restart stopped this one — the audio is still there, so it can be
+    # transcribed again rather than being a dead end.
+    "interrupted": ("⚠", "interrupt",   "#f97316"),
+    "cancelled":   ("⊘", "cancelled",   "#6b6e9a"),
+    "downloading": ("⇣", "download",    "#f59e0b"),
+    "loading_model": ("⠿", "loading",   "#f59e0b"),
+    "translating": ("⠧", "translate",   "#f59e0b"),
 }
+
+# Where a recording came from. An auto-captured call and a dragged-in file
+# otherwise look identical in the list.
+SOURCE_MARK = {
+    "meeting": ("◉", "#fb7185"),
+    "url": ("↗", "#38bdf8"),
+}
+
+# Statuses whose work is over, so re-running them is meaningful.
+RETRYABLE = {"error", "interrupted", "cancelled", "done"}
 
 
 def _fmt_duration(seconds):
+    """Human duration. Anything under an hour keeps its seconds.
+
+    Formatting everything as hours+minutes rendered a 22-second clip as
+    "0h 00m", which reads as empty rather than short.
+    """
     if not seconds:
         return "--"
     s = int(seconds)
     h, rem = divmod(s, 3600)
-    m, _ = divmod(rem, 60)
-    return f"{h:d}h {m:02d}m"
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h:d}h {m:02d}m"
+    return f"{m:d}:{sec:02d}"
 
 
 def _fmt_date(value):
@@ -57,6 +81,17 @@ def _fmt_date(value):
 def _fmt_status(status: str) -> Text:
     icon, label, color = STATUS_DISPLAY.get(status, ("·", status or "?", "#6b6e9a"))
     return Text(f"{icon} {label}", style=color)
+
+
+def _fmt_name(record: dict) -> Text:
+    """File name, prefixed with a mark when it was captured or imported."""
+    name = record.get("alias") or record.get("filename") or f"#{record.get('id', '')}"
+    mark, colour = SOURCE_MARK.get(record.get("source", ""), ("", ""))
+    text = Text()
+    if mark:
+        text.append(f"{mark} ", style=colour)
+    text.append(name, style="#dde1ff")
+    return text
 
 
 def _fmt_tags(tags) -> Text:
@@ -86,6 +121,7 @@ class LibraryPanel(Widget):
         Binding("G", "cursor_bottom", show=False),
         Binding("g,g", "cursor_top", show=False),
         Binding("d", "delete_row", "Delete"),
+        Binding("ctrl+r", "retry_row", "Retry"),
         Binding("R", "rename_row", "Rename"),
         Binding("m", "move_row", "Move"),
         Binding("t", "tag_row", "Tag"),
@@ -158,6 +194,33 @@ class LibraryPanel(Widget):
         if rec_id is None:
             return
         self.run_worker(self._delete_selected(rec_id), exclusive=False)
+
+    def action_retry_row(self) -> None:
+        rec_id = self._selected_id()
+        if rec_id is None:
+            return
+        self.run_worker(self._retry_selected(rec_id), exclusive=False)
+
+    async def _retry_selected(self, rec_id: str) -> None:
+        """Transcribe the highlighted recording again."""
+        from ..errors import explain
+
+        record = next((r for r in self._items if str(r["id"]) == rec_id), None)
+        status = (record or {}).get("status", "")
+        if status and status not in RETRYABLE:
+            self.app.notify(f"{status} — wait for it to finish first", severity="warning")
+            return
+        detail = (record or {}).get("status_detail")
+        if detail:
+            self.app.notify(detail)
+
+        try:
+            await self.app.api.retry_recording(rec_id)
+        except Exception as exc:
+            self.app.notify(explain(exc, "retry failed"), severity="error")
+            return
+        self.app.notify(f"queued again: {rec_id[:8]}…")
+        self.refresh_library()
 
     async def _delete_selected(self, rec_id: str) -> None:
         from ..widgets.confirm import ConfirmDialog
@@ -357,7 +420,13 @@ class LibraryPanel(Widget):
         for r in self._items:
             rec_id = str(r["id"])
             name = r.get("alias") or r.get("filename") or f"#{rec_id}"
-            model = r.get("model_size") or r.get("model") or ""
+            options = r.get("transcription_options") or {}
+            model = (
+                r.get("model_size")
+                or r.get("model")
+                or (options.get("model") if isinstance(options, dict) else "")
+                or ""
+            )
             dur = r.get("duration") or 0
             try:
                 total_dur += float(dur or 0)
@@ -366,7 +435,7 @@ class LibraryPanel(Widget):
             checked = "◉" if rec_id in self.selected_ids else " "
             self.table.add_row(
                 Text(checked, style="#7c79f0" if rec_id in self.selected_ids else "#3a3d6a"),
-                Text(name, style="#dde1ff"),
+                _fmt_name(r),
                 Text(_fmt_date(r.get("created_at")), style="#6b6e9a"),
                 Text(_fmt_duration(dur), style="#6b6e9a"),
                 Text(model, style="#7c79f0"),

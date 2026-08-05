@@ -6,6 +6,212 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ⌨️ The terminal UI caught up
+
+- **Fixed a regression that erased your Hugging Face token.** When the API
+  started masking secrets, the TUI kept reading the old field: its settings form
+  showed an empty token and saving wrote that emptiness back. Opening settings
+  and pressing Save was enough to lose the token. The form now shows the masked
+  preview and tells the server to keep what it has unless you actually type
+  something. The same protection covers the LLM API key.
+- **`/retry <id>`** and `Ctrl+R` in the library re-run a failed, cancelled or
+  interrupted transcription.
+- **`/backup export [path]`** and **`/backup import <path> [overwrite]`** for the
+  library bundle.
+- **`/llm-providers`** lists the supported backends; **`/llm-detect`** scans for
+  a running server and offers to use it, the same one-click flow the web UI has.
+- **Settings gained provider, context budget, cloud consent and the
+  auto-summarise toggle**, so the two interfaces configure the same things.
+- **`/export` accepts `vtt` and `csv`**, and rejects an unknown format with the
+  list of valid ones instead of a server error.
+- **The library shows the new states**: `⚠ interrupt` and `⊘ cancelled` have
+  their own marks, a captured meeting is prefixed `◉` and a link import `↗`.
+- **Errors read like sentences.** A `401` now explains that the server wants a
+  token and where to get it, a `410` points at the library, and an unreachable
+  backend says so instead of surfacing a bare exception.
+- **Short recordings show their length.** Durations were always rendered as
+  hours and minutes, so a 22-second clip read `0h 00m`; under an hour it is now
+  `0:22`. The MODEL column was always blank because the model lives inside
+  `transcription_options` — it reads that now.
+
+### 🔁 Recovering from a failed transcription
+
+- **Transcribe again.** A recording that failed, was cancelled, or was
+  interrupted by a restart now has a retry button in the library. The audio was
+  always still on disk, but the only way to try again was to delete the
+  recording and re-import the file. Retries reuse the original model, language
+  and diarization settings.
+- **The reason is shown, not hidden in a tooltip.** An `interrupted` recording
+  explains itself in the card ("Interrupted by an app restart"), which a touch
+  screen could not surface before.
+- **Recordings say where they came from.** An auto-captured call and a file you
+  dragged in used to look identical; captures and link imports now carry a badge.
+- **Automatic summaries are labelled.** A summary AmicoScript produced by itself
+  is marked "automatic", so an unexpected entry in the analysis history is not a
+  mystery.
+
+### 🐛 Fixes found by running the app
+
+- **Creating a tag that already exists returned HTTP 500.** It hit the database's
+  unique constraint and surfaced as a server error with no message. It is now a
+  409 that names the clash, and renaming a tag onto an existing name is caught
+  the same way.
+- **API errors were shown to the user as raw JSON** — `Save failed:
+  {"detail":"…"}`. Folder, tag and library actions now show the sentence the
+  server actually sent.
+- **The password fields were not inside a form** and had no username field, so
+  browsers warned about them and password managers had nothing to associate a
+  saved credential with. The Hugging Face and LLM key fields are now marked so
+  password managers leave them alone entirely — they are tokens, not logins.
+- Library rows carry a `data-recording-id`, so a row can be identified without
+  counting its position in the list.
+
+### 🧠 LLM setup that does not require guesswork
+
+- **Pick your tool from a list.** LLM Settings now offers presets for Ollama, LM
+  Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI, OpenRouter and "anything
+  OpenAI-compatible", each filling in the right address, saying whether an API key
+  is required and what it looks like, and linking to that tool's setup guide.
+- **Find running servers** scans the well-known ports and reports what answered,
+  which models it has loaded and whether it wants a key. One click adopts it —
+  provider, address and a model are filled in. A server that answers 401 still
+  shows up, marked as needing a key, which is Unsloth Studio's normal state.
+- **Paste the address in any form.** Every one of these tools displays a URL
+  ending in `/v1`, but AmicoScript appends `/v1/chat/completions` itself, so
+  pasting what LM Studio showed you produced `/v1/v1/…` and a 404 that looked
+  like the server was broken. `http://localhost:1234`, `.../v1`, a full endpoint
+  URL and a bare `localhost:1234` now all resolve to the same thing, and the UI
+  shows what it changed.
+- **Docker works out of the box.** `docker-compose.yml` maps
+  `host.docker.internal` to the host gateway — Docker Desktop provides it, Linux
+  does not, which is why pointing a container at `localhost:11434` never worked
+  there. AmicoScript also detects that it is containerised and rewrites
+  `localhost` addresses to the host alias, saying so, and scans the host rather
+  than the container.
+- **Failures explain themselves.** Instead of a raw exception, the connection
+  test says which tool is not running, that the key was rejected and what a valid
+  one looks like, that the address has a stray `/v1`, or that the server answered
+  in a format that is not OpenAI's.
+- **LLM Settings moved to the main sidebar.** It used to live in the transcript
+  panel, so it was only reachable after transcribing something — you had to
+  produce a transcript before you could configure the thing that analyses it.
+
+### ☁️ Hosted providers, behind a door
+
+- OpenRouter and any other remote endpoint are supported, and gated. Audio never
+  leaves your machine either way, but a hosted provider receives the transcript
+  text, so it takes an explicit confirmation. Until you give it, manual analyses
+  and automatic meeting summaries both refuse to run and say why.
+- OpenRouter requests carry the attribution headers it documents.
+
+### 🔐 Access control
+
+- **AmicoScript now refuses network requests until a password is set.** The
+  project documents a Traefik deployment on a public domain, but every API route
+  was open there — anyone who found the hostname could read the library, download
+  the audio and read the stored Hugging Face token out of `GET /api/settings`.
+  Requests from the machine AmicoScript runs on behave exactly as before, with no
+  password and no prompt; requests from anywhere else are refused with an
+  explanation until a password exists. Exposing the app unconfigured now fails
+  closed instead of silently publishing your transcripts.
+- **Security panel** in the sidebar to set, change or remove the password, and to
+  read the API token that headless clients (the TUI, the meeting watcher) use.
+  `AMICOSCRIPT_PASSWORD` sets it at startup; `AMICOSCRIPT_AUTH=always` requires a
+  session even locally; `AMICOSCRIPT_AUTH=off` disables the layer for deployments
+  that put their own authentication in front.
+- **Secrets are no longer echoed back to clients.** `GET /api/settings` reports
+  whether a Hugging Face token is stored and shows its last four characters;
+  `GET /api/llm/settings` reports whether an API key is set. Saving a form no
+  longer risks overwriting a stored credential with its own placeholder.
+- Login attempts are throttled after repeated failures, and the loopback check
+  reads the direct peer address rather than `X-Forwarded-For`, which a caller
+  controls.
+
+### ✨ Library export and import
+
+- **Your library is now portable.** Export everything — recordings, transcripts,
+  analyses, folders and tags — as a single zip from **Backup** in the sidebar, and
+  import it on another machine or after a reinstall. Until now a library existed
+  only inside `~/.amicoscript` with no backup path and no way to move it.
+- Import matches rows by id, so re-importing the same bundle is a no-op rather
+  than a duplicated library; `Overwrite` replaces existing rows instead.
+- Bundles deliberately exclude `settings.json` — it holds your Hugging Face
+  token, LLM API key and password hash, none of which should travel in a file you
+  email to yourself. Imports reject path traversal entries and zip bombs.
+
+### 📤 New export formats
+
+- **WebVTT** (`.vtt`) — the subtitle format browsers accept in `<track>`.
+  Speakers become `<v Name>` voice spans rather than text baked into the caption.
+- **CSV** (`.csv`) — one row per segment with both raw and human-readable
+  timestamps, speaker, text, translation and an edited flag. Written with a BOM
+  so Excel reads accents correctly, and leading `=`/`+`/`-`/`@` in transcript text
+  is defused so a spreadsheet cannot execute it as a formula.
+- Both are available for single recordings, in the bulk-export menu, and from the
+  TUI's `/export` command.
+
+### 🤖 Long transcripts no longer get silently truncated
+
+- **AI analysis handles recordings larger than the model's context window.** A
+  one-hour meeting is roughly 12k tokens and Ollama defaults to 4096, so the
+  model was quietly dropping the *beginning* of the transcript and returning a
+  confident summary of the last few minutes. Anything over the configured budget
+  is now summarised in parts and merged, with progress reported per part.
+  Translation concatenates its parts instead of merging them, because merging
+  would rewrite the translation.
+- The context budget is configurable under AI Analysis (default 8192 tokens).
+- Analyses fall back to a non-streaming request when a server does not deliver
+  SSE, instead of completing with an empty result.
+
+### ✨ Automatic meeting summaries
+
+- Turn on **Summarise automatically** under Meeting auto-capture and every
+  finished call is summarised by your LLM without being asked. Fires only for
+  captured calls, only when an LLM is configured, and only once per recording.
+
+### 🔧 Reliability
+
+- **A restart no longer destroys work in progress.** Interrupted recordings used
+  to be flipped to `error` with no explanation — a two-hour meeting that was 90%
+  transcribed was simply lost. Anything whose audio is still on disk is requeued
+  automatically; anything that cannot be resumed is marked `interrupted` with a
+  reason the library shows on hover. `AMICOSCRIPT_RESUME_JOBS=0` restores the old
+  behaviour.
+- **Finished jobs leave a tombstone** when they are evicted from memory after an
+  hour, so `/api/jobs/{id}/…` answers 410 with the recording id instead of a 404
+  that looked like the job never existed.
+- **URL imports download while the previous job is still transcribing.** Model
+  inference is still strictly one at a time, but fetching audio is network-bound
+  and no longer waits behind it — importing a playlist is roughly twice as fast.
+  Tune with `AMICOSCRIPT_DOWNLOAD_CONCURRENCY` (default 2).
+- **Schema changes are versioned migrations.** They used to be ad-hoc `ALTER
+  TABLE` statements wrapped in `except: pass`, so a failed upgrade left a broken
+  database looking healthy. Steps are numbered, recorded in a `schema_version`
+  table, and fail loudly; a database from a newer build is refused rather than
+  guessed at.
+- **Search no longer breaks on ordinary punctuation.** `covid-19`, `C++`,
+  `hello "world` and a bare `AND` were all FTS5 syntax errors that silently
+  downgraded the search to a slower, different query. Terms are now escaped
+  properly, quoted phrases are honoured, and the last word is treated as a prefix
+  so results narrow as you type.
+
+### 🧹 Maintenance
+
+- **The frontend is a set of ES modules.** `index.html` carried a single
+  4,800-line `<script>` block — the largest file in the repository by a wide
+  margin. It is now 20 modules under `frontend/js/`, loaded natively by the
+  browser. Still no build step, no bundler, no dependencies.
+- **Route-level tests.** The suite had 128 unit tests over helper functions and
+  not one that exercised an HTTP route; `test_search_escaping.py` even
+  re-implemented the code it claimed to test, so it would have passed with the
+  escaping deleted. There are now 329 tests covering upload, export, editing,
+  deletion, search, backup round-trips, authentication, migrations, job recovery
+  and analysis chunking.
+- **CI runs the whole suite.** The workflow named ten test files explicitly, so
+  everything added since was never run.
+- The test suite no longer reads or writes the developer's real
+  `~/.amicoscript` library.
+
 
 
 ## [1.16.0] - 2026-08-02

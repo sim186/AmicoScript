@@ -44,12 +44,13 @@ AmicoScript keeps everything local.
 |---------|:-----------:|:----:|:--------:|:-------------:|:--------------------:|
 | Local-only (no cloud) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Speaker diarization | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Ollama / LLM integration** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Local LLM integration** (Ollama, LM Studio, Unsloth, …) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | URL import (7 platforms) | ✅ | YouTube only | ❌ | YouTube only | ❌ |
 | Batch processing | ✅ | ✅ | ❌ | ✅ | ✅ |
 | Desktop app (no Python needed) | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Docker support | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Web UI | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Library backup / import** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 *Comparison based on official READMEs as of April 2026. See something wrong? [Open a PR](https://github.com/sim186/AmicoScript/pulls).*
 
@@ -63,8 +64,12 @@ AmicoScript keeps everything local.
 - 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
-- 🤖 AI analysis (summary, action items, translation, custom prompts)
-- 🧠 LLM integration: configure local LLMs (Ollama or similar) from the UI
+- 🤖 AI analysis (summary, action items, translation, custom prompts) — long
+  recordings are summarised in parts and merged, never silently truncated
+- ✨ Optional automatic summary when a captured meeting ends
+- 🧠 LLM integration: pick Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM,
+  Jan or LocalAI from a list — or let AmicoScript find the one already running.
+  OpenRouter and other hosted providers are supported too, behind an explicit opt-in
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
 - 🔍 Global search across transcripts
@@ -73,7 +78,9 @@ AmicoScript keeps everything local.
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)
 - ✏️ Edit individual segments
-- 📤 Export to JSON, SRT, TXT, Markdown
+- 📤 Export to JSON, SRT, WebVTT, TXT, Markdown, CSV
+- 💾 Export/import your whole library as one file — backup, or move between machines
+- 🔐 Password protection for network access (local use stays password-free)
 - ⌨️ Keyboard shortcuts for fast navigation
 - 🚀 For Mac, Windows, Docker, or local Python
 
@@ -111,6 +118,15 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 `docker-compose.prod.yml` adds Traefik labels and joins the Traefik Docker network. Traefik handles TLS termination and automatic Let's Encrypt certificates.
+
+> 🔐 **Set a password before exposing AmicoScript.** Requests from anywhere other
+> than the machine it runs on are refused until one exists — the app fails closed
+> rather than publishing your transcripts. Set `AMICOSCRIPT_PASSWORD` in `.env`,
+> or open the app on the host and use **Security → Set password**. Local use is
+> unaffected: on a laptop AmicoScript never asks for anything.
+>
+> If something else already guards the app (an SSO proxy, Traefik basic-auth),
+> set `AMICOSCRIPT_AUTH=off`. See [docs/doc.md](docs/doc.md#authentication).
 
 ---
 
@@ -256,12 +272,29 @@ See full setup instructions in:
 
 New in 1.4: AmicoScript can call a local LLM to produce analyses from transcripts — summaries, action-item extraction, full translations, or custom-prompt runs. Key notes:
 
-- Configure the LLM base URL, model name, and optional API key from the app sidebar (`LLM Settings`). The default base URL is `http://localhost:11434` (Ollama-style API).
-- You can test the connection from the UI or via the backend endpoint `POST /api/llm/test-connection`.
-- List available models with `GET /api/llm/models` and trigger a model pull via `POST /api/llm/models/pull` (useful for Ollama pulls).
-- Per-recording analyses are created with `POST /api/recordings/{recording_id}/analyses` and queried with `GET /api/recordings/{recording_id}/analyses`.
+**Setting it up:** open **LLM Settings** in the sidebar and either pick your tool
+from the list — Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI,
+OpenRouter, or anything OpenAI-compatible — or press **Find running servers** and
+let AmicoScript scan for one. It fills in the address, tells you whether a key is
+needed and what it looks like, and offers the models that server already has.
 
-Docker tip: if your LLM runs outside the container, use `host.docker.internal` instead of `localhost` for the LLM base URL when running the app in Docker.
+- Paste the address in whatever form your tool showed it. `http://localhost:1234`,
+  `.../v1` and a full `.../v1/chat/completions` all work; AmicoScript normalises it
+  and tells you what it changed.
+- **Docker just works.** The compose file maps `host.docker.internal`, and
+  addresses typed as `localhost` are rewritten to it automatically, with a note
+  explaining why. Your LLM still has to listen beyond loopback
+  (`OLLAMA_HOST=0.0.0.0` for Ollama, "Serve on Local Network" for LM Studio).
+- **Hosted providers are opt-in.** Audio never leaves your machine, but a hosted
+  provider receives the transcript text. OpenRouter and any remote address are
+  gated behind a confirmation, and analyses refuse to run until you give it.
+- Test the connection from the UI or via `POST /api/llm/test-connection` — failures
+  say which tool is not running, whether the key is wrong, or whether the address
+  has a stray `/v1`.
+- Per-recording analyses: `POST /api/recordings/{recording_id}/analyses`,
+  `GET /api/recordings/{recording_id}/analyses`.
+
+See [docs/doc.md](docs/doc.md#which-backends-work) for the full provider table.
 
 ---
 
@@ -276,9 +309,9 @@ Full documentation (API, setup, details):
 ## 🏗️ Architecture (brief)
 
 - Backend: Python + FastAPI (`backend/main.py` + modular routers in `backend/api/routes/`)
-- Frontend: Single HTML (no build step)
-- Processing: Sequential background worker (`asyncio.Queue`) with structured logging
-- Storage: Local SQLite metadata + local managed recording files (with temp-file cleanup)
+- Frontend: plain ES modules in `frontend/js/`, loaded natively — still no build step
+- Processing: downloads run concurrently, model inference stays serialized; interrupted jobs are requeued on restart
+- Storage: local SQLite metadata (versioned migrations) + managed recording files, exportable as a single bundle
 
 ---
 
@@ -287,9 +320,9 @@ Full documentation (API, setup, details):
 See [docs/ROADMAP.md](docs/ROADMAP.md) for full priority breakdown.
 
 **Currently planned:**
-- Manual speaker identification (rename speakers)
+- Speaker library — recognise recurring voices across recordings
+- Chat with your library (semantic search + Q&A over all transcripts)
 - AI-powered smart tagging
-- Official website & docs
 
 ---
 

@@ -5,6 +5,7 @@ and includes API routers from backend/api/routes.
 """
 
 import asyncio
+import json
 import os
 import sys
 import time
@@ -36,12 +37,15 @@ _ensure_standard_streams()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 
+import auth
 import state
 from api.routes.analyses import router as analyses_router
+from api.routes.auth import router as auth_router
+from api.routes.backup import router as backup_router
 from api.routes.benchmark import router as benchmark_router
 from api.routes.folders_tags import router as folders_tags_router
 from api.routes.library import router as library_router
@@ -85,6 +89,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Paths reachable without a session. The auth routes handle their own rules,
+# and the release/version endpoints carry nothing private but are read by the
+# UI before login to render the update banner.
+AUTH_EXEMPT_PATHS = {
+    "/api/auth/status",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/password",
+    "/api/auth/api-token",
+    "/api/version",
+}
+
+
+@app.middleware("http")
+async def _require_auth(request, call_next):
+    """Gate the API on the rules in backend/auth.py.
+
+    Static assets stay public — the frontend has to load in order to show a
+    login form — but everything under /api and /scripts is checked.
+    """
+    path = request.url.path
+    if not (path.startswith("/api") or path.startswith("/scripts")):
+        return await call_next(request)
+    if path in AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+
+    decision = auth.evaluate_request(request)
+    if not decision.allowed:
+        return JSONResponse(
+            {"detail": decision.message, "code": decision.code},
+            status_code=decision.status_code,
+        )
+    return await call_next(request)
+
+
+app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(llm_router)
 app.include_router(analyses_router)
@@ -93,6 +133,7 @@ app.include_router(transcription_router)
 app.include_router(library_router)
 app.include_router(folders_tags_router)
 app.include_router(benchmark_router)
+app.include_router(backup_router)
 
 
 @app.on_event("startup")
@@ -105,6 +146,7 @@ async def _startup() -> None:
     state.event_loop = asyncio.get_running_loop()
     init_db()
     _recover_interrupted_jobs()
+    _warn_if_exposed_without_password()
     try:
         app.state.local_version = _get_local_version() or ""
     except Exception:
@@ -222,18 +264,86 @@ async def _shutdown() -> None:
         _watcher_thread.join(timeout=10)
 
 
+_RESUMABLE_STATUSES = [
+    "queued", "downloading", "preparing", "loading_model",
+    "transcribing", "diarizing", "translating",
+]
+
+
+def _warn_if_exposed_without_password() -> None:
+    """Print a loud warning when the app is bound beyond loopback unprotected."""
+    if not auth.is_enabled() or auth.password_is_set():
+        return
+    host = os.environ.get("AMICOSCRIPT_HOST", "127.0.0.1")
+    if auth.is_loopback_host(host):
+        return
+    print(
+        f"\n  ⚠  AmicoScript is bound to {host} with no password set.\n"
+        "     Requests from outside this machine will be refused until you set\n"
+        "     one (in the app's Security settings, or via AMICOSCRIPT_PASSWORD).\n"
+    )
+
+
 def _recover_interrupted_jobs() -> None:
+    """Requeue work that a restart interrupted instead of failing it.
+
+    The old behaviour flipped every in-flight recording to 'error' with no
+    explanation, so a two-hour meeting that was 90% transcribed was simply
+    lost and the user had to re-upload it with no idea why. Now anything whose
+    audio is still on disk goes back into the queue, and anything that isn't
+    resumable is marked 'interrupted' with a reason the UI can display.
+
+    Set AMICOSCRIPT_RESUME_JOBS=0 to restore the previous fail-fast behaviour.
+    """
+    resume = os.environ.get("AMICOSCRIPT_RESUME_JOBS", "1").lower() not in ("0", "false", "no")
+    requeued: list[tuple[str, str, str, dict]] = []
+
     try:
         with new_session() as session:
             interrupted = session.exec(
-                select(Recording).where(Recording.status.in_(["queued", "transcribing", "diarizing"]))
+                select(Recording).where(Recording.status.in_(_RESUMABLE_STATUSES))
             ).all()
             for rec in interrupted:
-                rec.status = "error"
+                audio_exists = bool(rec.file_path) and os.path.exists(rec.file_path)
+                if resume and audio_exists:
+                    try:
+                        opts = json.loads(rec.transcription_options or "{}")
+                    except (TypeError, ValueError):
+                        opts = {}
+                    rec.status = "queued"
+                    rec.status_detail = "Requeued after the app restarted"
+                    requeued.append((rec.id, rec.filename, rec.file_path, opts))
+                else:
+                    rec.status = "interrupted"
+                    rec.status_detail = (
+                        "Interrupted by an app restart before the audio was saved — "
+                        "please import it again"
+                        if not audio_exists
+                        else "Interrupted by an app restart"
+                    )
                 session.add(rec)
             session.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"Could not recover interrupted jobs: {exc}")
+        return
+
+    for recording_id, filename, file_path, opts in requeued:
+        try:
+            _requeue_recording(recording_id, filename, file_path, opts)
+        except Exception as exc:
+            print(f"Could not requeue recording {recording_id}: {exc}")
+
+    if requeued:
+        print(f"Requeued {len(requeued)} interrupted transcription job(s).")
+
+
+def _requeue_recording(recording_id: str, filename: str, file_path: str, opts: dict) -> None:
+    """Recreate the in-memory job for a recording and put it back on the queue."""
+    from core.requeue import build_job
+
+    job_id = build_job(recording_id, filename, file_path, opts, resumed=True)
+    state.jobs[job_id]["message"] = "Requeued after restart"
+    state.JOB_QUEUE.put_nowait(job_id)
 
 
 def _get_local_version() -> str:
@@ -287,7 +397,7 @@ async def _cleanup_loop() -> None:
         cutoff = time.time() - 3600
         for job_id in list(state.jobs.keys()):
             job = state.jobs[job_id]
-            if job.get("status") in _ACTIVE_STATUSES:
+            if job.get("status") in _ACTIVE_STATUSES or job.get("expired"):
                 continue
             if job.get("created_at", 0) < cutoff:
                 fp = job.get("file_path", "")
@@ -298,7 +408,34 @@ async def _cleanup_loop() -> None:
                     except OSError:
                         pass
                 _cleanup_job_temp_files(job)
-                state.jobs.pop(job_id, None)
+                _expire_job(job_id)
+
+
+def _expire_job(job_id: str) -> None:
+    """Release a finished job's memory but keep a tombstone.
+
+    Dropping the entry outright made every /api/jobs/{id}/… route answer 404,
+    which is indistinguishable from "that job never existed" — the UI could not
+    tell the user their transcript was safe in the library. The tombstone keeps
+    the status and the recording id so routes can redirect there instead.
+    """
+    job = state.jobs.get(job_id)
+    if not job:
+        return
+    state.jobs[job_id] = {
+        "id": job_id,
+        "type": job.get("type", "transcribe"),
+        "recording_id": job.get("recording_id"),
+        "status": job.get("status", "done"),
+        "progress": job.get("progress", 1.0),
+        "message": job.get("message", ""),
+        "original_filename": job.get("original_filename", ""),
+        "created_at": job.get("created_at", 0.0),
+        "expired": True,
+        "result": None,
+        "logs": [],
+        "temp_files": [],
+    }
 
 
 if SCRIPTS_DIR.exists():

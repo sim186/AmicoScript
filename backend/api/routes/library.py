@@ -7,9 +7,9 @@ from pathlib import Path
 
 from http_utils import content_disposition_attachment as _content_disposition
 
-from db import get_session
+from db import get_session, new_session
 
-from exports import _format_json, _format_md, _format_md_bulk, _format_srt, _format_txt
+from exports import _format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
@@ -44,6 +44,8 @@ def _recording_with_tags(recording: Recording, session: Session) -> dict:
         "duration": recording.duration,
         "folder_id": recording.folder_id,
         "status": recording.status,
+        "status_detail": recording.status_detail,
+        "source": recording.source,
         "created_at": recording.created_at,
         "transcription_options": json.loads(recording.transcription_options or "{}"),
         "tags": tags,
@@ -148,6 +150,35 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
     return {"ok": True}
 
 
+@router.post("/api/recordings/{recording_id}/retry")
+def retry_recording(recording_id: str) -> dict:
+    """Transcribe an existing recording again.
+
+    Until now a failed transcription was a dead end: the audio was still on
+    disk, but the only way to try again was to delete the recording and
+    re-import the file. This reuses the stored options, so a retry runs with the
+    same model, language and diarization settings as the original attempt.
+    """
+    from core.requeue import RETRYABLE_STATUSES, RequeueError, enqueue_from_loop, requeue_recording
+
+    with new_session() as session:
+        rec = session.get(Recording, recording_id)
+        if not rec:
+            raise HTTPException(404, "Recording not found")
+        status = rec.status
+
+    if status not in RETRYABLE_STATUSES:
+        raise HTTPException(409, f"This recording is {status}; wait for it to finish first.")
+
+    try:
+        job_id = requeue_recording(recording_id)
+    except RequeueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    enqueue_from_loop(job_id)
+    return {"ok": True, "job_id": job_id, "recording_id": recording_id}
+
+
 @router.get("/api/recordings/{recording_id}/audio")
 def get_recording_audio(recording_id: str, session: Session = Depends(get_session)):
     from storage import get_recording_audio_path
@@ -197,25 +228,13 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
     title = rec.alias or filename
     date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
-    formatters = {
-        "json": (_format_json, "application/json", "json"),
-        "srt": (_format_srt, "text/plain", "srt"),
-        "txt": (_format_txt, "text/plain", "txt"),
-    }
-    if fmt == "md":
-        content = _format_md(result, title=title, date=date_str)
-        return StreamingResponse(
-            iter([content.encode("utf-8")]),
-            media_type="text/markdown",
-            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
-        )
-    if fmt not in formatters:
-        raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
+    try:
+        content, media_type, ext = render_export(fmt, result, title=title, date=date_str)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    fn, media_type, ext = formatters[fmt]
-    content = fn(result)
     return StreamingResponse(
-        iter([content.encode("utf-8")]),
+        iter([content]),
         media_type=media_type,
         headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )

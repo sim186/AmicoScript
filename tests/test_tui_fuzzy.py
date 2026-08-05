@@ -41,3 +41,41 @@ def test_rank_sorts_desc():
     # Non-subsequence matches dropped.
     out2 = rank("zzz", items)
     assert out2 == []
+
+
+# --- library formatting -----------------------------------------------------
+
+
+def test_short_durations_keep_their_seconds():
+    """A 22-second clip used to render as "0h 00m", which reads as empty."""
+    from tui.screens.library import _fmt_duration
+
+    assert _fmt_duration(22) == "0:22"
+    assert _fmt_duration(95) == "1:35"
+    assert _fmt_duration(3661) == "1h 01m"
+    assert _fmt_duration(0) == "--"
+    assert _fmt_duration(None) == "--"
+
+
+def test_the_status_map_covers_the_new_states():
+    from tui.screens.library import RETRYABLE, STATUS_DISPLAY
+
+    for status in ("interrupted", "cancelled", "downloading", "loading_model", "translating"):
+        assert status in STATUS_DISPLAY, status
+    assert "interrupted" in RETRYABLE
+    assert "transcribing" not in RETRYABLE
+
+
+def test_a_captured_meeting_is_marked_in_the_list():
+    from tui.screens.library import _fmt_name
+
+    meeting = _fmt_name({"filename": "call.wav", "source": "meeting"})
+    upload = _fmt_name({"filename": "call.wav", "source": "upload"})
+    assert str(meeting).startswith("◉")
+    assert str(upload) == "call.wav"
+
+
+def test_an_alias_wins_over_the_filename():
+    from tui.screens.library import _fmt_name
+
+    assert "Board review" in str(_fmt_name({"filename": "a.mp3", "alias": "Board review"}))

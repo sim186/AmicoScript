@@ -25,8 +25,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pytest
+          pip install -r tui/requirements.txt
+          pip install pytest httpx
 
+      # The whole suite, not a hand-maintained list of files. The old workflow
+      # named ten test files explicitly, so anything added since — including
+      # every route-level test — was never run by CI.
       - name: Run tests
-        run: |
-          pytest -q tests/test_diarization.py tests/test_audio_utils.py tests/test_transcription_model_cache.py tests/test_error_classifiers.py tests/test_transcription_flow.py tests/test_colab_proxy_flow.py tests/test_job_helpers_sync_retry.py tests/test_settings.py tests/test_meeting_watcher.py tests/test_watcher_status.py
+        run: pytest -q
