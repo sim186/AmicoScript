@@ -232,6 +232,16 @@ class ApiClient:
         """Ask the LLM for tags. Suggests only — nothing is applied."""
         return await self._post(f"/api/recordings/{recording_id}/suggest-tags")
 
+    async def ask_library(self, question: str) -> dict:
+        """Ask a question across every transcript. Returns answer + sources."""
+        return await self._post("/api/library/chat", json={"question": question})
+
+    async def chat_index_status(self) -> dict:
+        return await self._get("/api/library/index")
+
+    async def rebuild_chat_index(self, all: bool = False) -> dict:
+        return await self._post(f"/api/library/index/rebuild?all={'true' if all else 'false'}")
+
     async def search(self, q: str, limit: int = 50, offset: int = 0) -> list:
         return await self._get("/api/search", q=q, limit=limit, offset=offset)
 

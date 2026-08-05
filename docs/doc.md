@@ -462,6 +462,73 @@ transcription that just succeeded.
 
 ---
 
+### Chat with your library
+
+**POST /api/library/chat** — body `{"question": "..."}`. Answers a question
+from every transcript at once, and says where the answer came from:
+
+```json
+{
+  "answer": "You agreed on forty a seat, with annual billing [1].",
+  "sources": [
+    {"recording_id": "…", "title": "pricing-call.mp3", "start": 41.0, "end": 95.0,
+     "timestamp": "0:41", "speakers": "Ada, Grace", "text": "…", "chunk_id": "…"}
+  ],
+  "cited": [1],
+  "used_semantic": false,
+  "no_matches": false,
+  "pending": 0
+}
+```
+
+The `[n]` markers in `answer` index into `sources` — `[1]` is `sources[0]` —
+so the UI can turn each one into a link that opens the recording at
+`start`. `cited` lists which of them the answer actually used; a citation the
+model invented (`[9]` out of four sources) is dropped rather than shown.
+`no_matches` means nothing in the library matched, and the model was never
+asked — an empty-handed search should not become an invented answer.
+
+#### How retrieval works
+
+Transcripts are split into passages of roughly a paragraph, each keeping the
+timestamps it spans, in the `transcriptchunk` table. A whole transcript is the
+wrong unit — a two-hour recording matches everything and cites nothing — and a
+diarized segment is often four words long.
+
+Retrieval is hybrid:
+
+- **Keyword** (always available, no setup). FTS5 over the chunks. Note that a
+  question is ORed rather than ANDed after its stopwords are dropped: ANDing
+  "what did we decide about pricing" would match nothing.
+- **Semantic** (optional). Set an embedding model and the same passages are
+  matched by meaning, so a question about pricing finds a passage that says
+  "forty a seat". Without it, that passage is only found if it says "pricing".
+
+Both rankings are combined with reciprocal rank fusion, so a passage only one
+of them found still reaches the model.
+
+#### Index endpoints
+
+**GET /api/library/index** — how much is indexed, how much is embedded, and
+whether semantic search is available.
+
+**POST /api/library/index/rebuild** — chunk transcripts that have none;
+`?all=true` rebuilds everything. Chunks are otherwise maintained automatically:
+written when a transcription finishes, rebuilt when a segment is edited or a
+speaker renamed, and deleted with the recording.
+
+**POST /api/library/index/embed** — embed a batch of chunks (200 at a time),
+returning `remaining`. Call it until `remaining` is 0; the UI's **Rebuild &
+embed** button does this loop for you.
+
+Embeddings come from the `/v1/embeddings` endpoint of the LLM server already
+configured — Ollama, LM Studio, llama.cpp and vLLM all expose one — so there is
+no second runtime and no new Python dependency. Vectors are stored unit-length
+on the chunk row, which means similarity is a plain dot product and a database
+copy carries its index with it.
+
+---
+
 ### Smart tagging
 
 **POST /api/recordings/{id}/suggest-tags**

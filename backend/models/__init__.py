@@ -41,6 +41,29 @@ class Transcript(SQLModel, table=True):
     updated_at: float = Field(default_factory=time.time)
 
 
+class TranscriptChunk(SQLModel, table=True):
+    """A passage of one transcript, with the timestamps it was spoken at.
+
+    Library chat retrieves these rather than whole transcripts: a two-hour
+    recording is one useless unit of retrieval, and an answer has to be able to
+    cite the minute it came from. Rebuilt from the transcript whenever it
+    changes, so this table is a derived index and never the source of truth.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    recording_id: str = Field(foreign_key="recording.id", index=True)
+    ordinal: int = Field(default=0)
+    start: float = Field(default=0.0)
+    end: float = Field(default=0.0)
+    text: str = Field(default="")
+    speakers: str = Field(default="")
+    # A unit-length float32 vector, or empty when nothing has embedded it yet.
+    # Stored on the row rather than in a sidecar file so a library export or a
+    # database copy carries the index with it.
+    embedding: bytes = Field(default=b"")
+    embedding_model: str = Field(default="")
+
+
 class Tag(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     name: str = Field(unique=True)

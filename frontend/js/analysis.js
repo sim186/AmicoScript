@@ -49,7 +49,7 @@ export function initAiAnalysis() {
 
   // LLM Settings: auto-save on input (debounced)
   let _llmSaveTimer = null;
-  ['llm-base-url', 'llm-model-input', 'llm-api-key'].forEach(id => {
+  ['llm-base-url', 'llm-model-input', 'llm-api-key', 'llm-embedding-model'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => {
       clearTimeout(_llmSaveTimer);
       _llmSaveTimer = setTimeout(saveLlmSettings, 600);
@@ -80,6 +80,9 @@ export function initAiAnalysis() {
 
   // Test connection button
   document.getElementById('llm-test-btn').addEventListener('click', testLlmConnection);
+
+  // Build the library chat index, then embed it
+  document.getElementById('llm-embed-btn')?.addEventListener('click', rebuildChatIndex);
 
   // Benchmark button
   document.getElementById('benchmark-run-btn').addEventListener('click', runBenchmark);
@@ -432,6 +435,8 @@ export async function saveLlmSettings() {
   if (contextTokens && contextTokens.value.trim()) {
     fd.append('llm_context_tokens', contextTokens.value.trim());
   }
+  const embedModel = document.getElementById('llm-embedding-model');
+  if (embedModel) fd.append('llm_embedding_model', embedModel.value.trim());
   for (const [key, value] of Object.entries(currentProviderFields())) fd.append(key, value);
 
   clientLog(`LLM settings saved: url=${baseUrl || '(provider default)'}, model=${model || '(none)'}`);
@@ -538,6 +543,57 @@ export async function pullLlmModel(modelId) {
 async function loadLlmModels() {
   // Legacy: just open the browse panel
   openModelsBrowser();
+}
+
+/** Chunk every transcript, then embed the chunks a batch at a time.
+ *
+ * Embedding a whole library is many requests, so the endpoint does a slice per
+ * call and reports what is left; looping here keeps the progress visible
+ * instead of holding one request open for minutes.
+ */
+async function rebuildChatIndex() {
+  const btn = document.getElementById('llm-embed-btn');
+  const statusEl = document.getElementById('llm-embed-status');
+  btn.disabled = true;
+  statusEl.className = 'text-xs text-slate-400';
+  try {
+    await saveLlmSettings();
+
+    btn.textContent = 'Indexing…';
+    const built = await fetch('/api/library/index/rebuild', { method: 'POST' });
+    const buildBody = await built.json().catch(() => ({}));
+    if (!built.ok) throw new Error(buildBody.detail || `HTTP ${built.status}`);
+    statusEl.textContent = `${buildBody.chunks} passages indexed`;
+
+    if (!document.getElementById('llm-embedding-model').value.trim()) {
+      statusEl.textContent += ' — keyword search ready';
+      return;
+    }
+
+    // Guard the loop: a server that never reports progress would spin forever.
+    let previousRemaining = Infinity;
+    for (let pass = 0; pass < 200; pass++) {
+      btn.textContent = 'Embedding…';
+      const res = await fetch('/api/library/index/embed', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+
+      statusEl.textContent = `${body.chunks_embedded} embedded, ${body.remaining} to go`;
+      if (!body.remaining) break;
+      if (body.remaining >= previousRemaining) {
+        throw new Error('Embedding stopped making progress.');
+      }
+      previousRemaining = body.remaining;
+    }
+    statusEl.className = 'text-xs text-emerald-500';
+    statusEl.textContent = 'Semantic search ready ✓';
+  } catch (err) {
+    statusEl.className = 'text-xs text-red-500';
+    statusEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Rebuild & embed';
+  }
 }
 
 async function testLlmConnection() {

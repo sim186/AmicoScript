@@ -7,6 +7,7 @@ import { initAiAnalysis, saveLlmSettings } from './analysis.js';
 import { fetchAndShowChangelog } from './changelog.js';
 import { initExportButtons } from './exports.js';
 import { cancelJob } from './jobs.js';
+import { initLibraryChat } from './library-chat.js';
 import { initLibrary } from './library-init.js';
 import { initLlmSetup } from './llm-setup.js';
 import { _saveTranscriptionDefaults, initAutoSummaryToggle, restoreSettings } from './prefs.js';
@@ -34,6 +35,7 @@ export function init() {
   initAudioPlayer();
   initExportButtons();
   initTagSuggest();
+  initLibraryChat();
   initShortcuts();
 
   document.getElementById('language-select').addEventListener('change', e => {

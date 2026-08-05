@@ -129,6 +129,9 @@ def _get_llm_settings() -> dict:
         "llm_base_url": settings.get("llm_base_url", "http://localhost:11434"),
         "llm_model_name": settings.get("llm_model_name", ""),
         "llm_api_key": settings.get("llm_api_key", ""),
+        # Optional second model, for semantic search in library chat. Empty
+        # means keyword retrieval only, which needs no setup at all.
+        "llm_embedding_model": settings.get("llm_embedding_model", ""),
         "llm_context_tokens": _positive_int("llm_context_tokens", _DEFAULT_CONTEXT_TOKENS),
         "llm_max_output_tokens": _positive_int(
             "llm_max_output_tokens", _DEFAULT_MAX_OUTPUT_TOKENS
@@ -148,12 +151,15 @@ def _save_llm_settings(
     max_output_tokens: int | None = None,
     provider: str | None = None,
     allow_cloud: bool | None = None,
+    embedding_model: str | None = None,
 ) -> None:
     """Persist LLM settings to disk."""
     settings = _load_settings()
     settings["llm_base_url"] = base_url
     settings["llm_model_name"] = model_name
     settings["llm_api_key"] = api_key
+    if embedding_model is not None:
+        settings["llm_embedding_model"] = embedding_model.strip()
     if provider is not None:
         settings["llm_provider"] = provider
     if allow_cloud is not None:

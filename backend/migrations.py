@@ -146,6 +146,52 @@ def _m007_recording_interrupted_reason(conn: Connection) -> None:
     _add_column(conn, "recording", "status_detail", "status_detail TEXT")
 
 
+def _m008_transcript_chunks(conn: Connection) -> None:
+    """Chunk store + FTS index, for retrieval that can cite a timestamp.
+
+    The table itself comes from the TranscriptChunk model — db.init_db runs
+    create_all before the migrations, so it is already there. This step adds
+    the FTS5 index and its triggers, and the embedding columns for databases
+    whose table predates them.
+    """
+    if "transcriptchunk" not in _tables(conn):
+        logger.warning("Skipping chunk index: transcriptchunk table does not exist")
+        return
+
+    _add_column(conn, "transcriptchunk", "embedding", "embedding BLOB DEFAULT x''")
+    _add_column(conn, "transcriptchunk", "embedding_model", "embedding_model TEXT DEFAULT ''")
+
+    conn.execute(text("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts
+        USING fts5(text, content='transcriptchunk', content_rowid='rowid')
+    """))
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS chunk_ai
+        AFTER INSERT ON transcriptchunk BEGIN
+            INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);
+        END
+    """))
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS chunk_ad
+        AFTER DELETE ON transcriptchunk BEGIN
+            INSERT INTO chunk_fts(chunk_fts, rowid, text)
+            VALUES ('delete', old.rowid, old.text);
+        END
+    """))
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS chunk_au
+        AFTER UPDATE ON transcriptchunk BEGIN
+            INSERT INTO chunk_fts(chunk_fts, rowid, text)
+            VALUES ('delete', old.rowid, old.text);
+            INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);
+        END
+    """))
+    # Rebuild rather than assume: on a database whose chunks predate the index
+    # (the table exists, the virtual table was just created) the triggers alone
+    # would leave every existing row unsearchable.
+    conn.execute(text("INSERT INTO chunk_fts(chunk_fts) VALUES ('rebuild')"))
+
+
 MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "folder.color_code", _m001_folder_color_code),
     (2, "recording.alias", _m002_recording_alias),
@@ -154,6 +200,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (5, "recording.source", _m005_recording_source),
     (6, "analysis.auto_generated", _m006_analysis_auto_generated),
     (7, "recording.status_detail", _m007_recording_interrupted_reason),
+    (8, "transcript_chunks", _m008_transcript_chunks),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

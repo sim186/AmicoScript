@@ -250,6 +250,57 @@ async def _tag_toggle(app, args):
     _open_tag_toggle_picker(app, args[0])
 
 
+@command("ask", "ask a question across every transcript")
+async def _ask(app, args):
+    if not args:
+        app.notify("usage: /ask <question>")
+        return
+    question = " ".join(args)
+    app.notify("searching your library…")
+    try:
+        body = await app.api.ask_library(question)
+    except Exception as exc:
+        app.notify(explain(exc, "could not answer that"), severity="error")
+        return
+
+    if body.get("no_matches"):
+        app.notify("nothing in your library matches that question")
+        return
+
+    lines = [body.get("answer") or "(the model returned nothing)"]
+    # Only the cited passages: listing all eight would bury the answer.
+    for number in body.get("cited", []):
+        sources = body.get("sources", [])
+        if 1 <= number <= len(sources):
+            source = sources[number - 1]
+            lines.append(f"  [{number}] {source['title']} @ {source['timestamp']}")
+    app.notify("\n".join(lines), timeout=30)
+
+
+@command("chat-index", "show or rebuild the library chat index ('rebuild' / 'rebuild all')")
+async def _chat_index(app, args):
+    if args and args[0] == "rebuild":
+        everything = len(args) > 1 and args[1] == "all"
+        app.notify("indexing…")
+        try:
+            body = await app.api.rebuild_chat_index(all=everything)
+        except Exception as exc:
+            app.notify(explain(exc, "index rebuild failed"), severity="error")
+            return
+        app.notify(f"indexed {body['recordings']} recording(s), {body['chunks']} passages")
+        return
+
+    try:
+        body = await app.api.chat_index_status()
+    except Exception as exc:
+        app.notify(explain(exc, "could not read the index"), severity="error")
+        return
+    app.notify(
+        f"{body['recordings_indexed']} indexed, {body['recordings_pending']} pending, "
+        f"{body['chunks']} passages, {body['chunks_embedded']} embedded"
+    )
+
+
 @command("tag-suggest", "suggest tags for recording <id> with the LLM")
 async def _tag_suggest(app, args):
     if not args:

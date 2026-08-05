@@ -6,6 +6,39 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 💬 Ask your library
+
+- **A question box above the library answers from every transcript at once.**
+  Search could find a recording that contains a word; it could not answer "what
+  did we decide about pricing" — that meant opening each hit and reading.
+- **Every answer carries citations, and a citation is a link.** Click it and
+  the recording opens at the second the passage was spoken, so a claim about
+  your own recordings can be checked in one click rather than taken on trust.
+  A citation the model invented — `[9]` when it was shown four passages — is
+  dropped instead of displayed.
+- **Nothing matched means nothing matched.** When retrieval comes back
+  empty the model is never asked, so an empty-handed search cannot turn into a
+  confident invented answer.
+- **Transcripts are indexed as passages, not as files.** A two-hour recording
+  is one useless unit of retrieval and cannot cite a minute; a diarized segment
+  is often four words. The index sits in between, keeping the timestamps each
+  passage spans. It is maintained automatically — written when a transcription
+  finishes, rebuilt when you edit a segment or rename a speaker, and removed
+  with the recording.
+- **A question is ORed, not ANDed.** The search box ANDs its words, which is
+  right when every word should narrow the result and wrong for a question:
+  "what did we decide about pricing" ANDed matches nothing at all. Chat drops
+  the glue words and ranks on what is left.
+- **Semantic search is optional.** With an embedding model named in LLM
+  Settings, a question about pricing also finds the passage that says "forty a
+  seat" without using the word. The vectors come from the `/v1/embeddings`
+  endpoint of the server you already configured — no second runtime, no new
+  Python dependency — and the two rankings are combined so a passage only one
+  of them found still reaches the model. Left empty, chat runs on keyword
+  search and needs no setup at all.
+- In the terminal UI as `/ask <question>`, with `/chat-index` to see or rebuild
+  the index.
+
 ### 🏷️ Tags the app can suggest
 
 - **"Suggest tags" reads the transcript and proposes topics.** Tagging was

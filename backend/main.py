@@ -49,6 +49,7 @@ from api.routes.backup import router as backup_router
 from api.routes.benchmark import router as benchmark_router
 from api.routes.folders_tags import router as folders_tags_router
 from api.routes.library import router as library_router
+from api.routes.library_chat import router as library_chat_router
 from api.routes.llm import router as llm_router
 from api.routes.releases import get_version
 from api.routes.releases import router as releases_router
@@ -131,6 +132,7 @@ app.include_router(analyses_router)
 app.include_router(releases_router)
 app.include_router(transcription_router)
 app.include_router(library_router)
+app.include_router(library_chat_router)
 app.include_router(folders_tags_router)
 app.include_router(benchmark_router)
 app.include_router(backup_router)

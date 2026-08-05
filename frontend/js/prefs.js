@@ -140,6 +140,8 @@ export async function restoreSettings() {
       }
       const contextInput = document.getElementById('llm-context-tokens');
       if (contextInput && cfg.llm_context_tokens) contextInput.value = cfg.llm_context_tokens;
+      const embedInput = document.getElementById('llm-embedding-model');
+      if (embedInput && cfg.llm_embedding_model) embedInput.value = cfg.llm_embedding_model;
 
       await loadProviderCatalog();
       applyProvider(cfg.llm_provider);

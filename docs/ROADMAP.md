@@ -11,9 +11,6 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
   meeting labels itself from the second recording onward. Diarization already
   separates voices *within* one recording and speakers can be renamed by hand;
   what's missing is a stored voiceprint that survives across recordings.
-- Chat with your library — semantic search and Q&A across every transcript,
-  with citations that jump to the timestamp. Today search is keyword-only
-  (SQLite FTS5) and the LLM only ever sees one transcript at a time.
 
 **Tier 2 — Polish & ecosystem**
 - Tauri desktop shell — phase 2 of [docs/desktop-shell.md](desktop-shell.md);
@@ -21,6 +18,9 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 
 ### Shipped
 
+- Chat with your library — one question answered across every transcript, with
+  citations that open the recording at the timestamp. Keyword retrieval works
+  with no setup; naming an embedding model adds semantic search
 - AI-powered smart tagging — the LLM proposes tags from the transcript, reusing
   the library's existing ones; nothing is applied without a click
 - Enhanced Markdown export — YAML frontmatter with the recording's date,

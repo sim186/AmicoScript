@@ -62,6 +62,7 @@ async def save_llm_settings(
     llm_context_tokens: str = Form(""),
     llm_max_output_tokens: str = Form(""),
     llm_allow_cloud: str = Form(""),
+    llm_embedding_model: str = Form(_UNCHANGED),
 ) -> dict:
     """Persist LLM config.
 
@@ -110,6 +111,9 @@ async def save_llm_settings(
         max_output_tokens=_optional_int(llm_max_output_tokens),
         provider=provider.id,
         allow_cloud=allow_cloud,
+        embedding_model=(
+            None if llm_embedding_model == _UNCHANGED else llm_embedding_model
+        ),
     )
     return {
         "ok": True,

@@ -131,6 +131,14 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
 
                 session.add(rec)
                 session.commit()
+
+                # Keep the chat index in step with the transcript that was
+                # just written. Never fatal: losing the index costs a search,
+                # losing this call would cost the transcription.
+                if result:
+                    from core.library_index import index_recording_quietly
+
+                    index_recording_quietly(recording_id)
                 return
         except (SQLAlchemyError, OSError, RuntimeError, TypeError, ValueError):
             if attempt == retries:

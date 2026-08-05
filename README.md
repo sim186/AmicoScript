@@ -73,6 +73,9 @@ AmicoScript keeps everything local.
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
 - 🔍 Global search across transcripts
+- 💬 Ask your library — a question answered from every transcript at once, with
+  citations that open the recording at the second it was said. Works on keyword
+  search out of the box; name an embedding model and it searches by meaning
 - 🗂️ Organize with folders and tags
 - ✨ Smart tagging — the LLM reads a transcript and proposes tags, reusing the
   ones your library already has. Nothing is applied until you click it

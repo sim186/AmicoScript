@@ -13,10 +13,13 @@ from exports import _format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
-from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
+from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript, TranscriptChunk
 from sqlmodel import Session, select
+from utils.logging_utils import get_logger
 
 router = APIRouter()
+
+_index_logger = get_logger("amicoscript.library")
 
 AUDIO_MEDIA_TYPES = {
     ".mp3": "audio/mpeg",
@@ -25,6 +28,21 @@ AUDIO_MEDIA_TYPES = {
     ".ogg": "audio/ogg",
     ".flac": "audio/flac",
 }
+
+
+def _reindex_for_chat(recording_id: str, session: Session) -> None:
+    """Rebuild this recording's chat chunks after its transcript changed.
+
+    Editing a segment or renaming a speaker rewrites the transcript, and a
+    stale chunk would keep the old wording findable — and quotable in an
+    answer. Never fatal: the edit itself has already been saved.
+    """
+    from core.library_index import index_recording
+
+    try:
+        index_recording(recording_id, session)
+    except Exception:
+        _index_logger.exception("Could not reindex %s for library chat", recording_id)
 
 
 def _export_meta(recording: Recording, session: Session) -> dict:
@@ -170,6 +188,12 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
         session.delete(tr)
     for an in session.exec(select(Analysis).where(Analysis.recording_id == recording_id)).all():
         session.delete(an)
+    # A leftover chunk would be retrievable, and an answer could cite a
+    # recording that no longer opens.
+    for chunk in session.exec(
+        select(TranscriptChunk).where(TranscriptChunk.recording_id == recording_id)
+    ).all():
+        session.delete(chunk)
 
     session.delete(rec)
     session.commit()
@@ -352,6 +376,7 @@ async def edit_segment(recording_id: str, segment_index: int, text: str = Form(.
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "segment_index": segment_index}
 
 
@@ -378,6 +403,7 @@ async def reset_segment(recording_id: str, segment_index: int, session: Session 
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "segment_index": segment_index, "text": seg["text"]}
 
 
@@ -405,6 +431,7 @@ async def rename_recording_speaker(
     tr.updated_at = time.time()
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "new_name": new_name}
 
 
@@ -456,4 +483,5 @@ async def assign_speaker(
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "speakers": speakers}

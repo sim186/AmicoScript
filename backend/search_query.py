@@ -65,3 +65,59 @@ def build_fts_match(query: str, prefix_last: bool = True) -> str:
             quoted[-1] = quoted[-1] + "*"
 
     return " AND ".join(quoted)
+
+
+# Question words and glue. A question typed at a search box is mostly these,
+# and ANDing them finds nothing at all.
+_STOPWORDS = frozenset("""
+a about after all also am an and any are as at be because been before being
+but by can could did do does doing done for from had has have he her hers him
+his how i if in into is it its just me more most my no nor not of off on once
+only or other our out over own said same she should so some such than that the
+their them then there these they this those to too us very was we were what
+when where which while who whom why will with would you your
+""".split())
+
+
+# Punctuation clinging to the outside of a word. Kept inside, so "covid-19"
+# and "don't" survive intact.
+_EDGE_PUNCT_RE = re.compile(r"^[^\w]+|[^\w]+$", re.UNICODE)
+
+
+def build_fts_or_match(query: str, max_terms: int = 12) -> str:
+    """An FTS5 expression matching *any* content word of *query*.
+
+    ``build_fts_match`` ANDs its terms, which is right for a search box: every
+    word narrows the result. It is wrong for a question. "What did we decide
+    about pricing?" ANDed matches a passage only if it contains "what" and
+    "did" and "we" — so, in practice, nothing. Here the glue is dropped and
+    what remains is ORed, leaving FTS5's ranking to sort out which passage has
+    the most of it.
+    """
+    if not query or not query.strip():
+        return ""
+
+    terms: list[str] = []
+    for match in _TOKEN_RE.finditer(query):
+        phrase, word = match.group(1), match.group(2)
+        term = (phrase if phrase is not None else word or "").strip()
+        if not term or not _HAS_WORD_RE.search(term):
+            continue
+        # A quoted phrase is kept whole and always survives — the user asked
+        # for those exact words.
+        if phrase is None:
+            # Strip the punctuation a question carries, or 'about?' is not
+            # recognised as glue and 'pricing?' is quoted with its question
+            # mark still attached.
+            term = _EDGE_PUNCT_RE.sub("", term)
+            if not term or term.casefold() in _STOPWORDS or len(term) < 2:
+                continue
+        terms.append(term)
+
+    if not terms:
+        # A question made entirely of stopwords ("what is it about?") has
+        # nothing to search for; ORing the glue back in would match the whole
+        # library equally, which is the same as matching nothing useful.
+        return ""
+
+    return " OR ".join(_quote(t) for t in terms[:max_terms])
