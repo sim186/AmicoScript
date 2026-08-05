@@ -26,6 +26,18 @@ _cached_model_key: Optional[tuple] = None
 _model_lock: threading.Lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
+# Diarization pipeline cache + lock
+# ---------------------------------------------------------------------------
+# Separate from the Whisper cache and its lock: the two are loaded in the same
+# job, one after the other, and sharing a lock would serialise nothing useful
+# while risking a deadlock if either ever loads the other.
+
+_cached_diarization = None
+_cached_diarization_device: Optional[str] = None
+_cached_diarization_key: Optional[tuple] = None
+_diarization_lock: threading.Lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
 # Background job queue — initialised in main.py startup (not at import time)
 # so the correct asyncio event loop is always used.
 # ---------------------------------------------------------------------------

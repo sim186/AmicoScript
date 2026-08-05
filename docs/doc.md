@@ -204,6 +204,23 @@ Speaker diarization uses `pyannote` and requires:
 
 Add your token via the settings endpoint or UI.
 
+### Speed, and which device it runs on
+
+Diarization follows the same `device` and `device_index` the transcription was
+given, so a job running Whisper on the GPU diarizes there too. `auto` picks a
+GPU when torch reports one and the CPU otherwise; an explicit `cuda` on a
+machine without one falls back rather than failing the job.
+
+This matters more than it sounds. pyannote's `Pipeline.from_pretrained` returns
+a pipeline **on the CPU** — moving it takes an explicit `.to(device)` — so it
+is easy to end up diarizing on the CPU on a machine whose GPU is otherwise
+busy transcribing. If diarization feels disproportionately slow, that is the
+first thing to check: the job log records `Diarization running on <device>` for
+every run, and a CPU run also says so in the progress message.
+
+The pipeline is cached for the life of the process and reloaded only when the
+device changes, so only the first diarized job pays the model load.
+
 ---
 
 ## Architecture

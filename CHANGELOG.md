@@ -6,6 +6,25 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ⚡ Diarization was running on the CPU
+
+- **Speaker diarization now uses the GPU.** pyannote's `from_pretrained`
+  returns a pipeline on the CPU, and moving it takes an explicit `.to(device)`
+  that was never there — so on a machine with a working GPU, Whisper
+  transcribed on it while diarization crawled along on the CPU beside it. It
+  now follows the same device the transcription was given.
+- **The pipeline is loaded once, not once per job.** Whisper's model has been
+  cached since it was written; diarization reloaded itself from disk every
+  time. Only the first diarized job now pays that cost.
+- **A CPU run says it is a CPU run.** The job log records which device
+  diarization used, and running on the CPU adds a line to the progress message
+  saying it will be much slower. There was previously no way to tell from the
+  outside which one you were getting.
+- Asking for `cuda` on a machine without one falls back to the CPU rather than
+  failing the job, and a GPU that cannot be reached at all — a driver mismatch,
+  too little VRAM — is remembered, so the next job does not reload the model
+  and fail the same move again.
+
 ### 💬 Ask your library
 
 - **A question box above the library answers from every transcript at once.**

@@ -82,6 +82,25 @@ def no_auth(monkeypatch):
     monkeypatch.setenv("AMICOSCRIPT_AUTH", "off")
 
 
+@pytest.fixture(autouse=True)
+def _clear_diarization_cache():
+    """No test may inherit the pipeline another one loaded.
+
+    The diarization pipeline is cached for the life of the process, which is
+    what makes it fast in production and what would otherwise let one test's
+    stubbed pyannote answer the next test's call.
+    """
+    import state
+
+    state._cached_diarization = None
+    state._cached_diarization_device = None
+    state._cached_diarization_key = None
+    yield
+    state._cached_diarization = None
+    state._cached_diarization_device = None
+    state._cached_diarization_key = None
+
+
 @pytest.fixture()
 def clean_settings():
     """Empty settings.json before and after a test that writes to it."""

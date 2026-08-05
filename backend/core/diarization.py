@@ -1,9 +1,16 @@
 """Diarization phase helpers."""
+import gc
 from typing import Any
 
+import state
 from core.audio_utils import _convert_audio_for_diarization
 from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
 from shims import inject_torch_load_shim, inject_torchcodec_shim
+from utils.logging_utils import get_logger
+
+logger = get_logger("amicoscript.diarization")
+
+DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
 
 
 _DIARIZATION_STEP_WEIGHTS = {
@@ -14,6 +21,114 @@ _DIARIZATION_STEP_WEIGHTS = {
 }
 _DIARIZATION_PROGRESS_START = 0.82
 _DIARIZATION_PROGRESS_END = 0.95
+
+
+def resolve_device(requested: str, device_index: int = 0) -> str:
+    """Turn a requested device into one torch can actually be handed.
+
+    faster-whisper understands "auto" itself; torch does not, so the choice has
+    to be made here. An explicit "cuda" on a machine without one falls back
+    rather than raising: the user asked for speed, not for a failed job.
+    """
+    wanted = (requested or "auto").strip().lower()
+    try:
+        import torch
+
+        available = bool(getattr(torch, "cuda", None) and torch.cuda.is_available())
+    except Exception:
+        available = False
+
+    if wanted in {"cpu"}:
+        return "cpu"
+    if wanted.startswith("cuda") or wanted == "gpu":
+        return f"cuda:{device_index}" if available else "cpu"
+    # "auto" and anything unrecognised
+    return f"cuda:{device_index}" if available else "cpu"
+
+
+def _evict_cached_pipeline() -> None:
+    """Drop the cached pipeline and give its VRAM back."""
+    if state._cached_diarization is None:
+        return
+    state._cached_diarization = None
+    state._cached_diarization_device = None
+    state._cached_diarization_key = None
+    gc.collect()
+    try:
+        import torch
+
+        if getattr(torch, "cuda", None) and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def reset_pipeline_cache() -> None:
+    """Forget the cached pipeline, so the next job loads it again.
+
+    A cached pipeline holds VRAM for the life of the process, and a test that
+    stubs pyannote needs the next one to actually reach its stub.
+    """
+    with state._diarization_lock:
+        _evict_cached_pipeline()
+
+
+def get_diarization_pipeline(
+    hf_token: str, device: str = "auto", device_index: int = 0
+) -> tuple[Any, str]:
+    """Return a (pipeline, active_device) pair, loading and caching as needed.
+
+    Two things this fixes, both of which made diarization far slower than it
+    had to be:
+
+    * ``Pipeline.from_pretrained`` returns a pipeline **on the CPU**. Without
+      the explicit ``.to(device)`` below, diarization ran on the CPU even on a
+      machine where Whisper was happily using the GPU next door.
+    * It was reloaded from disk on every job. Whisper has been cached since it
+      was written; this now matches.
+    """
+    from pyannote.audio import Pipeline as _Pipeline
+
+    target = resolve_device(device, device_index)
+    # Keyed on the device that was *asked for*, not the one that was reached.
+    # When a GPU move fails, the CPU pipeline is remembered under the GPU key,
+    # so the next job reuses it instead of reloading the model and failing the
+    # same move again — which is the per-job reload this change exists to stop.
+    cache_key = (DIARIZATION_MODEL, target)
+
+    with state._diarization_lock:
+        if (
+            state._cached_diarization is not None
+            and state._cached_diarization_key == cache_key
+        ):
+            return state._cached_diarization, state._cached_diarization_device
+
+        _evict_cached_pipeline()
+
+        import inspect as _inspect
+
+        signature = _inspect.signature(_Pipeline.from_pretrained)
+        token_kw = "token" if "token" in signature.parameters else "use_auth_token"
+        pipeline = _Pipeline.from_pretrained(
+            DIARIZATION_MODEL, **{token_kw: hf_token}
+        )
+
+        active = target
+        if target != "cpu":
+            try:
+                import torch
+
+                pipeline = pipeline.to(torch.device(target))
+            except Exception:
+                # A driver mismatch or too little VRAM: CPU is slow, but it is
+                # an answer. Falling back beats failing the whole job.
+                logger.exception("Could not move diarization to %s; using the CPU", target)
+                active = "cpu"
+
+        state._cached_diarization = pipeline
+        state._cached_diarization_device = active
+        state._cached_diarization_key = cache_key
+        return pipeline, active
 
 
 def _run_pipeline_with_progress(
@@ -140,19 +255,25 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
             from backend import resource_downloader as _rd
         except ImportError:
             import resource_downloader as _rd
-        _rd.ensure_pyannote_model("pyannote/speaker-diarization-community-1", opts.get("hf_token"))
+        _rd.ensure_pyannote_model(DIARIZATION_MODEL, opts.get("hf_token"))
     except Exception:
         pass
 
-    from pyannote.audio import Pipeline as _Pipeline
-
-    import inspect as _inspect
-    _sig = _inspect.signature(_Pipeline.from_pretrained)
-    _token_kw = "token" if "token" in _sig.parameters else "use_auth_token"
-    pipeline = _Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-community-1",
-        **{_token_kw: opts["hf_token"]},
+    pipeline, active_device = get_diarization_pipeline(
+        opts["hf_token"],
+        device=opts.get("device", "auto"),
+        device_index=int(opts.get("device_index") or 0),
     )
+    # Worth saying out loud: diarization on the CPU is the difference between
+    # a minute and ten, and this is how a user finds out which they are getting.
+    _append_job_log(job_id, "INFO", f"Diarization running on {active_device}")
+    if active_device == "cpu":
+        _push_event(
+            job_id,
+            "diarizing",
+            0.82,
+            "Running speaker diarization on the CPU — this is much slower than a GPU.",
+        )
 
     diarization_input = _convert_audio_for_diarization(job_id, job["file_path"], force=True)
 
