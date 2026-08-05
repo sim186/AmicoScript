@@ -241,6 +241,61 @@ def test_bulk_export_404s_when_nothing_matches(client):
     assert resp.status_code == 404
 
 
+def test_markdown_export_carries_the_recordings_own_metadata(
+    client, make_recording, sample_segments
+):
+    """Tags and folder live on the recording, not in the transcript JSON."""
+    folder = client.post("/api/folders", data={"name": "Work"}).json()
+    tag = client.post("/api/tags", data={"name": "quarterly review"}).json()
+    rec_id = make_recording(segments=sample_segments, folder_id=folder["id"])
+    assert client.post(f"/api/recordings/{rec_id}/tags/{tag['id']}").status_code == 200
+
+    text = client.get(f"/api/recordings/{rec_id}/export/md").text
+
+    assert text.startswith("---\n")
+    assert 'folder: "Work"' in text
+    assert 'model: "small"' in text          # read out of transcription_options
+    assert '- "quarterly-review"' in text    # an Obsidian tag has no spaces
+    assert '- "SPEAKER_00"' in text
+
+
+def test_markdown_export_adds_wikilinks_only_when_asked(
+    client, make_recording, sample_segments
+):
+    rec_id = make_recording(segments=sample_segments)
+
+    plain = client.get(f"/api/recordings/{rec_id}/export/md").text
+    linked = client.get(f"/api/recordings/{rec_id}/export/md?wikilinks=true").text
+
+    assert "[[" not in plain
+    assert "[[SPEAKER_00]]" in linked
+
+
+def test_bulk_markdown_export_takes_the_wikilinks_flag(
+    client, make_recording, sample_segments
+):
+    first = make_recording(filename="alpha.mp3", segments=sample_segments)
+    second = make_recording(filename="beta.mp3", segments=sample_segments)
+
+    resp = client.post(
+        "/api/recordings/bulk-export/md",
+        json={"ids": [first, second], "wikilinks": True},
+    )
+    assert resp.status_code == 200
+    assert "[[SPEAKER_00]]" in resp.text
+    # One properties block for the collection, not one per transcript.
+    assert resp.text.count("\nrecordings: ") == 1
+
+
+def test_export_of_another_format_ignores_the_wikilinks_flag(
+    client, make_recording, sample_segments
+):
+    rec_id = make_recording(segments=sample_segments)
+    resp = client.get(f"/api/recordings/{rec_id}/export/srt?wikilinks=true")
+    assert resp.status_code == 200
+    assert "[[" not in resp.text
+
+
 # --- folders, tags and search ----------------------------------------------
 
 

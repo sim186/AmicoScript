@@ -21,6 +21,10 @@ export function initExportButtons() {
       } else {
         return;
       }
+      // Only Markdown has anywhere to put a wikilink.
+      if (fmt === 'md' && document.getElementById('export-wikilinks')?.checked) {
+        exportUrl += '?wikilinks=true';
+      }
       try {
         clientLog(`Export as ${fmt.toUpperCase()}: ${baseName}.${fmt}`);
         const res = await fetch(exportUrl);

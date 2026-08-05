@@ -154,16 +154,20 @@ async def _search(app, args):
 EXPORT_FORMATS = ("json", "srt", "vtt", "txt", "md", "csv")
 
 
-@command("export", f"export <id> <fmt: {'|'.join(EXPORT_FORMATS)}>")
+@command("export", f"export <id> <fmt: {'|'.join(EXPORT_FORMATS)}> [wikilinks]")
 async def _export(app, args):
     if len(args) < 2:
-        app.notify(f"usage: /export <id> <{'|'.join(EXPORT_FORMATS)}>")
+        app.notify(f"usage: /export <id> <{'|'.join(EXPORT_FORMATS)}> [wikilinks]")
         return
     rec_id, fmt = args[0], args[1].lower()
     if fmt not in EXPORT_FORMATS:
         app.notify(f"unknown format {fmt!r}; use one of {', '.join(EXPORT_FORMATS)}")
         return
-    body, filename = await app.api.export(rec_id, fmt)
+    wikilinks = len(args) > 2 and args[2].lower() == "wikilinks"
+    if wikilinks and fmt != "md":
+        app.notify("wikilinks only apply to md; exporting without them")
+        wikilinks = False
+    body, filename = await app.api.export(rec_id, fmt, wikilinks=wikilinks)
     out = Path.cwd() / (filename or f"{rec_id}.{fmt}")
     out.write_bytes(body)
     app.notify(f"saved: {out}")

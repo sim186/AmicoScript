@@ -27,6 +27,43 @@ AUDIO_MEDIA_TYPES = {
 }
 
 
+def _export_meta(recording: Recording, session: Session) -> dict:
+    """The facts a Markdown export needs that are not in the transcript itself.
+
+    Tags and folder live on the recording, and the model name is buried inside
+    the stored ``transcription_options`` JSON.
+    """
+    links = session.exec(
+        select(RecordingTag).where(RecordingTag.recording_id == recording.id)
+    ).all()
+    tag_ids = [lnk.tag_id for lnk in links]
+    tags = []
+    if tag_ids:
+        tags = [t.name for t in session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()]
+
+    folder = ""
+    if recording.folder_id:
+        found = session.get(Folder, recording.folder_id)
+        folder = found.name if found else ""
+
+    model = ""
+    if recording.transcription_options:
+        try:
+            opts = json.loads(recording.transcription_options)
+            if isinstance(opts, dict):
+                model = str(opts.get("model") or "")
+        except (json.JSONDecodeError, ValueError):
+            model = ""
+
+    return {
+        "tags": sorted(tags),
+        "folder": folder,
+        "source": recording.source or "",
+        "model": model,
+        "duration": recording.duration,
+    }
+
+
 def _recording_with_tags(recording: Recording, session: Session) -> dict:
     links = session.exec(select(RecordingTag).where(RecordingTag.recording_id == recording.id)).all()
     tag_ids = [lnk.tag_id for lnk in links]
@@ -209,7 +246,12 @@ def get_recording_transcript(recording_id: str, session: Session = Depends(get_s
 
 
 @router.get("/api/recordings/{recording_id}/export/{fmt}")
-def export_recording(recording_id: str, fmt: str, session: Session = Depends(get_session)):
+def export_recording(
+    recording_id: str,
+    fmt: str,
+    wikilinks: bool = False,
+    session: Session = Depends(get_session),
+):
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")
@@ -229,7 +271,14 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
     date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
     try:
-        content, media_type, ext = render_export(fmt, result, title=title, date=date_str)
+        content, media_type, ext = render_export(
+            fmt,
+            result,
+            title=title,
+            date=date_str,
+            meta=_export_meta(rec, session),
+            wikilinks=wikilinks,
+        )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -242,6 +291,7 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
 
 class BulkExportRequest(BaseModel):
     ids: list[str]
+    wikilinks: bool = False
 
 
 @router.post("/api/recordings/bulk-export/md")
@@ -264,10 +314,11 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
             "title": rec.alias or Path(rec.filename).stem,
             "date": datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d"),
             "result": result,
+            "meta": _export_meta(rec, session),
         })
     if not recordings:
         raise HTTPException(404, "No valid transcripts found for provided IDs")
-    content = _format_md_bulk(recordings)
+    content = _format_md_bulk(recordings, wikilinks=body.wikilinks)
     filename = "transcripts" if len(recordings) > 1 else recordings[0]["title"]
     return StreamingResponse(
         iter([content.encode("utf-8")]),

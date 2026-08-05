@@ -152,11 +152,12 @@ class ApiClient:
         return await self._delete(f"/api/recordings/{recording_id}")
 
     async def export(
-        self, recording_id: str, fmt: str
+        self, recording_id: str, fmt: str, wikilinks: bool = False
     ) -> tuple[bytes, str | None]:
         """Return (body, filename) for a transcript export."""
         r = await self.client.get(
-            f"/api/recordings/{recording_id}/export/{fmt}"
+            f"/api/recordings/{recording_id}/export/{fmt}",
+            params={"wikilinks": "true"} if wikilinks else None,
         )
         r.raise_for_status()
         filename = _filename_from_disposition(
@@ -164,10 +165,13 @@ class ApiClient:
         )
         return r.content, filename
 
-    async def bulk_export_md(self, ids: list[str]) -> tuple[bytes, str | None]:
+    async def bulk_export_md(
+        self, ids: list[str], wikilinks: bool = False
+    ) -> tuple[bytes, str | None]:
         """Return (body, filename) for a combined markdown export of several recordings."""
         r = await self.client.post(
-            "/api/recordings/bulk-export/md", json={"ids": ids}
+            "/api/recordings/bulk-export/md",
+            json={"ids": ids, "wikilinks": wikilinks},
         )
         r.raise_for_status()
         filename = _filename_from_disposition(

@@ -532,7 +532,7 @@ async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str =
 
 
 @router.get("/api/jobs/{job_id}/export/{fmt}")
-def export_job(job_id: str, fmt: str):
+def export_job(job_id: str, fmt: str, wikilinks: bool = False):
     job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
@@ -542,8 +542,18 @@ def export_job(job_id: str, fmt: str):
     filename = Path(job["original_filename"]).stem
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
+    # A live job predates the library, so it has no tags or folder yet. Only
+    # the model name is read out of the options — the rest of that dict holds
+    # the Hugging Face token.
+    meta = {
+        "model": str((job.get("options") or {}).get("model") or ""),
+        "source": job.get("source_platform") or ("link" if job.get("source_url") else "upload"),
+    }
+
     try:
-        content, media_type, ext = render_export(fmt, result, title=filename, date=date_str)
+        content, media_type, ext = render_export(
+            fmt, result, title=filename, date=date_str, meta=meta, wikilinks=wikilinks
+        )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

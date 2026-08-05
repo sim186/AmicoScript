@@ -385,7 +385,10 @@ export async function bulkExport(fmt) {
       const res = await fetch('/api/recordings/bulk-export/md', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({
+          ids,
+          wikilinks: !!document.getElementById('export-wikilinks')?.checked,
+        }),
       });
       if (!res.ok) { alert(`Export failed: HTTP ${res.status}`); return; }
       const blob = await res.blob();

@@ -78,7 +78,9 @@ AmicoScript keeps everything local.
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)
 - ✏️ Edit individual segments
-- 📤 Export to JSON, SRT, WebVTT, TXT, Markdown, CSV
+- 📤 Export to JSON, SRT, WebVTT, TXT, Markdown, CSV — Markdown carries YAML
+  frontmatter (date, duration, speakers, tags, folder, model), so a transcript
+  dropped into Obsidian, Hugo or Jekyll arrives with its properties filled in
 - 💾 Export/import your whole library as one file — backup, or move between machines
 - 🔐 Password protection for network access (local use stays password-free)
 - ⌨️ Keyboard shortcuts for fast navigation

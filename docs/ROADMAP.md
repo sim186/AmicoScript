@@ -18,9 +18,6 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 **Tier 2 — AI & UX**
 - AI-powered smart tagging — tags exist, but every one of them is created and
   applied by hand; nothing suggests them from the transcript
-- Enhanced Markdown export — the Markdown export ships, single and bulk, but it
-  writes a bold metadata line. Obsidian wants YAML frontmatter, and wikilinks
-  for speakers and tags
 
 **Tier 3 — Polish & ecosystem**
 - Tauri desktop shell — phase 2 of [docs/desktop-shell.md](desktop-shell.md);
@@ -28,6 +25,9 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 
 ### Shipped
 
+- Enhanced Markdown export — YAML frontmatter with the recording's date,
+  duration, speakers, tags, folder and model, plus optional `[[wikilinks]]` for
+  speakers
 - Live voice recording — record from the microphone in the app, with pause and
   a review step before the clip joins the queue
 - Linux desktop shell — `run.py` opens a native window through pywebview

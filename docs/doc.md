@@ -102,11 +102,44 @@ Download a transcript in one of the following formats:
 | `srt`  | Subtitles; speaker names are prefixed in the caption text |
 | `vtt`  | WebVTT subtitles; speakers become `<v Name>` voice spans, which is what `<track>` expects |
 | `txt`  | Plain text grouped by speaker with timestamps |
-| `md`   | Markdown with a metadata header and speaker runs |
+| `md`   | Markdown with YAML frontmatter and speaker runs |
 | `csv`  | One row per segment (index, start, end, speaker, text, translation, edited) — for spreadsheets and pandas |
 
+Add `?wikilinks=true` to write speaker names as `[[Name]]`. It applies to `md`
+only and is off by default.
+
 **POST /api/recordings/bulk-export/md** — combine several transcripts into a
-single Markdown document with a table of contents. Body: `{"ids": [...]}`.
+single Markdown document with a table of contents. Body:
+`{"ids": [...], "wikilinks": false}`.
+
+#### Markdown frontmatter
+
+The `md` export opens with a YAML block that Obsidian, Hugo, Jekyll and Quartz
+read as note properties:
+
+```yaml
+---
+title: "Q3 Review"
+date: 2026-08-05
+duration: "31:15"
+duration_seconds: 1875.4
+language: "en"
+speakers:
+  - "Ada"
+  - "Grace"
+tags:
+  - "quarterly-review"
+folder: "Work/Reviews"
+source: "upload"
+model: "small"
+---
+```
+
+Keys with no value are omitted. Tag names are normalised to Obsidian's rules —
+whitespace becomes `-`, a leading `#` is dropped. A bulk export of several
+recordings gets one block for the collection (`recordings`, `date_from`, every
+speaker and tag) rather than one per transcript, since only the block at the
+top of a file is frontmatter.
 
 ---
 

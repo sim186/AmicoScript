@@ -6,6 +6,30 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 📝 Markdown that a vault understands
+
+- **The Markdown export now opens with YAML frontmatter** — title, date,
+  duration (both as `31:15` and as seconds), language, speakers, tags, folder,
+  source and the model that produced it. Obsidian, Hugo, Jekyll and Quartz all
+  read that block as note properties; previously all of it was one bold line of
+  prose, and the tags and folder were not in the file at all, because the
+  formatter was only ever handed the transcript and never the recording it
+  belonged to.
+- **A tag with a space in it becomes `team-sync`.** Obsidian tags cannot contain
+  whitespace, and a leading `#` belongs in the note body.
+- **Speaker names can be exported as `[[wikilinks]]`**, so each person
+  accumulates a note that backlinks every conversation they appear in. It is a
+  checkbox next to the export buttons, `?wikilinks=true` on the export
+  endpoints, and `/export <id> md wikilinks` in the TUI — off by default,
+  because that syntax is literal noise outside a wiki-style vault.
+- **A bulk export carries exactly one properties block.** Frontmatter is only
+  frontmatter at the top of a file; the collection gets a summary block with
+  the date span, every speaker and every tag, and each transcript below keeps
+  the inline metadata line it has always had.
+- **Titles are quoted, not trusted.** A recording aliased `- notes`, `no`, or
+  anything containing a quote or a colon used to be a plausible way to produce
+  a file whose frontmatter did not parse.
+
 ### ⌨️ The terminal UI caught up
 
 - **Fixed a regression that erased your Hugging Face token.** When the API
