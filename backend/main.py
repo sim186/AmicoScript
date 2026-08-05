@@ -339,34 +339,10 @@ def _recover_interrupted_jobs() -> None:
 
 def _requeue_recording(recording_id: str, filename: str, file_path: str, opts: dict) -> None:
     """Recreate the in-memory job for a recording and put it back on the queue."""
-    import threading
-    import uuid
+    from core.requeue import build_job
 
-    from settings import _get_saved_hf_token
-
-    job_id = str(uuid.uuid4())
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "transcribe",
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Requeued after restart",
-        "file_path": file_path,
-        "original_filename": filename,
-        "options": {**opts, "hf_token": opts.get("hf_token") or _get_saved_hf_token()},
-        "source_url": "",
-        "source_platform": "",
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-        "resumed": True,
-    }
+    job_id = build_job(recording_id, filename, file_path, opts, resumed=True)
+    state.jobs[job_id]["message"] = "Requeued after restart"
     state.JOB_QUEUE.put_nowait(job_id)
 
 

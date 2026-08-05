@@ -672,6 +672,8 @@
       </div>
       <p id="login-message" class="text-sm text-slate-500 mb-4">Enter your password to continue.</p>
       <form id="login-form" class="space-y-3">
+        <input type="text" name="username" value="amicoscript" autocomplete="username"
+               class="hidden" tabindex="-1" aria-hidden="true" readonly />
         <input id="login-password" type="password" autocomplete="current-password" placeholder="Password"
           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
         <button type="submit"
@@ -782,6 +784,7 @@
                 <label for="hf-token-input" class="block text-xs text-slate-500 mb-1">HuggingFace Token</label>
                 <div class="relative">
                   <input type="password" id="hf-token-input" placeholder="hf_…" autocomplete="off"
+                    data-1p-ignore data-lpignore="true"
                     class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-brand" />
                   <button id="hf-eye-btn" type="button" aria-label="Toggle token visibility"
                     class="absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400 hover:text-slate-600">
@@ -967,6 +970,7 @@
                     id="llm-api-key-requirement" class="font-normal">(optional)</span></label>
                 <div class="relative">
                   <input id="llm-api-key" type="password" placeholder="Leave empty for Ollama"
+                    autocomplete="off" data-1p-ignore data-lpignore="true"
                     class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-brand" />
                   <button type="button" id="llm-key-eye"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
@@ -1016,7 +1020,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </summary>
-            <div class="mt-2 space-y-2">
+            <form id="auth-form" class="mt-2 space-y-2" autocomplete="on" onsubmit="return false">
+              <!-- Hidden username: password managers need one to associate the
+                   credential with this app rather than guessing. -->
+              <input type="text" name="username" value="amicoscript" autocomplete="username"
+                     class="hidden" tabindex="-1" aria-hidden="true" readonly />
               <p id="auth-state-line" class="text-[10px] leading-tight text-slate-500">
                 No password set. Anyone on this machine can use AmicoScript; requests from
                 the network are refused.
@@ -1048,7 +1056,7 @@
                   Only needed when running with AMICOSCRIPT_AUTH=always.
                 </p>
               </div>
-            </div>
+            </form>
           </details>
 
           <!-- Backup -->

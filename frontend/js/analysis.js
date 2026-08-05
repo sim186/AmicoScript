@@ -354,8 +354,17 @@ export async function loadPastAnalyses(recordingId) {
       headerDiv.className = 'flex items-center justify-between mb-0.5';
 
       const labelSpan = document.createElement('span');
-      labelSpan.className = 'font-semibold text-slate-700';
+      labelSpan.className = 'font-semibold text-slate-700 flex items-center gap-1.5';
       labelSpan.textContent = label;
+      if (a.auto_generated) {
+        // Distinguish a summary AmicoScript produced by itself from one the
+        // user asked for, so an unexpected entry is not a mystery.
+        const badge = document.createElement('span');
+        badge.className = 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-muted text-brand';
+        badge.textContent = 'automatic';
+        badge.title = 'Created automatically when this meeting finished';
+        labelSpan.appendChild(badge);
+      }
 
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';

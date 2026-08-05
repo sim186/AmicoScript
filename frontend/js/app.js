@@ -21,7 +21,7 @@ import './exports.js';
 import './prefs.js';
 import { selectFolder } from './folders.js';
 import { clearTagFilter } from './tags.js';
-import { bulkAssignTag, bulkDelete, bulkExport, bulkMoveToFolder, deleteRecordingConfirm, moveRecordingToFolder, saveAlias, toggleCardSelection, togglePopover, toggleRecordingTag, toggleSelectAll } from './library.js';
+import { bulkAssignTag, bulkDelete, bulkExport, bulkMoveToFolder, deleteRecordingConfirm, moveRecordingToFolder, retryRecording, saveAlias, toggleCardSelection, togglePopover, toggleRecordingTag, toggleSelectAll } from './library.js';
 import './search.js';
 import './library-init.js';
 import { toggleShortcutsOverlay } from './shortcuts.js';
@@ -40,7 +40,7 @@ Object.assign(window, {
   assignSpeakerToSelected, cancelSegmentEdit, clearSegmentSelection, escHtml, openSegmentEdit, promptRenameSpeaker, resetSegment, saveSegmentEdit, toggleSegmentSelection, toggleSpeakerFilter, translateSegment,
   selectFolder,
   clearTagFilter,
-  bulkAssignTag, bulkDelete, bulkExport, bulkMoveToFolder, deleteRecordingConfirm, moveRecordingToFolder, saveAlias, toggleCardSelection, togglePopover, toggleRecordingTag, toggleSelectAll,
+  bulkAssignTag, bulkDelete, bulkExport, bulkMoveToFolder, deleteRecordingConfirm, moveRecordingToFolder, retryRecording, saveAlias, toggleCardSelection, togglePopover, toggleRecordingTag, toggleSelectAll,
   toggleShortcutsOverlay,
   pullLlmModel, saveLlmSettings, selectLlmModel,
   closeDrawer, toggleDrawer,

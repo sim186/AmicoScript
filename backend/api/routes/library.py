@@ -7,7 +7,7 @@ from pathlib import Path
 
 from http_utils import content_disposition_attachment as _content_disposition
 
-from db import get_session
+from db import get_session, new_session
 
 from exports import _format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
@@ -148,6 +148,35 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
         pass
 
     return {"ok": True}
+
+
+@router.post("/api/recordings/{recording_id}/retry")
+def retry_recording(recording_id: str) -> dict:
+    """Transcribe an existing recording again.
+
+    Until now a failed transcription was a dead end: the audio was still on
+    disk, but the only way to try again was to delete the recording and
+    re-import the file. This reuses the stored options, so a retry runs with the
+    same model, language and diarization settings as the original attempt.
+    """
+    from core.requeue import RETRYABLE_STATUSES, RequeueError, enqueue_from_loop, requeue_recording
+
+    with new_session() as session:
+        rec = session.get(Recording, recording_id)
+        if not rec:
+            raise HTTPException(404, "Recording not found")
+        status = rec.status
+
+    if status not in RETRYABLE_STATUSES:
+        raise HTTPException(409, f"This recording is {status}; wait for it to finish first.")
+
+    try:
+        job_id = requeue_recording(recording_id)
+    except RequeueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    enqueue_from_loop(job_id)
+    return {"ok": True, "job_id": job_id, "recording_id": recording_id}
 
 
 @router.get("/api/recordings/{recording_id}/audio")

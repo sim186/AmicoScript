@@ -6,6 +6,38 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🔁 Recovering from a failed transcription
+
+- **Transcribe again.** A recording that failed, was cancelled, or was
+  interrupted by a restart now has a retry button in the library. The audio was
+  always still on disk, but the only way to try again was to delete the
+  recording and re-import the file. Retries reuse the original model, language
+  and diarization settings.
+- **The reason is shown, not hidden in a tooltip.** An `interrupted` recording
+  explains itself in the card ("Interrupted by an app restart"), which a touch
+  screen could not surface before.
+- **Recordings say where they came from.** An auto-captured call and a file you
+  dragged in used to look identical; captures and link imports now carry a badge.
+- **Automatic summaries are labelled.** A summary AmicoScript produced by itself
+  is marked "automatic", so an unexpected entry in the analysis history is not a
+  mystery.
+
+### 🐛 Fixes found by running the app
+
+- **Creating a tag that already exists returned HTTP 500.** It hit the database's
+  unique constraint and surfaced as a server error with no message. It is now a
+  409 that names the clash, and renaming a tag onto an existing name is caught
+  the same way.
+- **API errors were shown to the user as raw JSON** — `Save failed:
+  {"detail":"…"}`. Folder, tag and library actions now show the sentence the
+  server actually sent.
+- **The password fields were not inside a form** and had no username field, so
+  browsers warned about them and password managers had nothing to associate a
+  saved credential with. The Hugging Face and LLM key fields are now marked so
+  password managers leave them alone entirely — they are tokens, not logins.
+- Library rows carry a `data-recording-id`, so a row can be identified without
+  counting its position in the list.
+
 ### 🧠 LLM setup that does not require guesswork
 
 - **Pick your tool from a list.** LLM Settings now offers presets for Ollama, LM

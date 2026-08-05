@@ -9,6 +9,7 @@ from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -175,9 +176,25 @@ def list_tags(folder_id: str = "", session: Session = Depends(get_session)) -> l
 async def create_tag(name: str = Form(...), color_code: str = Form("#6c63ff"), session: Session = Depends(get_session)) -> dict:
     if color_code and color_code.lower() not in ALLOWED_COLORS:
         raise HTTPException(400, "Invalid color_code")
+
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, "A tag name is required")
+
+    # Tag names are unique. Creating one that exists used to hit the database
+    # constraint and surface as a 500 with no explanation in the UI.
+    existing = session.exec(select(Tag).where(Tag.name == name)).first()
+    if existing is not None:
+        raise HTTPException(409, f"A tag called '{name}' already exists.")
+
     tag = Tag(name=name, color_code=color_code)
     session.add(tag)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        # Lost a race with a concurrent create; report it the same way.
+        session.rollback()
+        raise HTTPException(409, f"A tag called '{name}' already exists.") from exc
     session.refresh(tag)
     return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
 
@@ -193,13 +210,21 @@ async def update_tag(
     if not tag:
         raise HTTPException(404, "Tag not found")
     if name:
+        name = name.strip()
+        clash = session.exec(select(Tag).where(Tag.name == name, Tag.id != tag_id)).first()
+        if clash is not None:
+            raise HTTPException(409, f"A tag called '{name}' already exists.")
         tag.name = name
     if color_code:
         if color_code and color_code.lower() not in ALLOWED_COLORS:
             raise HTTPException(400, "Invalid color_code")
         tag.color_code = color_code
     session.add(tag)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(409, f"A tag called '{tag.name}' already exists.") from exc
     session.refresh(tag)
     return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
 

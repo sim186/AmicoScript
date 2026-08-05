@@ -3,6 +3,7 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
+import { throwIfFailed } from './errors.js';
 import { createFolder, fetchFolders } from './folders.js';
 import { fetchLibrary } from './library.js';
 import { PALETTE, setLibraryAccent, state } from './state.js';
@@ -99,11 +100,11 @@ async function createTag(name, color) {
   fd.append('color_code', color || '#6c63ff');
   try {
     const res = await fetch('/api/tags', { method: 'POST', body: fd });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'Could not create the tag.');
     await fetchTags();
     // ensure library cards (popovers) get updated with the new tag list
     try { await fetchLibrary(); } catch (_) { }
-  } catch (err) { alert(`Create tag failed: ${err.message}`); }
+  } catch (err) { alert(err.message); }
 }
 
 function showTagMenu(e, tag) {
@@ -229,7 +230,7 @@ window.saveEntityDialog = async function () {
     if (ctx.type === 'folder') {
       if (ctx.id) {
         const res = await fetch(`/api/folders/${ctx.id}`, { method: 'PATCH', body: fd });
-        if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
+        await throwIfFailed(res, 'Could not rename the folder.');
         await fetchFolders();
         fetchTags();
         fetchLibrary();
@@ -240,7 +241,7 @@ window.saveEntityDialog = async function () {
     } else if (ctx.type === 'tag') {
       if (ctx.id) {
         const res = await fetch(`/api/tags/${ctx.id}`, { method: 'PATCH', body: fd });
-        if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(t || 'HTTP ' + res.status); }
+        await throwIfFailed(res, 'Could not rename the tag.');
         await fetchTags();
         await fetchLibrary();
       } else {
@@ -248,5 +249,5 @@ window.saveEntityDialog = async function () {
       }
     }
     hideEntityDialog();
-  } catch (err) { alert('Save failed: ' + (err.message || err)); }
+  } catch (err) { alert(err.message || String(err)); }
 };

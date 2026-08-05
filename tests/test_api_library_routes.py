@@ -347,3 +347,110 @@ def test_settings_never_returns_the_hugging_face_token(client):
     finally:
         settings.pop("hf_token", None)
         _save_settings(settings)
+
+
+# --- retry ------------------------------------------------------------------
+
+
+def test_a_failed_recording_can_be_transcribed_again(client, make_recording, tmp_path):
+    """A failure used to be a dead end: delete the recording and re-upload."""
+    import state
+
+    audio = tmp_path / "original.mp3"
+    audio.write_bytes(b"ID3audio")
+    rec_id = make_recording(status="error", file_path=str(audio))
+
+    resp = client.post(f"/api/recordings/{rec_id}/retry")
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    assert client.get(f"/api/recordings/{rec_id}").json()["status"] == "queued"
+    assert state.jobs[job_id]["recording_id"] == rec_id
+    assert state.jobs[job_id]["file_path"] == str(audio)
+
+
+def test_retry_reuses_the_original_transcription_options(client, make_recording, tmp_path):
+    import json
+
+    import state
+    from db import new_session
+    from models import Recording
+
+    audio = tmp_path / "original.mp3"
+    audio.write_bytes(b"ID3audio")
+    rec_id = make_recording(status="error", file_path=str(audio))
+    with new_session() as session:
+        rec = session.get(Recording, rec_id)
+        rec.transcription_options = json.dumps({"model": "medium", "diarize": True})
+        session.add(rec)
+        session.commit()
+
+    job_id = client.post(f"/api/recordings/{rec_id}/retry").json()["job_id"]
+    assert state.jobs[job_id]["options"]["model"] == "medium"
+    assert state.jobs[job_id]["options"]["diarize"] is True
+
+
+@pytest.mark.parametrize("status", ["error", "interrupted", "cancelled", "done"])
+def test_retry_is_offered_for_finished_states(client, make_recording, tmp_path, status):
+    audio = tmp_path / f"{status}.mp3"
+    audio.write_bytes(b"ID3audio")
+    rec_id = make_recording(status=status, file_path=str(audio))
+    assert client.post(f"/api/recordings/{rec_id}/retry").status_code == 200
+
+
+def test_retry_is_refused_while_the_recording_is_in_flight(client, make_recording, tmp_path):
+    audio = tmp_path / "busy.mp3"
+    audio.write_bytes(b"ID3audio")
+    rec_id = make_recording(status="transcribing", file_path=str(audio))
+
+    resp = client.post(f"/api/recordings/{rec_id}/retry")
+    assert resp.status_code == 409
+    assert "transcribing" in resp.json()["detail"]
+
+
+def test_retry_explains_when_the_audio_is_gone(client, make_recording):
+    rec_id = make_recording(status="error", file_path="/nonexistent/gone.mp3")
+
+    resp = client.post(f"/api/recordings/{rec_id}/retry")
+    assert resp.status_code == 409
+    assert "no longer on disk" in resp.json()["detail"]
+
+
+def test_retry_404s_for_an_unknown_recording(client):
+    assert client.post("/api/recordings/nope/retry").status_code == 404
+
+
+# --- tag conflicts ----------------------------------------------------------
+
+
+def test_creating_a_duplicate_tag_is_a_clean_conflict(client):
+    """This used to hit the UNIQUE constraint and surface as a 500."""
+    assert client.post("/api/tags", data={"name": "quarterly"}).status_code == 200
+
+    resp = client.post("/api/tags", data={"name": "quarterly"})
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+def test_duplicate_tag_detection_ignores_surrounding_space(client):
+    client.post("/api/tags", data={"name": "urgent"})
+    assert client.post("/api/tags", data={"name": "  urgent  "}).status_code == 409
+
+
+def test_a_blank_tag_name_is_refused(client):
+    assert client.post("/api/tags", data={"name": "   "}).status_code == 400
+
+
+def test_renaming_a_tag_onto_an_existing_name_is_refused(client):
+    first = client.post("/api/tags", data={"name": "alpha"}).json()
+    client.post("/api/tags", data={"name": "beta"})
+
+    resp = client.patch(f"/api/tags/{first['id']}", data={"name": "beta"})
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+def test_renaming_a_tag_to_its_own_name_still_works(client):
+    tag = client.post("/api/tags", data={"name": "keepme"}).json()
+    resp = client.patch(f"/api/tags/{tag['id']}", data={"name": "keepme"})
+    assert resp.status_code == 200

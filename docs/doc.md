@@ -429,6 +429,19 @@ transcription that just succeeded.
 
 ---
 
+## Re-running a transcription
+
+**POST /api/recordings/{id}/retry**
+
+Queues an existing recording for transcription again, reusing the options it was
+first run with. Available for recordings in a finished state (`error`,
+`interrupted`, `cancelled`, `done`); anything still in flight answers 409, as
+does a recording whose audio is no longer on disk.
+
+The library shows a retry button on failed, cancelled and interrupted rows.
+
+---
+
 ## Interrupted jobs
 
 Restarting the app used to flip every in-flight recording to `error` with no

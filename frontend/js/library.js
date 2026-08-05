@@ -3,6 +3,7 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
+import { throwIfFailed } from './errors.js';
 import { showError } from './exports.js';
 import { fetchFolders } from './folders.js';
 import { state } from './state.js';
@@ -136,6 +137,9 @@ export function renderLibrary() {
     const card = document.createElement('div');
     const isSelected = state.library.selectedIds.has(rec.id);
     card.className = 'rec-card' + (isSelected ? ' ring-2 ring-brand ring-inset' : '');
+    // Identify the row in the DOM so the card can be found without relying on
+    // its position in the list.
+    card.dataset.recordingId = rec.id;
     card.onclick = (e) => {
       // Shift+click: select a range from the last selected index
       if (e.shiftKey && state.library.lastSelectedIdx !== null) {
@@ -193,6 +197,31 @@ export function renderLibrary() {
     // most importantly 'interrupted', which means an app restart, not a failure.
     const statusTitle = rec.status_detail ? ` title="${escHtml(rec.status_detail)}"` : '';
 
+    // A failed or interrupted recording still has its audio on disk, so offer
+    // to run it again rather than making the user delete and re-import.
+    const canRetry = ['error', 'interrupted', 'cancelled'].includes(rec.status);
+    const retryBtn = canRetry
+      ? `<button class="p-1.5 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/5 transition focus:outline-none"
+                 title="Transcribe again" aria-label="Transcribe again"
+                 onclick="event.stopPropagation(); retryRecording('${rec.id}')">
+           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+           </svg>
+         </button>`
+      : '';
+
+    // Where the recording came from. An auto-captured call and a file you
+    // dragged in used to look identical in the list.
+    const sourceBadge = {
+      meeting: '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 font-medium" title="Captured automatically from a call">meeting</span>',
+      url: '<span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 font-medium" title="Imported from a link">link</span>',
+    }[rec.source] || '';
+
+    // Shown, not just hovered: on a touch screen a title attribute is invisible.
+    const statusDetailLine = (rec.status_detail && canRetry)
+      ? `<p class="text-[11px] text-slate-400 mt-0.5 leading-tight">${escHtml(rec.status_detail)}</p>`
+      : '';
+
     const assignedTagIds = new Set((rec.tags || []).map(t => t.id));
     // include data attributes so tag clicks can be delegated reliably
     const tagPills = (rec.tags || []).map(t =>
@@ -229,8 +258,12 @@ export function renderLibrary() {
            onclick="event.stopPropagation()"
            onchange="toggleCardSelection('${rec.id}', this.checked, this.closest('.rec-card'))" />
     <div class="flex-1 min-w-0">
-      <p class="text-sm font-semibold text-slate-800 truncate" title="${escHtml(rec.filename)}">${escHtml(rec.alias || rec.filename)}</p>
+      <div class="flex items-center gap-1.5 min-w-0">
+        <p class="text-sm font-semibold text-slate-800 truncate" title="${escHtml(rec.filename)}">${escHtml(rec.alias || rec.filename)}</p>
+        ${sourceBadge}
+      </div>
       <p class="text-xs text-slate-400 mt-0.5">${date} · ${dur}${folderName ? ' · ' + escHtml(folderName) : ''}${rec.alias ? ' · ' + escHtml(rec.filename) : ''}</p>
+      ${statusDetailLine}
       ${tagPills ? `<div class="flex flex-wrap gap-1 mt-2">${tagPills}</div>` : ''}
     </div>
     <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
@@ -290,6 +323,7 @@ export function renderLibrary() {
       </div>
 
       <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusCls}"${statusTitle}>${rec.status}</span>
+      ${retryBtn}
       <button class="p-1.5 rounded-lg text-slate-300 hover:text-red-400 transition focus:outline-none"
               title="Delete recording"
               onclick="deleteRecordingConfirm('${rec.id}')">
@@ -479,7 +513,7 @@ export async function moveRecordingToFolder(recordingId, folderId) {
   fd.append('folder_id', folderId);
   try {
     const res = await fetch(`/api/recordings/${recordingId}`, { method: 'PATCH', body: fd });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'The request failed.');
     // Update local state without full refetch
     const rec = state.library.recordings.find(r => r.id === recordingId);
     if (rec) rec.folder_id = folderId || null;
@@ -499,7 +533,7 @@ export async function toggleRecordingTag(recordingId, tagId, add) {
   try {
     const method = add ? 'POST' : 'DELETE';
     const res = await fetch(`/api/recordings/${recordingId}/tags/${tagId}`, { method });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'The request failed.');
     // Update local state
     const rec = state.library.recordings.find(r => r.id === recordingId);
     if (rec) {
@@ -597,11 +631,31 @@ export async function deleteRecordingConfirm(recordingId) {
   if (!confirm('Permanently delete this recording and its transcript?')) return;
   try {
     const res = await fetch(`/api/recordings/${recordingId}`, { method: 'DELETE' });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'The request failed.');
     if (state.activeRecordingId === recordingId) {
       state.activeRecordingId = null;
       state.result = null;
     }
     fetchLibrary();
   } catch (err) { alert(`Delete failed: ${err.message}`); }
+}
+
+
+export async function retryRecording(recordingId) {
+  try {
+    const res = await fetch(`/api/recordings/${recordingId}/retry`, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(body.detail || 'Could not queue this recording again.');
+      return;
+    }
+    // Follow the new job the way a fresh upload does, so the user sees progress
+    // instead of a card that silently flips to "queued".
+    if (body.job_id && typeof window.attachToJob === 'function') {
+      window.attachToJob(body.job_id);
+    }
+    fetchLibrary();
+  } catch (err) {
+    alert(err.message);
+  }
 }

@@ -3,6 +3,7 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
+import { throwIfFailed } from './errors.js';
 import { fetchLibrary, moveRecordingToFolder } from './library.js';
 import { setLibraryAccent, state } from './state.js';
 import { switchTab } from './tabs.js';
@@ -146,7 +147,7 @@ export async function createFolder(name, parentId, color) {
   if (color) fd.append('color_code', color);
   try {
     const res = await fetch('/api/folders', { method: 'POST', body: fd });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'The request failed.');
     const newFolder = await res.json().catch(() => null);
     await fetchFolders();
     // ensure library view reflects new folder immediately
@@ -158,7 +159,7 @@ async function deleteFolderConfirm(folderId) {
   if (!confirm('Delete folder? Recordings inside will be moved to All Recordings.')) return;
   try {
     const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
-    if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status}${t ? ': ' + t.slice(0, 200) : ''}`); }
+    await throwIfFailed(res, 'The request failed.');
     if (state.library.selectedFolderId === folderId) selectFolder(null);
     await fetchFolders();
     fetchLibrary();
