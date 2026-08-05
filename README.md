@@ -50,6 +50,7 @@ AmicoScript keeps everything local.
 | Desktop app (no Python needed) | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Docker support | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Web UI | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Library backup / import** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 *Comparison based on official READMEs as of April 2026. See something wrong? [Open a PR](https://github.com/sim186/AmicoScript/pulls).*
 
@@ -63,7 +64,9 @@ AmicoScript keeps everything local.
 - 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
-- 🤖 AI analysis (summary, action items, translation, custom prompts)
+- 🤖 AI analysis (summary, action items, translation, custom prompts) — long
+  recordings are summarised in parts and merged, never silently truncated
+- ✨ Optional automatic summary when a captured meeting ends
 - 🧠 LLM integration: configure local LLMs (Ollama or similar) from the UI
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
@@ -73,7 +76,9 @@ AmicoScript keeps everything local.
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)
 - ✏️ Edit individual segments
-- 📤 Export to JSON, SRT, TXT, Markdown
+- 📤 Export to JSON, SRT, WebVTT, TXT, Markdown, CSV
+- 💾 Export/import your whole library as one file — backup, or move between machines
+- 🔐 Password protection for network access (local use stays password-free)
 - ⌨️ Keyboard shortcuts for fast navigation
 - 🚀 For Mac, Windows, Docker, or local Python
 
@@ -111,6 +116,15 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 `docker-compose.prod.yml` adds Traefik labels and joins the Traefik Docker network. Traefik handles TLS termination and automatic Let's Encrypt certificates.
+
+> 🔐 **Set a password before exposing AmicoScript.** Requests from anywhere other
+> than the machine it runs on are refused until one exists — the app fails closed
+> rather than publishing your transcripts. Set `AMICOSCRIPT_PASSWORD` in `.env`,
+> or open the app on the host and use **Security → Set password**. Local use is
+> unaffected: on a laptop AmicoScript never asks for anything.
+>
+> If something else already guards the app (an SSO proxy, Traefik basic-auth),
+> set `AMICOSCRIPT_AUTH=off`. See [docs/doc.md](docs/doc.md#authentication).
 
 ---
 
@@ -276,9 +290,9 @@ Full documentation (API, setup, details):
 ## 🏗️ Architecture (brief)
 
 - Backend: Python + FastAPI (`backend/main.py` + modular routers in `backend/api/routes/`)
-- Frontend: Single HTML (no build step)
-- Processing: Sequential background worker (`asyncio.Queue`) with structured logging
-- Storage: Local SQLite metadata + local managed recording files (with temp-file cleanup)
+- Frontend: plain ES modules in `frontend/js/`, loaded natively — still no build step
+- Processing: downloads run concurrently, model inference stays serialized; interrupted jobs are requeued on restart
+- Storage: local SQLite metadata (versioned migrations) + managed recording files, exportable as a single bundle
 
 ---
 
@@ -287,9 +301,9 @@ Full documentation (API, setup, details):
 See [docs/ROADMAP.md](docs/ROADMAP.md) for full priority breakdown.
 
 **Currently planned:**
-- Manual speaker identification (rename speakers)
+- Speaker library — recognise recurring voices across recordings
+- Chat with your library (semantic search + Q&A over all transcripts)
 - AI-powered smart tagging
-- Official website & docs
 
 ---
 

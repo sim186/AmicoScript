@@ -102,22 +102,64 @@ def _set_transcription_defaults(
     return _get_transcription_defaults()
 
 
+# How much of the model's context window an analysis prompt may occupy. Local
+# servers default to small windows (Ollama ships 4096), and exceeding it makes
+# the model silently drop the *beginning* of the transcript — so a two-hour
+# meeting came back summarised from its last ten minutes with no warning.
+# Anything larger than this budget is summarised chunk by chunk instead.
+_DEFAULT_CONTEXT_TOKENS = 8192
+_DEFAULT_MAX_OUTPUT_TOKENS = 1024
+
+
 def _get_llm_settings() -> dict:
-    """Return LLM config: base_url, model_name, api_key."""
+    """Return LLM config: base_url, model_name, api_key, context budget."""
     settings = _load_settings()
+
+    def _positive_int(key: str, default: int) -> int:
+        try:
+            value = int(settings.get(key, default))
+        except (TypeError, ValueError):
+            return default
+        return value if value > 0 else default
+
     return {
         "llm_base_url": settings.get("llm_base_url", "http://localhost:11434"),
         "llm_model_name": settings.get("llm_model_name", ""),
         "llm_api_key": settings.get("llm_api_key", ""),
+        "llm_context_tokens": _positive_int("llm_context_tokens", _DEFAULT_CONTEXT_TOKENS),
+        "llm_max_output_tokens": _positive_int(
+            "llm_max_output_tokens", _DEFAULT_MAX_OUTPUT_TOKENS
+        ),
     }
 
 
-def _save_llm_settings(base_url: str, model_name: str, api_key: str) -> None:
+def _save_llm_settings(
+    base_url: str,
+    model_name: str,
+    api_key: str,
+    context_tokens: int | None = None,
+    max_output_tokens: int | None = None,
+) -> None:
     """Persist LLM settings to disk."""
     settings = _load_settings()
     settings["llm_base_url"] = base_url
     settings["llm_model_name"] = model_name
     settings["llm_api_key"] = api_key
+    if context_tokens is not None and context_tokens > 0:
+        settings["llm_context_tokens"] = int(context_tokens)
+    if max_output_tokens is not None and max_output_tokens > 0:
+        settings["llm_max_output_tokens"] = int(max_output_tokens)
+    _save_settings(settings)
+
+
+def _get_auto_summarize_meetings() -> bool:
+    """Whether finished meeting captures get summarised without being asked."""
+    return bool(_load_settings().get("auto_summarize_meetings", False))
+
+
+def _set_auto_summarize_meetings(enabled: bool) -> None:
+    settings = _load_settings()
+    settings["auto_summarize_meetings"] = bool(enabled)
     _save_settings(settings)
 
 

@@ -147,12 +147,18 @@ async def _search(app, args):
     app.push_screen(SearchScreen(q))
 
 
-@command("export", "export <id> <fmt: json|srt|txt|md>")
+EXPORT_FORMATS = ("json", "srt", "vtt", "txt", "md", "csv")
+
+
+@command("export", f"export <id> <fmt: {'|'.join(EXPORT_FORMATS)}>")
 async def _export(app, args):
     if len(args) < 2:
-        app.notify("usage: /export <id> <fmt>")
+        app.notify(f"usage: /export <id> <{'|'.join(EXPORT_FORMATS)}>")
         return
-    rec_id, fmt = args[0], args[1]
+    rec_id, fmt = args[0], args[1].lower()
+    if fmt not in EXPORT_FORMATS:
+        app.notify(f"unknown format {fmt!r}; use one of {', '.join(EXPORT_FORMATS)}")
+        return
     body, filename = await app.api.export(rec_id, fmt)
     out = Path.cwd() / (filename or f"{rec_id}.{fmt}")
     out.write_bytes(body)

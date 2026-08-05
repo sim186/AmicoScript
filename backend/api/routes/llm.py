@@ -8,18 +8,48 @@ from settings import _get_llm_settings, _save_llm_settings
 router = APIRouter()
 
 
+# Posted back by the UI for a masked key the user did not edit.
+_UNCHANGED = "__unchanged__"
+
+
 @router.get("/api/llm/settings")
 def get_llm_settings() -> dict:
-    return _get_llm_settings()
+    """LLM config for the UI. The API key is reported as set/unset, never echoed."""
+    cfg = _get_llm_settings()
+    api_key = cfg.pop("llm_api_key", "")
+    cfg["llm_api_key_set"] = bool(api_key)
+    return cfg
 
 
 @router.post("/api/llm/settings")
 async def save_llm_settings(
     llm_base_url: str = Form("http://localhost:11434"),
     llm_model_name: str = Form(""),
-    llm_api_key: str = Form(""),
+    llm_api_key: str = Form(_UNCHANGED),
+    llm_context_tokens: str = Form(""),
+    llm_max_output_tokens: str = Form(""),
 ) -> dict:
-    _save_llm_settings(llm_base_url, llm_model_name, llm_api_key)
+    """Persist LLM config.
+
+    ``llm_api_key`` defaults to the "unchanged" sentinel so a UI that never
+    received the real key cannot blank it out by saving the form.
+    """
+    def _optional_int(value: str) -> int | None:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    current = _get_llm_settings()
+    api_key = current["llm_api_key"] if llm_api_key == _UNCHANGED else llm_api_key
+    _save_llm_settings(
+        llm_base_url,
+        llm_model_name,
+        api_key,
+        context_tokens=_optional_int(llm_context_tokens),
+        max_output_tokens=_optional_int(llm_max_output_tokens),
+    )
     return {"ok": True}
 
 

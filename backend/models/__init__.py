@@ -22,6 +22,12 @@ class Recording(SQLModel, table=True):
     duration: Optional[float] = None
     folder_id: Optional[str] = Field(default=None, foreign_key="folder.id")
     status: str = Field(default="pending", index=True)
+    # Human-readable explanation for the current status — used to tell the user
+    # *why* a recording is 'interrupted' (app restarted mid-transcription).
+    status_detail: Optional[str] = None
+    # Where this recording came from: 'upload', 'url', or 'meeting'. Meeting
+    # captures are the ones eligible for automatic summarization.
+    source: str = Field(default="upload")
     created_at: float = Field(default_factory=time.time, index=True)
     transcription_options: Optional[str] = None
 
@@ -57,3 +63,6 @@ class Analysis(SQLModel, table=True):
     llm_base_url: str = Field(default="")
     created_at: float = Field(default_factory=time.time, index=True)
     status: str = Field(default="pending", index=True)
+    # True when AmicoScript created this analysis by itself (auto-summary of a
+    # captured meeting) rather than the user asking for it.
+    auto_generated: bool = Field(default=False)

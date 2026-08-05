@@ -38,10 +38,14 @@ Returns available Whisper models.
 ### Settings
 
 **GET /api/settings**  
-Retrieve saved settings (e.g., Hugging Face token)
+Retrieve saved settings. Secrets are never echoed back: the Hugging Face token
+is reported as `hf_token_set` plus a masked `hf_token_preview`, and
+`GET /api/llm/settings` reports `llm_api_key_set` rather than the key.
 
 **POST /api/settings**  
-Save settings
+Save settings. Post the sentinel `__unchanged__` for a secret field the user did
+not edit, so saving an unrelated setting cannot overwrite a stored credential.
+Also accepts `auto_summarize_meetings` (see below).
 
 ---
 
@@ -88,13 +92,72 @@ Returns the full transcription result in JSON format.
 ### Export
 
 **GET /api/jobs/{id}/export/{fmt}**
+**GET /api/recordings/{id}/export/{fmt}**
 
-Download transcript in one of the following formats:
+Download a transcript in one of the following formats:
 
-- json
-- srt
-- txt
-- md
+| Format | Notes |
+|--------|-------|
+| `json` | The full pipeline result, including word timings when enabled |
+| `srt`  | Subtitles; speaker names are prefixed in the caption text |
+| `vtt`  | WebVTT subtitles; speakers become `<v Name>` voice spans, which is what `<track>` expects |
+| `txt`  | Plain text grouped by speaker with timestamps |
+| `md`   | Markdown with a metadata header and speaker runs |
+| `csv`  | One row per segment (index, start, end, speaker, text, translation, edited) — for spreadsheets and pandas |
+
+**POST /api/recordings/bulk-export/md** — combine several transcripts into a
+single Markdown document with a table of contents. Body: `{"ids": [...]}`.
+
+---
+
+### Library portability
+
+**GET /api/library/export?include_audio=true&ids=**
+
+Download the whole library as a zip bundle:
+
+```
+manifest.json          format, version, counts
+data.json              folders, tags, recordings, transcripts, analyses
+audio/<rec-id>/<file>  the recordings themselves (when include_audio)
+```
+
+`ids` takes a comma-separated list to export a subset. Settings are
+deliberately **not** included — the bundle would otherwise carry your Hugging
+Face token, LLM API key and password hash.
+
+**POST /api/library/import** — multipart upload of a bundle.
+
+- `mode=skip` (default) keeps rows that already exist; `mode=overwrite` replaces them.
+- Rows are matched by primary key, so importing the same bundle twice is a no-op.
+- Entries with absolute paths or `..` are refused (zip-slip), as are implausible
+  compression ratios.
+
+---
+
+### Authentication
+
+Local use is unchanged: requests from the host machine need no credentials.
+Requests from anywhere else are refused until a password is set.
+
+**GET /api/auth/status** — `{enabled, mode, password_set, authenticated, local, login_required}`
+**POST /api/auth/login** — form field `password`; sets an HttpOnly session cookie
+**POST /api/auth/logout**
+**POST /api/auth/password** — form fields `new_password`, `current_password`.
+The first password can only be set from the host machine.
+**DELETE /api/auth/password?current_password=** — host machine only
+**GET /api/auth/api-token** — bearer token for headless clients
+
+Modes are chosen with `AMICOSCRIPT_AUTH`:
+
+| Value | Behaviour |
+|-------|-----------|
+| `auto` (default) | Loopback is trusted. The network needs a session, and is refused outright while no password exists. |
+| `always` | Every request needs a session, including from this machine. Headless clients use `AMICOSCRIPT_API_TOKEN`. |
+| `off` | No authentication. Only use this when something else (SSO proxy, Traefik basic-auth) guards the app. |
+
+The classification reads the direct peer address, never `X-Forwarded-For`, so a
+request cannot claim to be local by sending a header.
 
 ---
 
@@ -251,12 +314,69 @@ Notes & references
 
 Docker tip: when running the app in Docker and your LLM server runs on the host, use `http://host.docker.internal:11434` as the base URL.
 
+### Long transcripts and the context window
+
+A one-hour meeting is roughly 12k tokens, and local LLM servers commonly run a
+4k–8k context window (Ollama defaults to 4096). Sending more than fits makes the
+model silently drop the *oldest* part of the input, which used to produce
+confident summaries covering only the end of a recording.
+
+AmicoScript now measures the transcript against the configured budget
+(`llm_context_tokens`, default 8192, editable under AI Analysis) and, when it
+does not fit, processes it map-reduce style: each chunk is summarised on its
+own, then the partial results are merged. Translation is the exception — its
+chunks are concatenated in order, because merging translated passages would
+rewrite them. Progress events report "Processing part *n* of *m*".
+
+If the merged partials are themselves too large, they are folded down in pairs
+until they fit.
+
+### Automatic meeting summaries
+
+Turn on **Summarise automatically** under Meeting auto-capture and every
+finished call is summarised without being asked. It only fires for recordings
+whose `source` is `meeting` (the watcher sets this when it uploads), only when
+an LLM is configured, and only once per recording. The resulting analysis is
+flagged `auto_generated: true` so the UI can tell it apart from one you
+requested. A failure here is logged and dropped — it never fails the
+transcription that just succeeded.
+
+---
+
+## Interrupted jobs
+
+Restarting the app used to flip every in-flight recording to `error` with no
+explanation, losing a partly-transcribed two-hour meeting. Now:
+
+- anything whose audio is still on disk goes back onto the queue with
+  `status_detail = "Requeued after the app restarted"`;
+- anything that cannot be resumed (interrupted mid-download, so no audio was
+  ever saved) is marked `interrupted` with a reason the UI shows on hover.
+
+Set `AMICOSCRIPT_RESUME_JOBS=0` for the old fail-fast behaviour.
+
+Jobs are also evicted from memory an hour after they finish. A tombstone is
+kept, so `/api/jobs/{id}/…` answers **410** with the recording id rather than a
+404 that looks like the job never existed — the transcript is in the library.
+
+---
+
+## Database migrations
+
+Schema changes are numbered steps in `backend/migrations.py`, recorded in a
+`schema_version` table so each runs exactly once. A failing step raises
+`MigrationError` and leaves the database on the previous version instead of
+being swallowed. Opening a database written by a newer build is refused rather
+than guessed at.
+
+---
+
 Running tests
 
 Install `pytest` (if not already installed):
 
 ```bash
-python -m pip install pytest
+python -m pip install pytest httpx
 ```
 
 Run the test suite:

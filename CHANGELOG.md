@@ -6,6 +6,114 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🔐 Access control
+
+- **AmicoScript now refuses network requests until a password is set.** The
+  project documents a Traefik deployment on a public domain, but every API route
+  was open there — anyone who found the hostname could read the library, download
+  the audio and read the stored Hugging Face token out of `GET /api/settings`.
+  Requests from the machine AmicoScript runs on behave exactly as before, with no
+  password and no prompt; requests from anywhere else are refused with an
+  explanation until a password exists. Exposing the app unconfigured now fails
+  closed instead of silently publishing your transcripts.
+- **Security panel** in the sidebar to set, change or remove the password, and to
+  read the API token that headless clients (the TUI, the meeting watcher) use.
+  `AMICOSCRIPT_PASSWORD` sets it at startup; `AMICOSCRIPT_AUTH=always` requires a
+  session even locally; `AMICOSCRIPT_AUTH=off` disables the layer for deployments
+  that put their own authentication in front.
+- **Secrets are no longer echoed back to clients.** `GET /api/settings` reports
+  whether a Hugging Face token is stored and shows its last four characters;
+  `GET /api/llm/settings` reports whether an API key is set. Saving a form no
+  longer risks overwriting a stored credential with its own placeholder.
+- Login attempts are throttled after repeated failures, and the loopback check
+  reads the direct peer address rather than `X-Forwarded-For`, which a caller
+  controls.
+
+### ✨ Library export and import
+
+- **Your library is now portable.** Export everything — recordings, transcripts,
+  analyses, folders and tags — as a single zip from **Backup** in the sidebar, and
+  import it on another machine or after a reinstall. Until now a library existed
+  only inside `~/.amicoscript` with no backup path and no way to move it.
+- Import matches rows by id, so re-importing the same bundle is a no-op rather
+  than a duplicated library; `Overwrite` replaces existing rows instead.
+- Bundles deliberately exclude `settings.json` — it holds your Hugging Face
+  token, LLM API key and password hash, none of which should travel in a file you
+  email to yourself. Imports reject path traversal entries and zip bombs.
+
+### 📤 New export formats
+
+- **WebVTT** (`.vtt`) — the subtitle format browsers accept in `<track>`.
+  Speakers become `<v Name>` voice spans rather than text baked into the caption.
+- **CSV** (`.csv`) — one row per segment with both raw and human-readable
+  timestamps, speaker, text, translation and an edited flag. Written with a BOM
+  so Excel reads accents correctly, and leading `=`/`+`/`-`/`@` in transcript text
+  is defused so a spreadsheet cannot execute it as a formula.
+- Both are available for single recordings, in the bulk-export menu, and from the
+  TUI's `/export` command.
+
+### 🤖 Long transcripts no longer get silently truncated
+
+- **AI analysis handles recordings larger than the model's context window.** A
+  one-hour meeting is roughly 12k tokens and Ollama defaults to 4096, so the
+  model was quietly dropping the *beginning* of the transcript and returning a
+  confident summary of the last few minutes. Anything over the configured budget
+  is now summarised in parts and merged, with progress reported per part.
+  Translation concatenates its parts instead of merging them, because merging
+  would rewrite the translation.
+- The context budget is configurable under AI Analysis (default 8192 tokens).
+- Analyses fall back to a non-streaming request when a server does not deliver
+  SSE, instead of completing with an empty result.
+
+### ✨ Automatic meeting summaries
+
+- Turn on **Summarise automatically** under Meeting auto-capture and every
+  finished call is summarised by your LLM without being asked. Fires only for
+  captured calls, only when an LLM is configured, and only once per recording.
+
+### 🔧 Reliability
+
+- **A restart no longer destroys work in progress.** Interrupted recordings used
+  to be flipped to `error` with no explanation — a two-hour meeting that was 90%
+  transcribed was simply lost. Anything whose audio is still on disk is requeued
+  automatically; anything that cannot be resumed is marked `interrupted` with a
+  reason the library shows on hover. `AMICOSCRIPT_RESUME_JOBS=0` restores the old
+  behaviour.
+- **Finished jobs leave a tombstone** when they are evicted from memory after an
+  hour, so `/api/jobs/{id}/…` answers 410 with the recording id instead of a 404
+  that looked like the job never existed.
+- **URL imports download while the previous job is still transcribing.** Model
+  inference is still strictly one at a time, but fetching audio is network-bound
+  and no longer waits behind it — importing a playlist is roughly twice as fast.
+  Tune with `AMICOSCRIPT_DOWNLOAD_CONCURRENCY` (default 2).
+- **Schema changes are versioned migrations.** They used to be ad-hoc `ALTER
+  TABLE` statements wrapped in `except: pass`, so a failed upgrade left a broken
+  database looking healthy. Steps are numbered, recorded in a `schema_version`
+  table, and fail loudly; a database from a newer build is refused rather than
+  guessed at.
+- **Search no longer breaks on ordinary punctuation.** `covid-19`, `C++`,
+  `hello "world` and a bare `AND` were all FTS5 syntax errors that silently
+  downgraded the search to a slower, different query. Terms are now escaped
+  properly, quoted phrases are honoured, and the last word is treated as a prefix
+  so results narrow as you type.
+
+### 🧹 Maintenance
+
+- **The frontend is a set of ES modules.** `index.html` carried a single
+  4,800-line `<script>` block — the largest file in the repository by a wide
+  margin. It is now 20 modules under `frontend/js/`, loaded natively by the
+  browser. Still no build step, no bundler, no dependencies.
+- **Route-level tests.** The suite had 128 unit tests over helper functions and
+  not one that exercised an HTTP route; `test_search_escaping.py` even
+  re-implemented the code it claimed to test, so it would have passed with the
+  escaping deleted. There are now 329 tests covering upload, export, editing,
+  deletion, search, backup round-trips, authentication, migrations, job recovery
+  and analysis chunking.
+- **CI runs the whole suite.** The workflow named ten test files explicitly, so
+  everything added since was never run.
+- The test suite no longer reads or writes the developer's real
+  `~/.amicoscript` library.
+
 
 
 ## [1.16.0] - 2026-08-02

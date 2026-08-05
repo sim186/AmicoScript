@@ -246,26 +246,33 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
     from sqlalchemy import text as _text
     from sqlalchemy.exc import OperationalError
 
-    safe_limit = min(limit, 100)
+    from search_query import build_fts_match
+
+    safe_limit = max(1, min(limit, 100))
 
     # Escape LIKE wildcards so % and _ in the query are treated literally
     q_like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
+    # Never hand raw user input to MATCH — see backend/search_query.py.
+    fts_expr = build_fts_match(q)
+
     try:
-        fts_rows = session.exec(
-            _text(
-                """
-                SELECT t.recording_id,
-                       snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
-                FROM transcript_fts
-                JOIN transcript t ON transcript_fts.rowid = t.rowid
-                WHERE transcript_fts MATCH :q
-                ORDER BY rank
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"q": q, "lim": safe_limit, "off": offset},
-        ).all()
+        fts_rows = []
+        if fts_expr:
+            fts_rows = session.exec(
+                _text(
+                    """
+                    SELECT t.recording_id,
+                           snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
+                    FROM transcript_fts
+                    JOIN transcript t ON transcript_fts.rowid = t.rowid
+                    WHERE transcript_fts MATCH :q
+                    ORDER BY rank
+                    LIMIT :lim OFFSET :off
+                    """
+                ),
+                params={"q": fts_expr, "lim": safe_limit, "off": offset},
+            ).all()
 
         meta_rows = session.exec(
             _text(

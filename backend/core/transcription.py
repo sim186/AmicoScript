@@ -309,9 +309,22 @@ def _finalize_transcription_result(
         "speakers": speakers,
         "segments": segments_list,
     }
-    state.jobs[job_id]["result"] = result
+    job = state.jobs[job_id]
+    job["result"] = result
     _push_event(job_id, "done", 1.0, TRANSCRIPTION_COMPLETE, data=result)
     _sync_job_to_db(job_id)
+
+    recording_id = job.get("recording_id")
+    if recording_id:
+        from core.analysis_jobs import maybe_queue_auto_summary
+        # Only fires for meeting captures, and only when the user turned it on.
+        summary_job = maybe_queue_auto_summary(recording_id)
+        if summary_job:
+            _append_job_log(job_id, "INFO", "Queued automatic summary for this meeting")
+            _push_event(
+                job_id, "done", 1.0, TRANSCRIPTION_COMPLETE,
+                data={**result, "auto_summary_job_id": summary_job},
+            )
     return result
 
 
@@ -405,7 +418,7 @@ def _process_job(job_id: str) -> None:
             return
 
         if job_type == "download_transcribe":
-            if _run_download_phase(job_id):
+            if _consume_download_phase(job_id):
                 return
             if job.get("cancel_flag") and job["cancel_flag"].is_set():
                 _push_event(job_id, "cancelled", 0.0, "Job cancelled after download")
@@ -450,11 +463,103 @@ def _worker_loop() -> None:
     raise RuntimeError("Use _worker_loop_async with asyncio.Queue")
 
 
+# ---------------------------------------------------------------------------
+# Download prefetch
+# ---------------------------------------------------------------------------
+#
+# Transcription is serialized on purpose — one Whisper model, one GPU. Fetching
+# audio from a URL is not: it is network-bound and touches none of that state.
+# Keeping them in the same sequential step meant importing a 30-video playlist
+# downloaded video 2 only after video 1 had finished transcribing, so the link
+# sat idle for the entire model run.
+#
+# Downloads now start as soon as a job is queued, bounded by a semaphore, while
+# the model stage stays strictly one-at-a-time. The worker awaits a job's
+# prefetch before transcribing it, so ordering and error handling are unchanged.
+
+_download_semaphore: asyncio.Semaphore | None = None
+
+
+def _download_concurrency() -> int:
+    try:
+        value = int(os.environ.get("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "2"))
+    except ValueError:
+        return 2
+    return max(1, min(value, 8))
+
+
+def _get_download_semaphore() -> asyncio.Semaphore:
+    global _download_semaphore
+    if _download_semaphore is None:
+        _download_semaphore = asyncio.Semaphore(_download_concurrency())
+    return _download_semaphore
+
+
+def start_download_prefetch(job_id: str) -> None:
+    """Begin downloading *job_id*'s source in the background, if it has one.
+
+    Safe to call from a route handler; does nothing outside a running loop.
+    """
+    job = state.jobs.get(job_id)
+    if not job or job.get("type") != "download_transcribe":
+        return
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    job["download_task"] = asyncio.create_task(_prefetch_download(job_id))
+
+
+async def _prefetch_download(job_id: str) -> bool:
+    """Run the download phase in a thread. Returns True if the job is finished."""
+    async with _get_download_semaphore():
+        job = state.jobs.get(job_id)
+        if not job:
+            return True
+        flag = job.get("cancel_flag")
+        if flag and flag.is_set():
+            return True
+        return await asyncio.to_thread(_run_download_phase, job_id)
+
+
+async def _await_download_prefetch(job_id: str) -> None:
+    """Wait for a prefetch to finish and record its outcome on the job."""
+    job = state.jobs.get(job_id)
+    task = job.get("download_task") if job else None
+    if task is None:
+        return
+    try:
+        job["download_finished_job"] = await task
+    except Exception as exc:  # re-raised on the worker thread by _consume_…
+        job["download_error"] = exc
+    finally:
+        job["download_task"] = None
+        job["download_prefetched"] = True
+
+
+def _consume_download_phase(job_id: str) -> bool:
+    """Return the download result, running it inline if it was not prefetched.
+
+    Returns True when the job is already finished (cancelled during download).
+    """
+    job = state.jobs[job_id]
+    if not job.get("download_prefetched"):
+        return _run_download_phase(job_id)
+
+    error = job.pop("download_error", None)
+    if error is not None:
+        # Raised here so it lands in _process_job's handler, exactly as it did
+        # when the download ran inline.
+        raise error
+    return bool(job.pop("download_finished_job", False))
+
+
 async def _worker_loop_async() -> None:
-    """Sequentially process jobs from asyncio queue via a single background task."""
+    """Process jobs from the asyncio queue, one model run at a time."""
     while True:
         job_id = await state.JOB_QUEUE.get()
         try:
+            await _await_download_prefetch(job_id)
             await asyncio.to_thread(_process_job, job_id)
         finally:
             state.JOB_QUEUE.task_done()

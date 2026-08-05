@@ -1,11 +1,6 @@
 """Analysis endpoints."""
 
-import asyncio
-import threading
-import time
-import uuid
-
-import state
+from core.analysis_jobs import create_analysis_job
 from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException
 from models import Analysis, Recording, Transcript
@@ -48,48 +43,16 @@ async def create_analysis(
     if analysis_type == "translate" and not target_language:
         raise HTTPException(400, "target_language is required when analysis_type is 'translate'.")
 
-    analysis_id = str(uuid.uuid4())
-    analysis = Analysis(
-        id=analysis_id,
+    job_id, analysis_id = create_analysis_job(
         recording_id=recording_id,
         analysis_type=analysis_type,
-        target_language=target_language or None,
-        model_name=cfg["llm_model_name"],
-        llm_base_url=cfg["llm_base_url"],
-        status="pending",
+        transcript_full_text=tr.full_text,
+        filename=rec.filename,
+        file_path=rec.file_path,
+        target_language=target_language,
+        custom_prompt=custom_prompt,
+        output_language=output_language,
     )
-    session.add(analysis)
-    session.commit()
-
-    job_id = str(uuid.uuid4())
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "analysis",
-        "recording_id": recording_id,
-        "analysis_id": analysis_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": rec.file_path,
-        "original_filename": rec.filename,
-        "options": {
-            "analysis_type": analysis_type,
-            "target_language": target_language,
-            "custom_prompt": custom_prompt,
-            "output_language": output_language,
-            "transcript_full_text": tr.full_text,
-            **cfg,
-        },
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-    }
-    state.JOB_QUEUE.put_nowait(job_id)
     return {"job_id": job_id, "analysis_id": analysis_id}
 
 
@@ -107,6 +70,7 @@ def list_analyses(recording_id: str, session: Session = Depends(get_session)) ->
             "model_name": a.model_name,
             "status": a.status,
             "created_at": a.created_at,
+            "auto_generated": bool(a.auto_generated),
         }
         for a in rows
     ]
@@ -125,6 +89,7 @@ def get_analysis(recording_id: str, analysis_id: str, session: Session = Depends
         "model_name": a.model_name,
         "status": a.status,
         "created_at": a.created_at,
+        "auto_generated": bool(a.auto_generated),
     }
 
 

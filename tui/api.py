@@ -5,10 +5,21 @@ dicts/lists decoded from JSON. Errors raise httpx.HTTPStatusError.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Callable
 
 import httpx
+
+
+def _auth_headers() -> dict[str, str]:
+    """Bearer token for backends running with AMICOSCRIPT_AUTH=always.
+
+    Loopback access needs no credentials in the default 'auto' mode, so this is
+    empty unless the user opted into authenticating local clients too.
+    """
+    token = os.environ.get("AMICOSCRIPT_API_TOKEN", "").strip()
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 # Generous timeout — uploads of large audio files can take minutes; the
@@ -22,7 +33,9 @@ class ApiClient:
     def __init__(self, base_url: str, timeout: httpx.Timeout | None = None):
         self.base_url = base_url.rstrip("/")
         self.client = httpx.AsyncClient(
-            base_url=self.base_url, timeout=timeout or DEFAULT_TIMEOUT
+            base_url=self.base_url,
+            timeout=timeout or DEFAULT_TIMEOUT,
+            headers=_auth_headers(),
         )
 
     async def aclose(self) -> None:

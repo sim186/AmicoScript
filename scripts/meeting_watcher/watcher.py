@@ -49,6 +49,33 @@ from pycaw.pycaw import AudioUtilities
 # --------------------------------------------------------------------------- #
 BASE_URL = os.environ.get("AMICOSCRIPT_URL", "http://localhost:8002").rstrip("/")
 
+class _Http:
+    """Every backend call goes through here, so auth is applied in one place.
+
+    A backend started with AMICOSCRIPT_AUTH=always requires credentials even
+    from localhost; the token supplies them. In the default 'auto' mode
+    loopback needs none and no header is added. Read per call so a token
+    exported after import is still picked up.
+    """
+
+    @staticmethod
+    def _with_auth(kwargs: dict) -> dict:
+        token = os.environ.get("AMICOSCRIPT_API_TOKEN", "").strip()
+        if token:
+            headers = dict(kwargs.get("headers") or {})
+            headers.setdefault("Authorization", f"Bearer {token}")
+            kwargs["headers"] = headers
+        return kwargs
+
+    def get(self, *args, **kwargs):
+        return requests.get(*args, **self._with_auth(kwargs))
+
+    def post(self, *args, **kwargs):
+        return requests.post(*args, **self._with_auth(kwargs))
+
+
+HTTP = _Http()
+
 # Bump whenever watcher.py changes in a way an installed copy should pick up.
 # Reported in the heartbeat so the web UI can tell an outdated installed
 # watcher apart from the one bundled with the running app (see
@@ -829,7 +856,7 @@ def server_token(force: bool = False) -> str:
     if _server_token_cache["value"] and not force:
         return str(_server_token_cache["value"])
     try:
-        r = requests.get(f"{BASE_URL}/api/settings", timeout=5)
+        r = HTTP.get(f"{BASE_URL}/api/settings", timeout=5)
         r.raise_for_status()
         _remember_server_settings(r.json())
     except Exception:
@@ -847,7 +874,7 @@ def capture_enabled() -> bool:
     if _enabled_cache["value"] is not None and now - _enabled_cache["ts"] < ENABLED_TTL:
         return _enabled_cache["value"]
     try:
-        r = requests.get(f"{BASE_URL}/api/settings", timeout=5)
+        r = HTTP.get(f"{BASE_URL}/api/settings", timeout=5)
         r.raise_for_status()
         data = r.json()
         _remember_server_settings(data)
@@ -872,14 +899,14 @@ def report_status(recording: bool, app: str = "") -> None:
             "version": WATCHER_VERSION,
             "token": server_token(),
         }
-        resp = requests.post(
+        resp = HTTP.post(
             f"{BASE_URL}/api/watcher/status",
             data=data,
             timeout=5,
         )
         if resp.status_code == 403:
             data["token"] = server_token(force=True)
-            requests.post(f"{BASE_URL}/api/watcher/status", data=data, timeout=5)
+            HTTP.post(f"{BASE_URL}/api/watcher/status", data=data, timeout=5)
     except Exception:
         pass
 
@@ -890,13 +917,16 @@ def transcribe(wav_path: Path) -> tuple[str, str]:
     log(f"Transcribing with model={opts['model']} "
         f"language={opts['language'] or 'auto'} diarize={opts['diarize']}")
     with open(wav_path, "rb") as f:
-        resp = requests.post(
+        resp = HTTP.post(
             f"{BASE_URL}/api/transcribe",
             files={"file": (wav_path.name, f, "audio/wav")},
             data={
                 "model": opts["model"],
                 "language": opts["language"],
                 "diarize": "true" if opts["diarize"] else "false",
+                # Marks the recording as a captured call, which is what the
+                # app's "summarise meetings automatically" option keys off.
+                "source": "meeting",
             },
             timeout=300,
         )
@@ -971,14 +1001,14 @@ def _set_capture_enabled(value: bool) -> None:
     """Flip the server-side auto-capture toggle (keeps tray + web UI in sync)."""
     try:
         data = {"enabled": "true" if value else "false", "token": server_token()}
-        resp = requests.post(
+        resp = HTTP.post(
             f"{BASE_URL}/api/settings/meeting-capture",
             data=data,
             timeout=5,
         )
         if resp.status_code == 403:
             data["token"] = server_token(force=True)
-            requests.post(f"{BASE_URL}/api/settings/meeting-capture", data=data, timeout=5)
+            HTTP.post(f"{BASE_URL}/api/settings/meeting-capture", data=data, timeout=5)
     except Exception as exc:
         log(f"WARN: could not set capture toggle: {exc}")
     _enabled_cache["value"] = value
@@ -1112,7 +1142,7 @@ def _main_loop() -> None:
     log("Enable/disable via the 'Meeting auto-capture' toggle in the AmicoScript sidebar.")
     log(f"Desktop toasts: {'on' if _NOTIFY_OK else 'OFF (pip install winotify)'}")
     try:
-        requests.get(f"{BASE_URL}/api/jobs", timeout=5)
+        HTTP.get(f"{BASE_URL}/api/jobs", timeout=5)
     except Exception:
         log("WARN: AmicoScript not reachable yet -- will retry when a meeting ends")
 

@@ -7,20 +7,29 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 ### Planned features (summary)
 
 **Tier 1 — High impact**
-- Enhanced Markdown export (speaker labels, timestamps, Obsidian-friendly frontmatter)
-- Unified global smart search (full-text + semantic)
+- Speaker library — recognise recurring voices across recordings, so a weekly
+  meeting labels itself from the second recording onward
+- Chat with your library — semantic search and Q&A across every transcript,
+  with citations that jump to the timestamp
 
 **Tier 2 — AI & UX**
 - AI-powered smart tagging
 - Live voice recording (record directly in the app)
-- LLM semantic search & context
-- Manual speaker identification (rename speakers)
+- Enhanced Markdown export (Obsidian-friendly frontmatter)
 
 **Tier 3 — Polish & ecosystem**
 - Official website & documentation
-- Database portability (import/export)
-- Custom alias for transcriptions
 - Hardware benchmark collection
+- Linux desktop shell
+
+### Shipped
+
+- Library portability (export/import bundle)
+- WebVTT and CSV exports
+- Automatic summaries for captured meetings
+- Password protection for network access
+- Manual speaker identification (rename + assign speakers)
+- Custom alias for transcriptions
 
 ---
 

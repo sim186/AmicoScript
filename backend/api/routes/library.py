@@ -9,7 +9,7 @@ from http_utils import content_disposition_attachment as _content_disposition
 
 from db import get_session
 
-from exports import _format_json, _format_md, _format_md_bulk, _format_srt, _format_txt
+from exports import _format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
@@ -44,6 +44,8 @@ def _recording_with_tags(recording: Recording, session: Session) -> dict:
         "duration": recording.duration,
         "folder_id": recording.folder_id,
         "status": recording.status,
+        "status_detail": recording.status_detail,
+        "source": recording.source,
         "created_at": recording.created_at,
         "transcription_options": json.loads(recording.transcription_options or "{}"),
         "tags": tags,
@@ -197,25 +199,13 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
     title = rec.alias or filename
     date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
-    formatters = {
-        "json": (_format_json, "application/json", "json"),
-        "srt": (_format_srt, "text/plain", "srt"),
-        "txt": (_format_txt, "text/plain", "txt"),
-    }
-    if fmt == "md":
-        content = _format_md(result, title=title, date=date_str)
-        return StreamingResponse(
-            iter([content.encode("utf-8")]),
-            media_type="text/markdown",
-            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
-        )
-    if fmt not in formatters:
-        raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
+    try:
+        content, media_type, ext = render_export(fmt, result, title=title, date=date_str)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    fn, media_type, ext = formatters[fmt]
-    content = fn(result)
     return StreamingResponse(
-        iter([content.encode("utf-8")]),
+        iter([content]),
         media_type=media_type,
         headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
     )

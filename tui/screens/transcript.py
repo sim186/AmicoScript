@@ -162,7 +162,8 @@ class TranscriptScreen(Screen):
         legend.update(
             f"{chips}        "
             f"[#6b6e9a]export:[/] [#7c79f0]/export json[/]  "
-            f"[#7c79f0]/export srt[/]  [#7c79f0]/export txt[/]  [#7c79f0]/export md[/]"
+            f"[#7c79f0]/export srt[/]  [#7c79f0]/export vtt[/]  [#7c79f0]/export txt[/]  "
+            f"[#7c79f0]/export md[/]  [#7c79f0]/export csv[/]"
         )
 
         self.run_worker(self._load_audio(), exclusive=False, name="audio")

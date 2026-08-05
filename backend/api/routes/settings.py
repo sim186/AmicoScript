@@ -12,12 +12,14 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException
 
 from settings import (
+    _get_auto_summarize_meetings,
     _get_meeting_capture_enabled,
     _get_transcription_defaults,
     _get_whisper_settings,
     _load_settings,
     _save_settings,
     _save_whisper_settings,
+    _set_auto_summarize_meetings,
     _set_meeting_capture_enabled,
     _set_transcription_defaults,
 )
@@ -53,6 +55,11 @@ def _bundled_watcher_version() -> str:
         return ""
 
 
+# Sentinel the UI posts back for a masked secret it did not touch, so saving
+# an unrelated setting cannot overwrite a stored token with its own bullets.
+_UNCHANGED = "__unchanged__"
+
+
 def _to_bool(value: str) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -63,16 +70,31 @@ def _require_session_token(token: str) -> None:
         raise HTTPException(403, "Invalid session token")
 
 
+def _mask_secret(value: str) -> str:
+    """Show that a secret exists without handing it back out.
+
+    GET /api/settings used to return the Hugging Face token in full. Even
+    behind authentication there is no reason to keep echoing a credential to
+    every client that asks — the UI only needs to know whether one is stored.
+    """
+    if not value:
+        return ""
+    return f"••••••••{value[-4:]}" if len(value) > 4 else "••••••••"
+
+
 @router.get("/api/settings")
 def get_settings() -> dict:
     import state
     settings = _load_settings()
     defaults = _get_transcription_defaults()
     ws = _get_whisper_settings()
+    hf_token = settings.get("hf_token", "")
     return {
-        "hf_token": settings.get("hf_token", ""),
+        "hf_token_set": bool(hf_token),
+        "hf_token_preview": _mask_secret(hf_token),
         "exit_token": getattr(state, "exit_token", ""),
         "meeting_capture_enabled": _get_meeting_capture_enabled(),
+        "auto_summarize_meetings": _get_auto_summarize_meetings(),
         # Shared by the web UI and the meeting watcher so auto-captured
         # meetings use the same model / language / diarize as manual uploads.
         "default_model": defaults["default_model"],
@@ -93,6 +115,7 @@ async def save_settings(
     whisper_model: str | None = Form(None),
     whisper_device: str | None = Form(None),
     whisper_compute: str | None = Form(None),
+    auto_summarize_meetings: str | None = Form(None),
 ) -> dict:
     """Persist HF token and/or transcription defaults.
 
@@ -100,9 +123,11 @@ async def save_settings(
     behaviour) or push model/language/diarize without clearing the token.
     """
     settings = _load_settings()
-    if hf_token is not None:
+    if hf_token is not None and hf_token != _UNCHANGED:
         settings["hf_token"] = hf_token
         _save_settings(settings)
+    if auto_summarize_meetings is not None:
+        _set_auto_summarize_meetings(_to_bool(auto_summarize_meetings))
     if model is not None or language is not None or diarize is not None:
         _set_transcription_defaults(
             model=model,
