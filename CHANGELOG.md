@@ -6,6 +6,34 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### ⌨️ The terminal UI caught up
+
+- **Fixed a regression that erased your Hugging Face token.** When the API
+  started masking secrets, the TUI kept reading the old field: its settings form
+  showed an empty token and saving wrote that emptiness back. Opening settings
+  and pressing Save was enough to lose the token. The form now shows the masked
+  preview and tells the server to keep what it has unless you actually type
+  something. The same protection covers the LLM API key.
+- **`/retry <id>`** and `Ctrl+R` in the library re-run a failed, cancelled or
+  interrupted transcription.
+- **`/backup export [path]`** and **`/backup import <path> [overwrite]`** for the
+  library bundle.
+- **`/llm-providers`** lists the supported backends; **`/llm-detect`** scans for
+  a running server and offers to use it, the same one-click flow the web UI has.
+- **Settings gained provider, context budget, cloud consent and the
+  auto-summarise toggle**, so the two interfaces configure the same things.
+- **`/export` accepts `vtt` and `csv`**, and rejects an unknown format with the
+  list of valid ones instead of a server error.
+- **The library shows the new states**: `⚠ interrupt` and `⊘ cancelled` have
+  their own marks, a captured meeting is prefixed `◉` and a link import `↗`.
+- **Errors read like sentences.** A `401` now explains that the server wants a
+  token and where to get it, a `410` points at the library, and an unreachable
+  backend says so instead of surfacing a bare exception.
+- **Short recordings show their length.** Durations were always rendered as
+  hours and minutes, so a 22-second clip read `0h 00m`; under an hour it is now
+  `0:22`. The MODEL column was always blank because the model lives inside
+  `transcription_options` — it reads that now.
+
 ### 🔁 Recovering from a failed transcription
 
 - **Transcribe again.** A recording that failed, was cancelled, or was

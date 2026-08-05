@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import shlex
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Callable
+
+from .api import UNCHANGED
+from .errors import explain
 
 if TYPE_CHECKING:
     from .app import AmicoTUI
@@ -337,6 +341,181 @@ async def _tag(app, args):
     pal.call_after_refresh(seed_palette, pal, "/tag ")
 
 
+
+
+@command("retry", "transcribe recording <id> again")
+async def _retry(app, args):
+    """Re-run a transcription that failed, was cancelled, or hit a restart."""
+    if not args:
+        from .palette import Palette, seed_palette
+        pal = Palette()
+        app.push_screen(pal)
+        pal.call_after_refresh(seed_palette, pal, "/retry ")
+        return
+    rec_id = args[0]
+    try:
+        result = await app.api.retry_recording(rec_id)
+    except Exception as exc:
+        app.notify(explain(exc, "retry failed"), severity="error")
+        return
+    app.notify(f"queued again: {rec_id[:8]}…")
+    job_id = result.get("job_id")
+    if job_id:
+        await _follow_job(app, job_id)
+    screen = app.screen
+    if hasattr(screen, "refresh_library"):
+        screen.refresh_library()
+
+
+async def _follow_job(app, job_id: str) -> None:
+    """Open the job detail screen if the app knows how to."""
+    try:
+        from .screens.job_detail import JobDetailScreen
+        app.push_screen(JobDetailScreen(job_id))
+    except Exception:
+        pass
+
+
+@command("backup", "backup export [path] | backup import <path> [overwrite]")
+async def _backup(app, args):
+    """Save the whole library to a file, or restore one."""
+    if not args or args[0] not in {"export", "import"}:
+        app.notify("usage: /backup export [path] | /backup import <path> [overwrite]")
+        return
+
+    if args[0] == "export":
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        dest = Path(args[1]) if len(args) > 1 else Path.cwd() / f"amicoscript-library-{stamp}.zip"
+        app.notify("exporting library… this can take a while with audio")
+        try:
+            await app.api.export_library(dest)
+        except Exception as exc:
+            app.notify(explain(exc, "export failed"), severity="error")
+            return
+        size_mb = dest.stat().st_size / 1024 / 1024
+        app.notify(f"saved: {dest} ({size_mb:.1f} MB)")
+        return
+
+    if len(args) < 2:
+        app.notify("usage: /backup import <path> [overwrite]")
+        return
+    source = Path(args[1]).expanduser()
+    if not source.exists():
+        app.notify(f"no such file: {source}", severity="error")
+        return
+    mode = "overwrite" if len(args) > 2 and args[2].lower() == "overwrite" else "skip"
+
+    from .widgets.confirm import ConfirmDialog
+    question = (
+        f"Import {source.name}? Existing recordings will be "
+        + ("replaced." if mode == "overwrite" else "left as they are.")
+    )
+    if not await app.push_screen_wait(ConfirmDialog(question)):
+        return
+
+    try:
+        result = await app.api.import_library(source, mode=mode)
+    except Exception as exc:
+        app.notify(explain(exc, "import failed"), severity="error")
+        return
+    counts = result.get("imported", {})
+    app.notify(
+        f"imported {counts.get('recordings', 0)} recording(s), "
+        f"{counts.get('audio', 0)} audio file(s)"
+    )
+    screen = app.screen
+    if hasattr(screen, "refresh_library"):
+        screen.refresh_library()
+
+
+@command("llm-providers", "list the supported LLM backends")
+async def _llm_providers(app, args):
+    try:
+        info = await app.api.llm_providers()
+    except Exception as exc:
+        app.notify(explain(exc, "could not load providers"), severity="error")
+        return
+
+    lines = []
+    for provider in info.get("providers", []):
+        key = {
+            "required": "key required",
+            "optional": "key optional",
+            "none": "no key",
+        }.get(provider.get("api_key"), "")
+        marks = [m for m in (key, "hosted" if provider.get("cloud") else "") if m]
+        lines.append(
+            f"  [b]{provider['id']}[/] — {provider['label']}"
+            + (f"  [#6b6e9a]{provider.get('base_url') or 'custom address'}"
+               f"{' · ' + ' · '.join(marks) if marks else ''}[/]")
+        )
+    if info.get("in_container"):
+        lines.append(
+            f"  [#6b6e9a]server runs in a container; localhost is rewritten to "
+            f"{info.get('container_host')}[/]"
+        )
+    app.notify("set one with /settings, or scan with /llm-detect")
+    _show_lines(app, "LLM providers", lines)
+
+
+@command("llm-detect", "scan for a running local LLM server")
+async def _llm_detect(app, args):
+    app.notify("scanning the usual ports…")
+    try:
+        info = await app.api.llm_detect()
+    except Exception as exc:
+        app.notify(explain(exc, "scan failed"), severity="error")
+        return
+
+    servers = info.get("servers", [])
+    if not servers:
+        app.notify(
+            f"nothing answered on {len(info.get('scanned', []))} addresses — "
+            "start Ollama, LM Studio or Unsloth Studio and scan again",
+            severity="warning",
+        )
+        return
+
+    lines = []
+    for server in servers:
+        detail = (
+            "needs an API key" if server.get("needs_api_key")
+            else f"{server.get('model_count', 0)} model(s)"
+        )
+        lines.append(f"  [b]{server['label']}[/] — {server['base_url']}  [#6b6e9a]{detail}[/]")
+
+    # Adopt the first find, which is what the web UI's one-click button does.
+    first = servers[0]
+    from .widgets.confirm import ConfirmDialog
+    if await app.push_screen_wait(
+        ConfirmDialog(f"Use {first['label']} at {first['base_url']}?")
+    ):
+        model = (first.get("models") or [{}])[0].get("id")
+        try:
+            await app.api.save_llm_settings(
+                provider=first["provider"],
+                base_url=first["base_url"],
+                model_name=model,
+                api_key=UNCHANGED,
+            )
+        except Exception as exc:
+            app.notify(explain(exc, "could not save"), severity="error")
+            return
+        note = " — paste its API key in /settings" if first.get("needs_api_key") else ""
+        app.notify(f"using {first['label']}{note}")
+    else:
+        _show_lines(app, "Detected servers", lines)
+
+
+def _show_lines(app, title: str, lines: list[str]) -> None:
+    """Print a block into the app's log/console area, or notify as a fallback."""
+    text = f"[b]{title}[/]\n" + "\n".join(lines)
+    for method in ("write_log", "log_line"):
+        fn = getattr(app, method, None)
+        if callable(fn):
+            fn(text)
+            return
+    app.notify(text.replace("[b]", "").replace("[/]", ""))
 
 
 @command("logs", "show server log buffer")

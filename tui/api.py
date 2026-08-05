@@ -12,6 +12,11 @@ from typing import Any, Callable
 import httpx
 
 
+# Posted back for a secret the user did not edit. The server keeps whatever it
+# already has rather than overwriting it with the placeholder shown on screen.
+UNCHANGED = "__unchanged__"
+
+
 def _auth_headers() -> dict[str, str]:
     """Bearer token for backends running with AMICOSCRIPT_AUTH=always.
 
@@ -296,11 +301,18 @@ class ApiClient:
         )
 
     async def llm_settings(self) -> dict:
+        """LLM config. The server reports whether a key is stored, never its value."""
         raw = await self._get("/api/llm/settings")
         return {
+            "provider": raw.get("llm_provider", "ollama"),
             "base_url": raw.get("llm_base_url", ""),
             "model_name": raw.get("llm_model_name", ""),
-            "api_key": raw.get("llm_api_key", ""),
+            "api_key_set": bool(raw.get("llm_api_key_set")),
+            "api_key_requirement": raw.get("api_key_requirement", "optional"),
+            "provider_is_cloud": bool(raw.get("provider_is_cloud")),
+            "allow_cloud": bool(raw.get("llm_allow_cloud")),
+            "context_tokens": raw.get("llm_context_tokens"),
+            "max_output_tokens": raw.get("llm_max_output_tokens"),
         }
 
     async def save_llm_settings(
@@ -308,24 +320,44 @@ class ApiClient:
         base_url: str | None = None,
         model_name: str | None = None,
         api_key: str | None = None,
+        provider: str | None = None,
+        context_tokens: int | None = None,
+        allow_cloud: bool | None = None,
     ) -> dict:
+        """Persist LLM config.
+
+        Pass ``api_key=UNCHANGED`` (the default of the settings form) to leave a
+        stored key alone — the TUI never receives it, so sending back what is on
+        screen would erase it.
+        """
         return await self._post_form(
             "/api/llm/settings",
             data=_drop_none({
+                "llm_provider": provider,
                 "llm_base_url": base_url,
                 "llm_model_name": model_name,
                 "llm_api_key": api_key,
+                "llm_context_tokens": str(context_tokens) if context_tokens else None,
+                "llm_allow_cloud": None if allow_cloud is None else str(allow_cloud).lower(),
             }),
         )
+
+    async def llm_providers(self) -> dict:
+        """Preset catalog plus whether the server is running in a container."""
+        return await self._get("/api/llm/providers")
+
+    async def llm_detect(self) -> dict:
+        """Scan the well-known ports for a local LLM server."""
+        return await self._get("/api/llm/detect")
 
     async def llm_test_connection(self) -> dict:
         return await self._post("/api/llm/test-connection")
 
-    async def llm_models(self) -> dict:
-        return await self._get("/api/llm/models")
+    async def llm_models(self, base_url: str | None = None) -> list:
+        return await self._get("/api/llm/models", base_url=base_url)
 
     async def llm_pull_model(self, name: str) -> dict:
-        return await self._post("/api/llm/models/pull", json={"name": name})
+        return await self._post("/api/llm/models/pull", json={"model_name": name})
 
     # --- settings ---------------------------------------------------
 
@@ -338,7 +370,14 @@ class ApiClient:
         whisper_model: str | None = None,
         whisper_device: str | None = None,
         whisper_compute: str | None = None,
+        auto_summarize_meetings: bool | None = None,
     ) -> dict:
+        """Persist settings.
+
+        ``hf_token`` defaults to None (not sent). Pass UNCHANGED explicitly for a
+        field the user did not edit: the server masks the stored token, so
+        echoing what the form shows would wipe it.
+        """
         return await self._post_form(
             "/api/settings",
             data=_drop_none({
@@ -346,8 +385,40 @@ class ApiClient:
                 "whisper_model": whisper_model,
                 "whisper_device": whisper_device,
                 "whisper_compute": whisper_compute,
+                "auto_summarize_meetings": (
+                    None if auto_summarize_meetings is None
+                    else str(auto_summarize_meetings).lower()
+                ),
             }),
         )
+
+    # --- recordings: retry ------------------------------------------
+
+    async def retry_recording(self, recording_id: str) -> dict:
+        """Queue an existing recording for transcription again."""
+        return await self._post(f"/api/recordings/{recording_id}/retry")
+
+    # --- library backup ---------------------------------------------
+
+    async def export_library(self, destination: Path, include_audio: bool = True) -> Path:
+        """Stream the library bundle to *destination*."""
+        params = {"include_audio": str(include_audio).lower()}
+        async with self.client.stream("GET", "/api/library/export", params=params) as r:
+            r.raise_for_status()
+            with open(destination, "wb") as fh:
+                async for chunk in r.aiter_bytes():
+                    fh.write(chunk)
+        return destination
+
+    async def import_library(self, source: Path, mode: str = "skip") -> dict:
+        with open(source, "rb") as fh:
+            r = await self.client.post(
+                "/api/library/import",
+                files={"file": (source.name, fh, "application/zip")},
+                data={"mode": mode},
+            )
+        r.raise_for_status()
+        return r.json()
 
     # --- meeting watcher ----------------------------------------------
 

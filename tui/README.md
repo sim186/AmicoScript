@@ -88,6 +88,7 @@ switches mode and filters a different source:
 | `t` | Add / remove a tag on the recording (picker) |
 | `v` | Toggle multi-select on this row |
 | `x` | Bulk actions on selected rows — delete, export (combined markdown), move to folder, tag |
+| `Ctrl+R` | Transcribe the highlighted recording again (failed / interrupted / cancelled) |
 | `y` | Copy filename to clipboard |
 | `d` | Delete (prompt) |
 | `Escape` | Back |
@@ -139,9 +140,10 @@ Press `/` to open the command palette.
 | `/transcribe <path>` | Upload file and transcribe |
 | `/transcribe-url <url>` | Download from URL and transcribe |
 | `/search <query>` | Full-text search across transcripts |
-| `/export <id> <fmt>` | Export transcript (json/srt/txt/md) — saved to CWD |
+| `/export <id> <fmt>` | Export transcript (json/srt/vtt/txt/md/csv) — saved to CWD |
 | `/cancel <job_id>` | Cancel running job |
 | `/delete <id>` | Delete recording |
+| `/retry <id>` | Transcribe a failed, cancelled or interrupted recording again |
 | `/rename <id> <name>` | Rename a recording |
 | `/move <id> [folder_id]` | Move a recording to a folder — opens a picker if `folder_id` omitted |
 | `/tag-toggle <id>` | Add / remove a tag on a recording (picker) |
@@ -151,11 +153,41 @@ Press `/` to open the command palette.
 | `/analyze` | Pick a recording and run summary / action_items / translate / custom |
 | `/models` | Pick a Whisper transcription model (sets as default) |
 | `/llm` | Pick an LLM model (sets as default) |
+| `/llm-providers` | List the supported backends — Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI, OpenRouter |
+| `/llm-detect` | Scan the usual ports for a running LLM server and offer to use it |
+| `/backup export [path]` | Save the whole library (recordings, transcripts, folders, tags) to a zip |
+| `/backup import <path> [overwrite]` | Restore a library bundle |
 | `/jobs` | Open the active-jobs list |
 | `/welcome` | Return to the welcome screen |
 | `/settings` | Open settings screen |
 | `/logs` | Show captured server logs |
 | `/quit` | Exit |
+
+## Connecting to a protected server
+
+AmicoScript refuses API calls from other machines until a password is set. On the
+same machine the TUI needs nothing. Pointing it at a remote instance — or running
+the backend with `AMICOSCRIPT_AUTH=always` — needs the API token from the app's
+Security panel:
+
+```bash
+export AMICOSCRIPT_API_TOKEN=…      # shown under Security once a password is set
+./tui.sh --api-url https://amico.example.com
+```
+
+Without it the TUI says so explicitly rather than reporting a bare `401`.
+
+## Status column
+
+| Mark | Meaning |
+|------|---------|
+| `● done` | Finished |
+| `⠸ proc` / `⠴ diariz` | Running |
+| `✗ error` | Failed — press `Ctrl+R` to try again |
+| `⚠ interrupt` | Stopped by an app restart; the audio is still there, `Ctrl+R` resumes it |
+| `⊘ cancelled` | Cancelled by you |
+
+A `◉` before the file name marks a captured meeting, `↗` a link import.
 
 ## Drag & Drop
 
