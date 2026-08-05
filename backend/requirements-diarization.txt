@@ -1,0 +1,21 @@
+# Speaker diarization, and nothing else.
+#
+# Split out of requirements.txt because Whisper does not need any of it:
+# faster-whisper transcribes through CTranslate2, and every `import torch` in
+# the backend is on the diarization path. In the packaged app these are not
+# bundled at all — scripts/generate_runtime_manifest.py resolves them at build
+# time and backend/runtime_pack.py downloads them the first time a job asks for
+# speaker labels. Install them normally for development, for the Docker images,
+# and to run the tests.
+#
+# The CPU index is named explicitly, and as --index-url rather than
+# --extra-index-url, because on Linux the default PyPI torch wheel is the CUDA
+# build: a plain `pip install torch` pulls in several gigabytes of nvidia-*
+# packages and produces a "CPU" runtime nearly identical to the CUDA one. PyPI
+# comes back as the extra index for everything else.
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+
+pyannote.audio>=3.3.2
+torch>=2.3.0
+torchaudio>=2.3.0

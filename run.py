@@ -40,9 +40,20 @@ else:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-# Bundled CUDA libraries have to be loaded before anything imports CTranslate2,
+# torch, torchaudio and pyannote are not in the bundle; they are downloaded on
+# first use. If a previous run already did that, put them back on the import
+# path now so this process starts out the way a bundled build would have — no
+# download here, only what is already on disk.
+try:
+    import runtime_pack
+
+    runtime_pack.activate_if_installed()
+except Exception as e:
+    print(f"Runtime pack skipped: {e}")
+
+# CUDA libraries have to be loaded before anything creates a CTranslate2 model,
 # which is why this sits above the backend imports rather than inside them.
-# No-op outside a frozen GPU build.
+# No-op until a CUDA runtime has been downloaded.
 try:
     import cuda_runtime
 

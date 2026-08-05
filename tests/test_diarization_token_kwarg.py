@@ -41,6 +41,18 @@ def _install_fake_pyannote(monkeypatch, accepted_kwarg: str, captured: dict) -> 
     monkeypatch.setitem(sys.modules, "pyannote", fake_pkg)
     monkeypatch.setitem(sys.modules, "pyannote.audio", fake_module)
 
+    # torch as well as pyannote: the diarization phase now checks that the
+    # whole stack is importable before it starts, and refuses to run when it is
+    # not — the packaged app downloads torch on demand, so "missing" is a state
+    # it has to handle rather than assume away. A fake pyannote without a fake
+    # torch is a half-installed machine, which is not what this test is about.
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: False, empty_cache=lambda: None)
+    torch.device = lambda spec: f"device({spec})"
+    # inject_torch_load_shim wraps torch.load, and this test lets it run.
+    torch.load = lambda *_, **__: None
+    monkeypatch.setitem(sys.modules, "torch", torch)
+
 
 @pytest.mark.parametrize("accepted_kwarg", ["token", "use_auth_token"])
 def test_run_diarization_uses_supported_kwarg(monkeypatch, accepted_kwarg) -> None:

@@ -22,8 +22,8 @@ from collections import deque
 from pathlib import Path
 
 
-def _exe_path(repo_root: Path, gpu: bool = False) -> Path:
-    app_name = "AmicoScript-GPU" if gpu else "AmicoScript"
+def _exe_path(repo_root: Path) -> Path:
+    app_name = "AmicoScript"
     system = platform.system().lower()
     if system == "darwin":
         return repo_root / "dist" / "AmicoScript.app" / "Contents" / "MacOS" / "AmicoScript"
@@ -121,9 +121,8 @@ def _check_meeting_watcher(output_tail: deque[str]) -> None:
 
 
 def main() -> int:
-    gpu = '--gpu' in sys.argv
     repo_root = Path(__file__).resolve().parents[1]
-    exe = _exe_path(repo_root, gpu=gpu)
+    exe = _exe_path(repo_root)
     if not exe.exists():
         raise FileNotFoundError(f"Expected executable not found: {exe}")
 

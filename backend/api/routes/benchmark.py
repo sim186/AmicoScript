@@ -113,9 +113,21 @@ def _collect_system_info() -> dict:
             info["cuda"] = False
             info["gpu"] = None
     except Exception:
-        info["cuda"] = False
+        # torch is downloaded on first use, so its absence says nothing about
+        # the hardware. Asking the driver directly keeps the panel from
+        # reporting "no GPU" on a machine that has one and simply has not run
+        # a job yet.
+        import gpu_probe
+
+        info["cuda"] = gpu_probe.has_nvidia_gpu()
         info["gpu"] = None
         info["torch_version"] = None
+    try:
+        import runtime_pack
+
+        info["runtime_pack"] = runtime_pack.status()
+    except Exception:
+        info["runtime_pack"] = None
     try:
         import faster_whisper
         info["fw_version"] = faster_whisper.__version__

@@ -97,6 +97,8 @@ def main():
         "main",
         "ffmpeg_helper",
         "cuda_runtime",
+        "runtime_pack",
+        "gpu_probe",
         "sse_starlette.sse",
     ]
     for h in hidden:
@@ -109,6 +111,21 @@ def main():
         'tensorboard',
         'torch.utils.tensorboard',
         'uvicorn.streaming',
+        # Downloaded at runtime, never bundled — see the long note in
+        # package.py and backend/runtime_pack.py. Excluding them is what makes
+        # the download work at all.
+        'torch',
+        'torchaudio',
+        'torchvision',
+        'pyannote',
+        'pyannote.audio',
+        'pytorch_lightning',
+        'lightning',
+        'lightning_fabric',
+        'torchmetrics',
+        'speechbrain',
+        'asteroid_filterbanks',
+        'nvidia',
     ]
     for ex in excludes:
         args.append(f"--exclude-module={ex}")
@@ -120,20 +137,19 @@ def main():
         if _importlib_util.find_spec('faster_whisper') is not None:
             args.append("--hidden-import=faster_whisper")
             args.append("--collect-data=faster_whisper")
-        if _importlib_util.find_spec('pyannote.audio') is not None:
-            args.append('--hidden-import=pyannote.audio')
-            args.append("--collect-data=pyannote.audio")
         if _importlib_util.find_spec('huggingface_hub') is not None:
             args.append('--hidden-import=huggingface_hub')
-        # CTranslate2's CUDA libraries arrive as `nvidia-*` packages that
-        # nothing imports, so PyInstaller never sees them. Collected here when
-        # they are present — otherwise a GPU-capable build transcribes on the
-        # CPU. See backend/cuda_runtime.py for the runtime half.
-        for pkg in ('nvidia', 'ctranslate2'):
-            if _importlib_util.find_spec(pkg) is not None:
-                args.append(f'--collect-binaries={pkg}')
     except Exception:
         pass
+
+    # The inventory of what to download on first use. Without it the build
+    # transcribes but cannot diarize.
+    if (ROOT / "runtime_manifest.json").exists():
+        args.append(_add_data_arg('runtime_manifest.json', '.'))
+    else:
+        print('WARNING: runtime_manifest.json is missing — speaker diarization '
+              'will be unavailable in this build. Run '
+              '"python scripts/generate_runtime_manifest.py" first.')
 
     print("\nPyInstaller arguments:")
     print(args)
