@@ -31,6 +31,12 @@ meetings/
 build/
 dist/
 *.spec
+buildmeta/
+
+# Generated per-platform by scripts/generate_runtime_manifest.py before a build.
+# Platform-specific and pinned to the versions installed on the build machine,
+# so it is produced at release time rather than committed.
+runtime_manifest.json
 
 # Downloaded Binaries
 backend/ffmpeg

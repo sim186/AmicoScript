@@ -6,6 +6,39 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 📦 One download per platform, not four
+
+- **There is no longer a CPU build and a GPU build.** The two differed only in
+  whether the CUDA torch wheels and the nvidia CUDA libraries had been
+  collected into them, which put the choice on the user at download time — in a
+  filename, before they could know the answer. There is now one build per
+  platform, and it decides at first use from what the machine's driver actually
+  reports. Five release artifacts become three.
+- **PyTorch is downloaded on first use rather than shipped.** Whisper never
+  touches it: faster-whisper transcribes through CTranslate2, and every
+  `import torch` in the backend is on the diarization path. So torch,
+  torchaudio and pyannote are no longer bundled at all. The first job that asks
+  for speaker labels — or the first job on a GPU machine, since CTranslate2's
+  cuBLAS and cuDNN travel with them — fetches the right set. A CPU-only machine
+  transcribing without diarization downloads nothing. Every bundle is smaller
+  than the old CPU build was.
+- **The wheels are pinned at build time, not resolved on your laptop.** The
+  build records exact URLs and sha256 hashes, resolved against the versions the
+  bundle carries so the two halves cannot disagree about numpy. Nothing is
+  installed that does not match its recorded hash.
+- **GPU detection no longer goes through torch**, which would be circular now
+  that torch is the thing being decided about. The CUDA driver is asked
+  directly, with an `nvidia-smi` fallback for WSL. `AMICO_GPU=0` overrides it,
+  and `AMICO_RUNTIME_FLAVOUR` overrides the choice that follows from it.
+- **A missing runtime is not a failed job.** Diarization that cannot fetch
+  PyTorch is skipped with a reason in the log and the transcript still
+  delivered, the same way a missing Hugging Face token already behaved.
+- **Linux artifacts were silently missing from releases.** The zip step ended
+  in `|| true`, so a failure left the job green and the release without a Linux
+  asset — which is how `v1.16.0` shipped. It no longer swallows the error.
+- See `docs/runtime-pack.md`. Docker is unaffected: both images install the
+  whole stack, because a container should carry what it needs.
+
 ### 🖥️ GPU and CPU builds that actually differ
 
 - **The saved device and precision settings were write-only.** The settings

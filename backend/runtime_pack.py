@@ -358,6 +358,9 @@ def activate(target: Path) -> None:
     path = str(target)
     if path not in sys.path:
         sys.path.append(path)
+        # The directory did not exist when the process started, and something
+        # may already have looked for it and cached the absence.
+        importlib.invalidate_caches()
 
     # CTranslate2 loads cuBLAS and cuDNN by soname at first use, and in the CUDA
     # variant those arrived with the pack rather than with the bundle. The

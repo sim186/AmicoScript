@@ -153,8 +153,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ```bash
 pip install -r backend/requirements.txt
+pip install -r backend/requirements-diarization.txt   # optional: speaker labels
 python run.py
 ```
+
+The second line is PyTorch and pyannote. Skip it and everything except speaker
+diarization works; from a source checkout nothing is downloaded on your behalf
+to make up the difference.
 
 `run.py` opens a native desktop window when `pywebview` is installed, and falls
 back to a system browser tab when it is not. Override with `AMICOSCRIPT_UI`:
@@ -190,6 +195,14 @@ pytest -q
 
 ## 🏃🏼 Running from the installer
 In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
+
+There is one download per platform — no separate CPU and GPU builds. The app
+checks for an NVIDIA GPU on the machine it is running on and fetches the
+matching PyTorch runtime the first time a job needs one, which is the first
+time you ask for speaker diarization, or the first job on a GPU. Transcribing
+on a CPU-only machine downloads nothing. See
+[docs/runtime-pack.md](docs/runtime-pack.md) if you want to pin the choice or
+work offline.
 
 ### macOS: Running unsigned apps (Not disabling Gatekeeper)
 
