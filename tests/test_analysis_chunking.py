@@ -95,11 +95,12 @@ class _FakeLLM:
 
     def __init__(self, reply="RESULT"):
         self.prompts: list[str] = []
+        self.targets: list = []
         self.reply = reply
 
-    def __call__(self, base_url, model_name, api_key, prompt, max_output_tokens,
-                 on_delta=None, should_cancel=None):
+    def __call__(self, target, prompt, on_delta=None, should_cancel=None):
         self.prompts.append(prompt)
+        self.targets.append(target)
         if on_delta:
             on_delta(self.reply, self.reply)
         return self.reply, False
@@ -213,8 +214,7 @@ def test_every_part_of_a_long_transcript_reaches_the_model(monkeypatch, analysis
 def test_long_translation_is_concatenated_not_merged(monkeypatch, analysis_job):
     calls = []
 
-    def fake(base_url, model_name, api_key, prompt, max_output_tokens,
-             on_delta=None, should_cancel=None):
+    def fake(target, prompt, on_delta=None, should_cancel=None):
         calls.append(prompt)
         return f"translated-{len(calls)}", False
 
@@ -238,8 +238,7 @@ def test_cancelling_mid_chunk_stops_and_saves_what_was_produced(monkeypatch, ana
 
     calls = {"n": 0}
 
-    def fake(base_url, model_name, api_key, prompt, max_output_tokens,
-             on_delta=None, should_cancel=None):
+    def fake(target, prompt, on_delta=None, should_cancel=None):
         calls["n"] += 1
         if calls["n"] == 2:
             # What the real run_completion does when should_cancel() fires
@@ -273,6 +272,11 @@ def test_llm_failure_marks_the_analysis_as_error(monkeypatch, analysis_job):
 # --- transport --------------------------------------------------------------
 
 
+def _target(**overrides):
+    defaults = {"base_url": "http://llm.test", "model_name": "m", "max_output_tokens": 128}
+    return analysis.LLMTarget(**{**defaults, **overrides})
+
+
 def test_streaming_falls_back_to_a_plain_request(monkeypatch):
     """Some proxies swallow SSE; an empty stream must not become an empty result."""
     monkeypatch.setattr(analysis, "_stream_completion", lambda *a, **k: ("", False))
@@ -280,9 +284,7 @@ def test_streaming_falls_back_to_a_plain_request(monkeypatch):
         analysis, "_blocking_completion", lambda *a, **k: "non-streamed answer"
     )
 
-    text, cancelled = analysis.run_completion(
-        "http://llm.test", "m", "", "prompt", 128
-    )
+    text, cancelled = analysis.run_completion(_target(), "prompt")
     assert text == "non-streamed answer"
     assert cancelled is False
 
@@ -297,10 +299,54 @@ def test_http_errors_are_not_retried_without_streaming(monkeypatch):
     monkeypatch.setattr(analysis, "_blocking_completion", lambda *a, **k: "should not happen")
 
     with pytest.raises(requests.HTTPError):
-        analysis.run_completion("http://llm.test", "m", "", "prompt", 128)
+        analysis.run_completion(_target(), "prompt")
 
 
 def test_cancelled_stream_is_reported_as_cancelled(monkeypatch):
     monkeypatch.setattr(analysis, "_stream_completion", lambda *a, **k: ("partial", True))
-    text, cancelled = analysis.run_completion("http://llm.test", "m", "", "p", 128)
+    text, cancelled = analysis.run_completion(_target(), "p")
     assert (text, cancelled) == ("partial", True)
+
+
+def test_target_is_built_from_job_options():
+    target = analysis.LLMTarget.from_options({
+        "llm_base_url": "http://localhost:1234/",
+        "llm_model_name": "qwen",
+        "llm_api_key": "sk-x",
+        "llm_provider": "lmstudio",
+        "llm_max_output_tokens": 512,
+    })
+    assert target.base_url == "http://localhost:1234"
+    assert target.provider_id == "lmstudio"
+    assert target.max_output_tokens == 512
+
+
+@pytest.mark.usefixtures("api_app")
+def test_a_cloud_provider_refuses_to_run_without_consent(monkeypatch, analysis_job):
+    """The transcript must not reach a hosted provider by accident."""
+    fake = _FakeLLM()
+    monkeypatch.setattr(analysis, "run_completion", fake)
+
+    job_id, analysis_id = analysis_job("short text")
+    state.jobs[job_id]["options"]["llm_provider"] = "openrouter"
+    state.jobs[job_id]["options"]["llm_allow_cloud"] = False
+    analysis._process_analysis_job(job_id)
+
+    assert fake.prompts == []
+    assert _stored(analysis_id)[0] == "error"
+    assert "hosted service" in state.jobs[job_id]["error"]
+
+
+@pytest.mark.usefixtures("api_app")
+def test_a_cloud_provider_runs_once_allowed(monkeypatch, analysis_job):
+    fake = _FakeLLM()
+    monkeypatch.setattr(analysis, "run_completion", fake)
+
+    job_id, analysis_id = analysis_job("short text")
+    state.jobs[job_id]["options"]["llm_provider"] = "openrouter"
+    state.jobs[job_id]["options"]["llm_allow_cloud"] = True
+    analysis._process_analysis_job(job_id)
+
+    assert len(fake.prompts) == 1
+    assert fake.targets[0].provider_id == "openrouter"
+    assert _stored(analysis_id)[0] == "done"

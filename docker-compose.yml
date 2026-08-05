@@ -4,6 +4,12 @@ services:
     volumes:
       - whisper_models:/root/.cache/huggingface
       - amicoscript_settings:/root/.amicoscript
+    # Lets the container reach an LLM running on the host — Ollama, LM Studio,
+    # Unsloth Studio. Docker Desktop defines host.docker.internal on its own; on
+    # Linux it does not exist unless mapped like this, which is why pointing
+    # AmicoScript at "localhost:11434" from a container never worked there.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - PYTHONUNBUFFERED=1
       - HF_TOKEN=${HF_TOKEN:-}

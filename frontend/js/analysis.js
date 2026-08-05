@@ -5,6 +5,7 @@
 
 import { state } from './state.js';
 import { escHtml } from './transcript.js';
+import { currentProviderFields, showUrlNote } from './llm-setup.js';
 import { clientLog } from './upload.js';
 
 export function initAiAnalysis() {
@@ -410,7 +411,7 @@ window._deleteAnalysis = async function (analysisId, recordingId) {
 
 export async function saveLlmSettings() {
   const fd = new FormData();
-  const baseUrl = document.getElementById('llm-base-url').value.trim() || 'http://localhost:11434';
+  const baseUrl = document.getElementById('llm-base-url').value.trim();
   const model = document.getElementById('llm-model-input').value.trim();
   fd.append('llm_base_url', baseUrl);
   fd.append('llm_model_name', model);
@@ -422,8 +423,21 @@ export async function saveLlmSettings() {
   if (contextTokens && contextTokens.value.trim()) {
     fd.append('llm_context_tokens', contextTokens.value.trim());
   }
-  clientLog(`LLM settings saved: url=${baseUrl}, model=${model || '(none)'}`);
-  try { await fetch('/api/llm/settings', { method: 'POST', body: fd }); } catch { /* ignore */ }
+  for (const [key, value] of Object.entries(currentProviderFields())) fd.append(key, value);
+
+  clientLog(`LLM settings saved: url=${baseUrl || '(provider default)'}, model=${model || '(none)'}`);
+  try {
+    const res = await fetch('/api/llm/settings', { method: 'POST', body: fd });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showUrlNote(body.detail || 'Could not save these settings.');
+      return;
+    }
+    // The server cleans up the address (a trailing /v1, a container host).
+    // Show what it settled on rather than leaving a stale value on screen.
+    if (body.llm_base_url) document.getElementById('llm-base-url').value = body.llm_base_url;
+    showUrlNote(body.note ? `Adjusted: ${body.note}.` : '');
+  } catch { /* offline; the value stays in the form */ }
 }
 
 const POPULAR_MODELS = [

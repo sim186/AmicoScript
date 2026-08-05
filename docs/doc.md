@@ -258,6 +258,75 @@ curl http://localhost:11434/api/tags
 
 You should see a JSON list of your downloaded models.
 
+### Which backends work
+
+Anything that speaks `POST /v1/chat/completions` — which is all of these:
+
+| Provider | Default address | API key | Notes |
+|----------|-----------------|---------|-------|
+| **Ollama** | `http://localhost:11434` | none | The only one AmicoScript can download models for. Set `OLLAMA_HOST=0.0.0.0` to reach it from Docker. |
+| **LM Studio** | `http://localhost:1234` | none | Start the server from the Developer tab. Binds to loopback; enable "Serve on Local Network" for Docker. |
+| **Unsloth Studio** | `http://localhost:8888` | **required** | Serves GGUF/safetensors via llama-server. Copy the key from Settings → API; it starts with `sk-unsloth-`. |
+| **llama.cpp** (`llama-server`) | `http://localhost:8080` | optional | Only if you started it with `--api-key`. |
+| **vLLM** | `http://localhost:8000` | optional | Only if you started it with `--api-key`. |
+| **Jan** | `http://localhost:1337` | none | Enable the local API server in Jan's settings. |
+| **LocalAI** | `http://localhost:8080` | optional | |
+| **OpenRouter** | `https://openrouter.ai/api` | **required** | Hosted. Hundreds of models including free ones — but your transcripts leave the machine, so it is behind an explicit opt-in. |
+| **Other** | — | optional | OpenAI, Groq, Together, Mistral, a company gateway, anything OpenAI-compatible. |
+
+Pick one under **LLM Settings** in the sidebar and the address, key requirement
+and setup link fill themselves in.
+
+### Finding a server automatically
+
+**Find running servers** probes the ports above and reports what answered, which
+models it has loaded, and whether it wants a key. One click adopts it — provider,
+address and a model are filled in for you. `GET /api/llm/detect` exposes the same
+scan.
+
+A server that answers `401` still shows up, marked as needing a key. That is the
+normal state for Unsloth Studio.
+
+### Addresses: what you can paste
+
+Every one of these tools displays a base URL ending in `/v1`, but AmicoScript
+appends `/v1/chat/completions` itself, so pasting it verbatim used to produce
+`/v1/v1/…` and a 404 that looked like the server was broken. All of the
+following now resolve to the same thing:
+
+```
+http://localhost:1234
+http://localhost:1234/v1
+http://localhost:1234/v1/chat/completions
+localhost:1234
+```
+
+The cleaned-up address is shown back to you with a note explaining what changed.
+
+### Docker
+
+Inside a container `localhost` is the container, so it can never reach an LLM
+running on your machine. Two things handle this:
+
+- `docker-compose.yml` maps `host.docker.internal` to the host gateway, which
+  Docker Desktop provides automatically but Linux does not.
+- AmicoScript detects that it is containerised and rewrites `localhost` /
+  `127.0.0.1` to `host.docker.internal` when you save an address, telling you it
+  did. Server scanning probes the host rather than the container.
+
+The LLM itself still has to listen beyond loopback — `OLLAMA_HOST=0.0.0.0` for
+Ollama, "Serve on Local Network" for LM Studio. Override the alias with
+`AMICOSCRIPT_DOCKER_HOST` if your runtime uses a different name.
+
+### Hosted providers and your transcripts
+
+AmicoScript keeps audio local, always. A hosted provider (currently OpenRouter,
+or any remote address you enter yourself) receives the **text** of whatever it
+analyses, which is the whole transcript. That is a real departure from the
+local-first promise, so it is gated: tick the confirmation in LLM Settings, and
+until you do, both manual analyses and automatic meeting summaries refuse to run
+against it and say why.
+
 #### Configuring AmicoScript
 
 1. Open AmicoScript and go to **LLM Settings** (sidebar)
@@ -306,11 +375,28 @@ Example: test LLM connection (curl)
 curl -X POST "http://localhost:8002/api/llm/test-connection"
 ```
 
+### LLM API endpoints
+
+**GET /api/llm/providers** — the preset catalog, plus whether AmicoScript is
+running in a container and under what host alias.
+**GET /api/llm/detect** — scan the well-known ports for a running server.
+**GET /api/llm/models?base_url=** — list a server's models; `base_url` previews
+one before saving it.
+**POST /api/llm/settings** — accepts `llm_provider`, `llm_base_url`,
+`llm_model_name`, `llm_api_key`, `llm_context_tokens`, `llm_max_output_tokens`
+and `llm_allow_cloud`. Returns the normalized address and a note describing any
+change.
+**POST /api/llm/test-connection** — performs a real completion and returns an
+actionable message on failure (which tool is not running, whether the key is
+wrong, whether the address has a stray `/v1`).
+**POST /api/llm/models/pull** — Ollama only; other providers return 400 with an
+explanation.
+
 Notes & references
 
 - Ollama HTTP API (example server): https://docs.ollama.com/
 - SSE (EventSource) streaming pattern: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
-- Settings location on disk: `~/.amicoscript/settings.json` (contains `llm_base_url`, `llm_model_name`, `llm_api_key`, `hf_token`, etc.)
+- Settings location on disk: `~/.amicoscript/settings.json` (contains `llm_provider`, `llm_base_url`, `llm_model_name`, `llm_api_key`, `hf_token`, etc.)
 
 Docker tip: when running the app in Docker and your LLM server runs on the host, use `http://host.docker.internal:11434` as the base URL.
 

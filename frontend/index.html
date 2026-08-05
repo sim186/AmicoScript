@@ -877,6 +877,137 @@
             </div>
           </details>
 
+          <!-- LLM Settings -->
+          <details id="llm-settings-details" class="group">
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
+              <span>LLM Settings</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-2 space-y-2">
+              <!-- Provider preset -->
+              <div>
+                <label for="llm-provider-select" class="block text-xs text-slate-500 mb-0.5">Provider</label>
+                <select id="llm-provider-select"
+                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand">
+                </select>
+                <p id="llm-provider-notes" class="text-[10px] text-slate-400 mt-1 leading-tight"></p>
+                <a id="llm-provider-docs" href="#" target="_blank" rel="noopener"
+                  class="hidden text-[10px] font-semibold text-brand hover:underline">Setup guide ↗</a>
+              </div>
+
+              <!-- Find a running server -->
+              <div>
+                <button id="llm-detect-btn" type="button"
+                  class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition">
+                  Find running servers
+                </button>
+                <div id="llm-detect-results" class="hidden mt-1.5 space-y-1"></div>
+                <p id="llm-detect-status" class="hidden text-[10px] leading-tight mt-1"></p>
+              </div>
+
+              <!-- Cloud consent, shown only for hosted providers -->
+              <div id="llm-cloud-consent" class="hidden rounded-lg border border-amber-200 bg-amber-50 p-2">
+                <label class="flex items-start gap-2 text-[11px] text-amber-900 leading-tight">
+                  <input id="llm-allow-cloud" type="checkbox"
+                    class="mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                  <span>
+                    <strong>This sends your transcripts off this machine.</strong>
+                    The audio stays local, but the text of every analysis is uploaded to
+                    this provider. Tick to allow it.
+                  </span>
+                </label>
+              </div>
+
+              <!-- Base URL -->
+              <div>
+                <label for="llm-base-url" class="block text-xs text-slate-500 mb-0.5">Base URL</label>
+                <input id="llm-base-url" type="text" placeholder="http://localhost:11434"
+                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
+                <p id="llm-url-note" class="hidden text-[10px] text-slate-500 mt-1 leading-tight"></p>
+              </div>
+              <!-- Model -->
+              <div class="relative">
+                <label for="llm-model-input" class="block text-xs text-slate-500 mb-0.5">Model</label>
+                <div class="flex gap-1">
+                  <input id="llm-model-input" type="text" placeholder="e.g. llama3.2"
+                    class="flex-1 text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
+                  <button id="llm-browse-models-btn" type="button" title="Browse available models"
+                    class="text-xs px-2 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition shrink-0">
+                    Browse
+                  </button>
+                </div>
+                <!-- Model browser panel -->
+                <div id="llm-models-panel"
+                  class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-600">Models</span>
+                    <button id="llm-refresh-models-btn" type="button"
+                      class="text-xs text-slate-400 hover:text-brand transition">↻ Refresh</button>
+                  </div>
+                  <div id="llm-installed-section" class="hidden">
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Installed</p>
+                    <div id="llm-installed-list"></div>
+                  </div>
+                  <div>
+                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Popular</p>
+                    <div id="llm-popular-list"></div>
+                  </div>
+                </div>
+              </div>
+              <!-- API Key (optional) -->
+              <div>
+                <label for="llm-api-key" class="block text-xs text-slate-500 mb-0.5">API Key <span
+                    id="llm-api-key-requirement" class="font-normal">(optional)</span></label>
+                <div class="relative">
+                  <input id="llm-api-key" type="password" placeholder="Leave empty for Ollama"
+                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-brand" />
+                  <button type="button" id="llm-key-eye"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg id="llm-key-eye-open" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                      viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <svg id="llm-key-eye-closed" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <!-- Context budget -->
+              <div>
+                <label for="llm-context-tokens" class="block text-xs text-slate-500 mb-0.5">
+                  Context window <span class="font-normal">(tokens)</span>
+                </label>
+                <input id="llm-context-tokens" type="number" min="512" step="512" placeholder="8192"
+                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
+                <p class="text-[10px] text-slate-400 mt-1 leading-tight">
+                  Transcripts longer than this are summarised in parts and then merged,
+                  instead of being silently truncated. Match your model's setting
+                  (Ollama defaults to 4096).
+                </p>
+              </div>
+              <!-- Test + status -->
+              <div class="flex items-center gap-2">
+                <button id="llm-test-btn" type="button"
+                  class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition">
+                  Test Connection
+                </button>
+                <span id="llm-test-status" class="text-xs"></span>
+              </div>
+            </div>
+          </details>
+
           <!-- Security -->
           <details class="group mt-2">
             <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
@@ -1135,102 +1266,6 @@
           </div>
 
           <hr class="border-slate-100 my-1" />
-
-          <!-- LLM Settings -->
-          <details id="llm-settings-details" class="group">
-            <summary
-              class="cursor-pointer list-none flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider py-1 select-none">
-              <span>LLM Settings</span>
-              <svg class="w-3.5 h-3.5 text-slate-400 group-open:rotate-180 transition-transform"
-                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-            <div class="mt-2 space-y-2">
-              <!-- Base URL -->
-              <div>
-                <label for="llm-base-url" class="block text-xs text-slate-500 mb-0.5">Base URL</label>
-                <input id="llm-base-url" type="text" placeholder="http://localhost:11434"
-                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
-              </div>
-              <!-- Model -->
-              <div class="relative">
-                <label for="llm-model-input" class="block text-xs text-slate-500 mb-0.5">Model</label>
-                <div class="flex gap-1">
-                  <input id="llm-model-input" type="text" placeholder="e.g. llama3.2"
-                    class="flex-1 text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
-                  <button id="llm-browse-models-btn" type="button" title="Browse available models"
-                    class="text-xs px-2 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-brand hover:text-brand transition shrink-0">
-                    Browse
-                  </button>
-                </div>
-                <!-- Model browser panel -->
-                <div id="llm-models-panel"
-                  class="hidden absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                  <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-slate-600">Models</span>
-                    <button id="llm-refresh-models-btn" type="button"
-                      class="text-xs text-slate-400 hover:text-brand transition">↻ Refresh</button>
-                  </div>
-                  <div id="llm-installed-section" class="hidden">
-                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Installed</p>
-                    <div id="llm-installed-list"></div>
-                  </div>
-                  <div>
-                    <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Popular</p>
-                    <div id="llm-popular-list"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- API Key (optional) -->
-              <div>
-                <label for="llm-api-key" class="block text-xs text-slate-500 mb-0.5">API Key <span
-                    class="font-normal">(optional)</span></label>
-                <div class="relative">
-                  <input id="llm-api-key" type="password" placeholder="Leave empty for Ollama"
-                    class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-brand" />
-                  <button type="button" id="llm-key-eye"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
-                    <svg id="llm-key-eye-open" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
-                      viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    <svg id="llm-key-eye-closed" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 hidden"
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <!-- Context budget -->
-              <div>
-                <label for="llm-context-tokens" class="block text-xs text-slate-500 mb-0.5">
-                  Context window <span class="font-normal">(tokens)</span>
-                </label>
-                <input id="llm-context-tokens" type="number" min="512" step="512" placeholder="8192"
-                  class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand" />
-                <p class="text-[10px] text-slate-400 mt-1 leading-tight">
-                  Transcripts longer than this are summarised in parts and then merged,
-                  instead of being silently truncated. Match your model's setting
-                  (Ollama defaults to 4096).
-                </p>
-              </div>
-              <!-- Test + status -->
-              <div class="flex items-center gap-2">
-                <button id="llm-test-btn" type="button"
-                  class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition">
-                  Test Connection
-                </button>
-                <span id="llm-test-status" class="text-xs"></span>
-              </div>
-            </div>
-          </details>
 
         </div><!-- /sidebar-transcript -->
 

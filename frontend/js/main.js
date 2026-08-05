@@ -3,11 +3,12 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
-import { initAiAnalysis } from './analysis.js';
+import { initAiAnalysis, saveLlmSettings } from './analysis.js';
 import { fetchAndShowChangelog } from './changelog.js';
 import { initExportButtons } from './exports.js';
 import { cancelJob } from './jobs.js';
 import { initLibrary } from './library-init.js';
+import { initLlmSetup } from './llm-setup.js';
 import { _saveTranscriptionDefaults, initAutoSummaryToggle, restoreSettings } from './prefs.js';
 import { initShortcuts } from './shortcuts.js';
 import { state } from './state.js';
@@ -25,6 +26,10 @@ export function init() {
   initCloudPowerToggle();
   initMeetingCaptureToggle();
   initAutoSummaryToggle();
+  initLlmSetup();
+  // Picking a provider or granting cloud consent is a setting change like any
+  // other, so persist it without making the user hunt for a save button.
+  window.addEventListener('amicoscript:llm-config-changed', () => { saveLlmSettings(); });
   initAudioPlayer();
   initExportButtons();
   initShortcuts();

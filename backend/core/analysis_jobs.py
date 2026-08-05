@@ -14,6 +14,7 @@ import uuid
 
 import state
 from db import new_session
+from llm_providers import get_provider
 from models import Analysis, Recording, Transcript
 from settings import _get_auto_summarize_meetings, _get_llm_settings
 from sqlmodel import select
@@ -116,6 +117,15 @@ def maybe_queue_auto_summary(recording_id: str) -> str:
         cfg = _get_llm_settings()
         if not cfg.get("llm_model_name"):
             logger.info("Auto-summary skipped: no LLM model configured")
+            return ""
+
+        provider = get_provider(cfg.get("llm_provider", ""))
+        if provider.cloud and not cfg.get("llm_allow_cloud"):
+            logger.info(
+                "Auto-summary skipped: %s is a hosted provider and sending "
+                "transcripts there has not been allowed",
+                provider.label,
+            )
             return ""
 
         with new_session() as session:

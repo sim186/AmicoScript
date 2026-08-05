@@ -13,6 +13,7 @@ translated passages would rewrite them.
 """
 import json as _json
 import re
+from dataclasses import dataclass
 from json import JSONDecodeError
 
 import requests as _req
@@ -20,6 +21,7 @@ import requests as _req
 import state
 from core.job_helpers import _append_job_log, _handle_job_error, _push_event
 from db import new_session
+from llm_providers import build_headers, chat_url, get_provider
 from models import Analysis
 
 # Rough characters-per-token ratio for English prose. Real tokenizers vary by
@@ -220,35 +222,53 @@ class LLMError(RuntimeError):
     """Raised when the LLM endpoint cannot be used at all."""
 
 
-def _headers(api_key: str) -> dict:
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    return headers
+@dataclass(frozen=True)
+class LLMTarget:
+    """Everything needed to make one request, kept together.
+
+    Passing base_url/model/key/provider/token-limit as five positional
+    arguments through map-reduce meant threading the same tuple through six
+    call sites; one object keeps them from drifting apart.
+    """
+
+    base_url: str
+    model_name: str
+    api_key: str = ""
+    provider_id: str = ""
+    max_output_tokens: int = 1024
+
+    @classmethod
+    def from_options(cls, opts: dict) -> "LLMTarget":
+        return cls(
+            base_url=(opts.get("llm_base_url") or "").rstrip("/"),
+            model_name=opts.get("llm_model_name", ""),
+            api_key=opts.get("llm_api_key", ""),
+            provider_id=opts.get("llm_provider", ""),
+            max_output_tokens=int(opts.get("llm_max_output_tokens") or 1024),
+        )
+
+
+def _headers(api_key: str, provider_id: str = "") -> dict:
+    """Auth plus whatever else the provider wants (OpenRouter's attribution)."""
+    return build_headers(provider_id, api_key)
 
 
 def _stream_completion(
-    base_url: str,
-    model_name: str,
-    api_key: str,
-    prompt: str,
-    max_output_tokens: int,
-    on_delta=None,
-    should_cancel=None,
+    target: LLMTarget, prompt: str, on_delta=None, should_cancel=None,
 ) -> tuple[str, bool]:
     """Stream one completion. Returns (text, cancelled)."""
     payload = {
-        "model": model_name,
+        "model": target.model_name,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
-        "max_tokens": max_output_tokens,
+        "max_tokens": target.max_output_tokens,
     }
     collected: list[str] = []
 
     with _req.post(
-        f"{base_url}/v1/chat/completions",
+        chat_url(target.base_url),
         json=payload,
-        headers=_headers(api_key),
+        headers=_headers(target.api_key, target.provider_id),
         stream=True,
         timeout=120,
     ) as resp:
@@ -276,20 +296,18 @@ def _stream_completion(
     return "".join(collected), False
 
 
-def _blocking_completion(
-    base_url: str, model_name: str, api_key: str, prompt: str, max_output_tokens: int
-) -> str:
+def _blocking_completion(target: LLMTarget, prompt: str) -> str:
     """Non-streaming request, used when the server does not support SSE."""
     payload = {
-        "model": model_name,
+        "model": target.model_name,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "max_tokens": max_output_tokens,
+        "max_tokens": target.max_output_tokens,
     }
     resp = _req.post(
-        f"{base_url}/v1/chat/completions",
+        chat_url(target.base_url),
         json=payload,
-        headers=_headers(api_key),
+        headers=_headers(target.api_key, target.provider_id),
         timeout=600,
     )
     resp.raise_for_status()
@@ -301,13 +319,7 @@ def _blocking_completion(
 
 
 def run_completion(
-    base_url: str,
-    model_name: str,
-    api_key: str,
-    prompt: str,
-    max_output_tokens: int,
-    on_delta=None,
-    should_cancel=None,
+    target: LLMTarget, prompt: str, on_delta=None, should_cancel=None,
 ) -> tuple[str, bool]:
     """Stream a completion, falling back to a plain request when streaming fails.
 
@@ -316,9 +328,7 @@ def run_completion(
     empty analysis with no error; now it retries without streaming.
     """
     try:
-        text, cancelled = _stream_completion(
-            base_url, model_name, api_key, prompt, max_output_tokens, on_delta, should_cancel
-        )
+        text, cancelled = _stream_completion(target, prompt, on_delta, should_cancel)
         if cancelled or text.strip():
             return text, cancelled
     except _req.RequestException as exc:
@@ -326,7 +336,7 @@ def run_completion(
         # error status (bad model name, auth) will fail again the same way.
         if isinstance(exc, _req.HTTPError):
             raise
-    return _blocking_completion(base_url, model_name, api_key, prompt, max_output_tokens), False
+    return _blocking_completion(target, prompt), False
 
 
 # ---------------------------------------------------------------------------
@@ -365,21 +375,24 @@ def _process_analysis_job(job_id: str) -> None:
         _append_job_log(job_id, "INFO", f"Analysis worker started (type={analysis_type})")
         _push_event(job_id, "running", 0.05, "Building prompt...")
 
-        base_url = opts["llm_base_url"].rstrip("/")
-        model_name = opts["llm_model_name"]
-        api_key = opts.get("llm_api_key", "")
+        target = LLMTarget.from_options(opts)
+        provider = get_provider(target.provider_id)
+        if provider.cloud and not opts.get("llm_allow_cloud"):
+            raise LLMError(
+                f"{provider.label} is a hosted service and sending this transcript "
+                "there has not been allowed. Enable it in AI Analysis settings first."
+            )
+
         context_tokens = int(opts.get("llm_context_tokens") or 8192)
-        max_output_tokens = int(opts.get("llm_max_output_tokens") or 1024)
         full_text = opts["transcript_full_text"]
 
-        input_budget = max(512, context_tokens - max_output_tokens - _PROMPT_OVERHEAD_TOKENS)
+        input_budget = max(
+            512, context_tokens - target.max_output_tokens - _PROMPT_OVERHEAD_TOKENS
+        )
         needed = estimate_tokens(full_text)
 
         if needed <= input_budget:
-            _single_pass(
-                job_id, analysis_id, opts, base_url, model_name, api_key,
-                max_output_tokens, _cancelled,
-            )
+            _single_pass(job_id, analysis_id, opts, target, _cancelled)
         else:
             _append_job_log(
                 job_id,
@@ -387,10 +400,7 @@ def _process_analysis_job(job_id: str) -> None:
                 f"Transcript is ~{needed} tokens, over the {input_budget}-token input budget; "
                 "processing in chunks",
             )
-            _map_reduce(
-                job_id, analysis_id, opts, base_url, model_name, api_key,
-                input_budget, max_output_tokens, _cancelled,
-            )
+            _map_reduce(job_id, analysis_id, opts, target, input_budget, _cancelled)
     except Exception as exc:
         _handle_job_error(job_id, exc)
         try:
@@ -405,9 +415,7 @@ def _finish_cancelled(job_id: str, analysis_id: str, partial: str) -> None:
     _persist(analysis_id, text=partial, status="error")
 
 
-def _single_pass(
-    job_id, analysis_id, opts, base_url, model_name, api_key, max_output_tokens, cancelled,
-) -> None:
+def _single_pass(job_id, analysis_id, opts, target, cancelled) -> None:
     prompt = _build_analysis_prompt(
         analysis_type=opts["analysis_type"],
         full_text=opts["transcript_full_text"],
@@ -425,8 +433,7 @@ def _single_pass(
         )
 
     text, was_cancelled = run_completion(
-        base_url, model_name, api_key, prompt, max_output_tokens,
-        on_delta=_on_delta, should_cancel=cancelled,
+        target, prompt, on_delta=_on_delta, should_cancel=cancelled
     )
     if was_cancelled:
         _finish_cancelled(job_id, analysis_id, text)
@@ -440,10 +447,7 @@ def _single_pass(
     _append_job_log(job_id, "INFO", "Analysis job finished successfully")
 
 
-def _map_reduce(
-    job_id, analysis_id, opts, base_url, model_name, api_key,
-    input_budget, max_output_tokens, cancelled,
-) -> None:
+def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> None:
     analysis_type = opts["analysis_type"]
     chunks = chunk_text(opts["transcript_full_text"], input_budget)
     total = len(chunks)
@@ -487,7 +491,7 @@ def _map_reduce(
             )
 
         text, was_cancelled = run_completion(
-            base_url, model_name, api_key, prompt, max_output_tokens,
+            target, prompt,
             on_delta=_on_delta if concatenate else None,
             should_cancel=cancelled,
         )
@@ -527,13 +531,13 @@ def _map_reduce(
                 folded.append(group[0])
                 continue
             text, was_cancelled = run_completion(
-                base_url, model_name, api_key,
+                target,
                 _build_reduce_prompt(
                     analysis_type, group,
                     custom_prompt=opts.get("custom_prompt", ""),
                     output_language=opts.get("output_language", ""),
                 ),
-                max_output_tokens, should_cancel=cancelled,
+                should_cancel=cancelled,
             )
             if was_cancelled:
                 _finish_cancelled(job_id, analysis_id, "\n\n".join(partials))
@@ -553,8 +557,7 @@ def _map_reduce(
         )
 
     result, was_cancelled = run_completion(
-        base_url, model_name, api_key, reduce_prompt, max_output_tokens,
-        on_delta=_on_delta, should_cancel=cancelled,
+        target, reduce_prompt, on_delta=_on_delta, should_cancel=cancelled
     )
     if was_cancelled:
         _finish_cancelled(job_id, analysis_id, result)

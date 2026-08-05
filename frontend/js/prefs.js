@@ -4,6 +4,7 @@
 // modules loaded directly by the browser via <script type="module">.
 
 import { closeDrawer, isMobile, openDrawer } from './layout.js';
+import { applyProvider, loadProviderCatalog } from './llm-setup.js';
 import { state } from './state.js';
 import { setMeetingCaptureToggle } from './upload.js';
 
@@ -139,6 +140,12 @@ export async function restoreSettings() {
       }
       const contextInput = document.getElementById('llm-context-tokens');
       if (contextInput && cfg.llm_context_tokens) contextInput.value = cfg.llm_context_tokens;
+
+      await loadProviderCatalog();
+      applyProvider(cfg.llm_provider);
+      const cloudBox = document.getElementById('llm-allow-cloud');
+      if (cloudBox) cloudBox.checked = !!cfg.llm_allow_cloud;
+
       updateAutoSummaryAvailability(!!cfg.llm_model_name);
     }
   } catch (_) { /* server not available */ }

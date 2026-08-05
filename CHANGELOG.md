@@ -6,6 +6,44 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🧠 LLM setup that does not require guesswork
+
+- **Pick your tool from a list.** LLM Settings now offers presets for Ollama, LM
+  Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI, OpenRouter and "anything
+  OpenAI-compatible", each filling in the right address, saying whether an API key
+  is required and what it looks like, and linking to that tool's setup guide.
+- **Find running servers** scans the well-known ports and reports what answered,
+  which models it has loaded and whether it wants a key. One click adopts it —
+  provider, address and a model are filled in. A server that answers 401 still
+  shows up, marked as needing a key, which is Unsloth Studio's normal state.
+- **Paste the address in any form.** Every one of these tools displays a URL
+  ending in `/v1`, but AmicoScript appends `/v1/chat/completions` itself, so
+  pasting what LM Studio showed you produced `/v1/v1/…` and a 404 that looked
+  like the server was broken. `http://localhost:1234`, `.../v1`, a full endpoint
+  URL and a bare `localhost:1234` now all resolve to the same thing, and the UI
+  shows what it changed.
+- **Docker works out of the box.** `docker-compose.yml` maps
+  `host.docker.internal` to the host gateway — Docker Desktop provides it, Linux
+  does not, which is why pointing a container at `localhost:11434` never worked
+  there. AmicoScript also detects that it is containerised and rewrites
+  `localhost` addresses to the host alias, saying so, and scans the host rather
+  than the container.
+- **Failures explain themselves.** Instead of a raw exception, the connection
+  test says which tool is not running, that the key was rejected and what a valid
+  one looks like, that the address has a stray `/v1`, or that the server answered
+  in a format that is not OpenAI's.
+- **LLM Settings moved to the main sidebar.** It used to live in the transcript
+  panel, so it was only reachable after transcribing something — you had to
+  produce a transcript before you could configure the thing that analyses it.
+
+### ☁️ Hosted providers, behind a door
+
+- OpenRouter and any other remote endpoint are supported, and gated. Audio never
+  leaves your machine either way, but a hosted provider receives the transcript
+  text, so it takes an explicit confirmation. Until you give it, manual analyses
+  and automatic meeting summaries both refuse to run and say why.
+- OpenRouter requests carry the attribution headers it documents.
+
 ### 🔐 Access control
 
 - **AmicoScript now refuses network requests until a password is set.** The

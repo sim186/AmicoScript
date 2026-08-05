@@ -112,7 +112,7 @@ _DEFAULT_MAX_OUTPUT_TOKENS = 1024
 
 
 def _get_llm_settings() -> dict:
-    """Return LLM config: base_url, model_name, api_key, context budget."""
+    """Return LLM config: provider, base_url, model_name, api_key, context budget."""
     settings = _load_settings()
 
     def _positive_int(key: str, default: int) -> int:
@@ -123,6 +123,9 @@ def _get_llm_settings() -> dict:
         return value if value > 0 else default
 
     return {
+        # Which backend this points at (ollama, lmstudio, unsloth, openrouter…).
+        # Chosen from a preset in the UI; see backend/llm_providers.py.
+        "llm_provider": settings.get("llm_provider", "ollama"),
         "llm_base_url": settings.get("llm_base_url", "http://localhost:11434"),
         "llm_model_name": settings.get("llm_model_name", ""),
         "llm_api_key": settings.get("llm_api_key", ""),
@@ -130,6 +133,10 @@ def _get_llm_settings() -> dict:
         "llm_max_output_tokens": _positive_int(
             "llm_max_output_tokens", _DEFAULT_MAX_OUTPUT_TOKENS
         ),
+        # Explicit acknowledgement that a hosted provider will receive
+        # transcripts. Off by default: this app's whole premise is that they
+        # stay on your machine.
+        "llm_allow_cloud": bool(settings.get("llm_allow_cloud", False)),
     }
 
 
@@ -139,12 +146,18 @@ def _save_llm_settings(
     api_key: str,
     context_tokens: int | None = None,
     max_output_tokens: int | None = None,
+    provider: str | None = None,
+    allow_cloud: bool | None = None,
 ) -> None:
     """Persist LLM settings to disk."""
     settings = _load_settings()
     settings["llm_base_url"] = base_url
     settings["llm_model_name"] = model_name
     settings["llm_api_key"] = api_key
+    if provider is not None:
+        settings["llm_provider"] = provider
+    if allow_cloud is not None:
+        settings["llm_allow_cloud"] = bool(allow_cloud)
     if context_tokens is not None and context_tokens > 0:
         settings["llm_context_tokens"] = int(context_tokens)
     if max_output_tokens is not None and max_output_tokens > 0:
