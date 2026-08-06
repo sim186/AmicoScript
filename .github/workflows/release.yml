@@ -4,6 +4,20 @@ on:
   push:
     tags:
       - 'v*'
+  # A tag used to be the only way to find out whether package.py and
+  # generate_runtime_manifest.py still work, which made every release the first
+  # run of the release path. This builds all three platforms on demand and, by
+  # default, publishes nothing.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub release (leave off for a build-only dry run)'
+        type: boolean
+        default: false
+      tag:
+        description: 'Tag to publish to, if publishing'
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -13,6 +27,8 @@ jobs:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      # One platform failing should not hide whether the others still build.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -65,36 +81,98 @@ jobs:
         run: python package.py
         shell: bash
 
+      # Asserts the packaging contract as well as booting the app: torch absent
+      # from the bundle, manifest present and non-empty.
       - name: Smoke test built artifact
         run: AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py
+        shell: bash
+
+      # On a tag push this is the tag. On a dry run it is whatever branch was
+      # dispatched, which contains slashes often enough to matter — they would
+      # turn the filename into a path that no directory exists for.
+      - name: Name the artifact
+        id: name
+        run: |
+          label="${{ inputs.tag || github.ref_name }}"
+          echo "zip=AmicoScript-${label//\//-}-${{ matrix.artifact_os }}.zip" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Create zip artifact (Windows)
         if: runner.os == 'Windows'
         run: |
-          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/AmicoScript/*' -DestinationPath 'build\artifacts\AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip' -Force"
+          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/AmicoScript/*' -DestinationPath 'build\artifacts\${{ steps.name.outputs.zip }}' -Force"
 
       - name: Create zip artifact (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p build/artifacts
           # Preserve .app bundle structure.
-          ditto -c -k --keepParent "dist/AmicoScript.app" "build/artifacts/AmicoScript-${{ github.ref_name }}-macos.zip"
+          ditto -c -k --keepParent "dist/AmicoScript.app" "build/artifacts/${{ steps.name.outputs.zip }}"
         shell: bash
 
       # No `|| true`: a zip that fails here used to leave the job green and the
-      # release without a Linux asset, which is exactly how it shipped before.
+      # release without a Linux asset, which is exactly how v1.16.0 shipped.
       - name: Create zip artifact (Linux)
         if: runner.os == 'Linux'
         run: |
           mkdir -p build/artifacts
-          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip" dist/AmicoScript
+          zip -r "build/artifacts/${{ steps.name.outputs.zip }}" dist/AmicoScript
         shell: bash
 
+      # Handed to the release job rather than uploaded from here. Three jobs
+      # calling the release action concurrently with allowUpdates raced, and
+      # lost both Linux assets from v1.16.0 while every job reported success.
+      - name: Hand the artifact to the release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.artifact_os }}
+          path: build/artifacts/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    # Every platform must have built. A release missing an artifact is the
+    # failure this job exists to prevent, so a partial one is not published.
+    if: github.event_name == 'push' || inputs.publish
+    steps:
+      # A dispatch defaults to the dispatched ref, which for a branch would
+      # publish a release tagged with the branch name. Publishing is opt-in;
+      # naming what it publishes to is then mandatory.
+      - name: Require a version tag when publishing by hand
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          case "${{ inputs.tag }}" in
+            v*) ;;
+            *) echo "Publishing from a manual run needs a tag like v1.17.0; got '${{ inputs.tag }}'." >&2
+               exit 1 ;;
+          esac
+        shell: bash
+
+      - name: Collect every platform's artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Check all three are present
+        run: |
+          count=$(ls -1 artifacts/*.zip | wc -l)
+          ls -la artifacts/
+          if [ "$count" -ne 3 ]; then
+            echo "Expected 3 artifacts (linux, windows, macos), found $count." >&2
+            exit 1
+          fi
+        shell: bash
+
+      # One writer, so there is no race to lose an asset to.
       - name: Create GitHub Release and upload artifacts
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
-          artifacts: build/artifacts/*.zip
+          tag: ${{ inputs.tag || github.ref_name }}
+          artifacts: artifacts/*.zip
           allowUpdates: true
           skipIfReleaseExists: false

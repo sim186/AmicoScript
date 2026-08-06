@@ -79,6 +79,76 @@ def _wait_http(
     )
 
 
+def _bundle_roots(exe: Path) -> list[Path]:
+    """Everywhere PyInstaller may have put collected files, for this platform.
+
+    A onedir build keeps them in `_internal` beside the executable. A macOS
+    .app splits them: binaries under Contents/Frameworks, data under
+    Contents/Resources, with symlinks between the two. Guessing one and
+    checking only there would pass on macOS for the wrong reason.
+    """
+    if exe.parent.name == "MacOS" and exe.parent.parent.name == "Contents":
+        contents = exe.parent.parent
+        return [d for d in (contents / "Frameworks", contents / "Resources", contents / "MacOS")
+                if d.is_dir()]
+
+    internal = exe.parent / "_internal"
+    return [internal if internal.is_dir() else exe.parent]
+
+
+def _check_runtime_pack_layout(exe: Path) -> None:
+    """The packaging contract the download depends on, asserted rather than assumed.
+
+    torch is downloaded at first use, and that only works if it is genuinely
+    not in the bundle: PyInstaller's FrozenImporter sits ahead of every
+    path-based finder, so a bundled copy would win over the downloaded one and
+    the download would be so much wasted disk. A build machine that happens to
+    have torch installed is all it takes — which is a thing CI does to itself
+    every time the test suite runs somewhere near the build.
+
+    Cheap filesystem reads, so this cannot flake.
+    """
+    roots = _bundle_roots(exe)
+
+    stowaways = sorted({
+        name
+        for root in roots
+        for name in ("torch", "torchaudio", "pyannote", "nvidia")
+        if (root / name).exists()
+    })
+    if stowaways:
+        raise RuntimeError(
+            f"{', '.join(stowaways)} was bundled into the app. These are meant to be "
+            "downloaded at first use, and a bundled copy silently wins over the "
+            "downloaded one. Check the --exclude-module list in package.py, and "
+            "that the build environment does not have them installed."
+        )
+
+    manifest = next((root / "runtime_manifest.json" for root in roots
+                     if (root / "runtime_manifest.json").is_file()), None)
+    if manifest is None:
+        raise RuntimeError(
+            "runtime_manifest.json is missing from "
+            f"{', '.join(str(root) for root in roots)}. This build cannot "
+            "download PyTorch, so speaker diarization is dead in it. Run "
+            "scripts/generate_runtime_manifest.py before package.py."
+        )
+
+    try:
+        variants = json.loads(manifest.read_text(encoding="utf-8")).get("variants") or {}
+    except ValueError as exc:
+        raise RuntimeError(f"runtime_manifest.json is not valid JSON: {exc}") from exc
+
+    empty = [name for name, spec in variants.items() if not (spec or {}).get("wheels")]
+    if not variants or empty:
+        raise RuntimeError(
+            f"runtime_manifest.json lists no wheels for {', '.join(empty) or 'any flavour'}."
+        )
+
+    summary = ", ".join(f"{name} ({len(spec['wheels'])} wheels)" for name, spec in variants.items())
+    print(f"Runtime pack manifest: {summary}")
+
+
 def _watcher_status() -> dict:
     with urllib.request.urlopen("http://127.0.0.1:8002/api/watcher/status", timeout=5) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -125,6 +195,10 @@ def main() -> int:
     exe = _exe_path(repo_root)
     if not exe.exists():
         raise FileNotFoundError(f"Expected executable not found: {exe}")
+
+    # Before starting anything: if the bundle is shaped wrong, nothing the
+    # running app reports about itself is worth reading.
+    _check_runtime_pack_layout(exe)
 
     env = os.environ.copy()
     env["AMICOSCRIPT_NO_BROWSER"] = "1"

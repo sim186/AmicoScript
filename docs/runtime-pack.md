@@ -127,6 +127,23 @@ wrong `provided_by_base` in the manifest.
 If the manifest is missing, `package.py` warns and builds anyway. The result
 transcribes but cannot diarize.
 
+### Checking a build without cutting a tag
+
+The release workflow has a `workflow_dispatch` trigger. Run it with **publish**
+off — the default — and it builds all three platforms and publishes nothing.
+Use it after touching `package.py`, the requirements files, or the manifest
+generator, so that a tag is not the first time the release path runs.
+
+To publish from a manual run instead, tick **publish** and give the **tag**
+input a version like `v1.17.0`. It refuses anything that does not start with
+`v`, since the alternative is a release tagged with a branch name.
+
+The smoke test asserts the packaging contract rather than trusting it: torch,
+torchaudio, pyannote and nvidia absent from the bundle, and a manifest present
+with wheels in every flavour. A build machine that happens to have torch
+installed fails there rather than shipping a bundle that ignores the download
+it performs.
+
 ## Development and Docker are unaffected
 
 Every entry point is a no-op when torch already imports. A dev checkout with

@@ -33,9 +33,20 @@ Keep a Changelog format.
 - **A missing runtime is not a failed job.** Diarization that cannot fetch
   PyTorch is skipped with a reason in the log and the transcript still
   delivered, the same way a missing Hugging Face token already behaved.
-- **Linux artifacts were silently missing from releases.** The zip step ended
-  in `|| true`, so a failure left the job green and the release without a Linux
-  asset — which is how `v1.16.0` shipped. It no longer swallows the error.
+- **Linux artifacts were silently missing from releases.** Two causes, both
+  fixed. The zip step ended in `|| true`, so a failure left the job green and
+  the release without an asset; and all the build jobs called the release
+  action concurrently with `allowUpdates`, racing each other. Builds now hand
+  their artifact to a single publish job, which refuses to publish at all
+  unless all three platforms are present.
+- **The release workflow can be run without cutting a tag.** A tag used to be
+  the only way to find out whether `package.py` still worked, which made every
+  release the first run of the release path. `workflow_dispatch` builds all
+  three platforms and, by default, publishes nothing.
+- **The smoke test asserts the packaging contract**, rather than trusting it:
+  torch absent from the bundle, manifest present and non-empty. A build machine
+  that happens to have torch installed now fails there instead of shipping a
+  bundle that ignores the download it performs.
 - See `docs/runtime-pack.md`. Docker is unaffected: both images install the
   whole stack, because a container should carry what it needs.
 
