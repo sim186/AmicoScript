@@ -21,6 +21,11 @@ jobs:
           cache-dependency-path: |
             backend/requirements.txt
 
+      # Deliberately without backend/requirements-diarization.txt. The suite
+      # stubs pyannote and torch where it needs them, and running it against a
+      # machine that has neither is the same shape as the packaged app before
+      # its first diarization — which is now a state worth covering rather than
+      # an environment to avoid.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

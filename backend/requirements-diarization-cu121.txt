@@ -1,0 +1,17 @@
+# The CUDA flavour of requirements-diarization.txt.
+#
+# Two consumers, not one. torch runs the pyannote pipeline on the GPU, and
+# CTranslate2 — which is what actually transcribes — loads cuBLAS and cuDNN by
+# soname at first use. On Linux the CUDA torch wheel pulls those in as separate
+# `nvidia-*` packages, so they are named explicitly here rather than left to a
+# transitive dependency that a future torch release could drop. On Windows the
+# torch wheel carries the same DLLs inside torch/lib, and no nvidia-* wheel
+# exists, hence the markers.
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+pyannote.audio>=3.3.2
+torch>=2.3.0,<2.7.0
+torchaudio>=2.3.0,<2.7.0
+
+nvidia-cublas-cu12; sys_platform == "linux"
+nvidia-cudnn-cu12; sys_platform == "linux"

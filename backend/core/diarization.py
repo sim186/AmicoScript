@@ -223,6 +223,30 @@ def _assign_speaker(seg_start: float, seg_end: float, diarization: Any) -> str:
     return best_speaker or "SPEAKER_00"
 
 
+def _ensure_torch_runtime(job_id: str) -> bool:
+    """Make torch and pyannote importable, downloading them if this is the first time.
+
+    Returns False when they cannot be had, in which case the caller skips
+    diarization rather than failing the job — the transcript is finished by
+    this point, and delivering it without speaker labels beats losing it. That
+    is how a missing Hugging Face token is already handled a few lines above.
+    """
+    import runtime_pack
+
+    try:
+        outcome = runtime_pack.ensure(
+            progress=lambda message: _append_job_log(job_id, "INFO", message)
+        )
+    except runtime_pack.RuntimePackError as exc:
+        _append_job_log(job_id, "WARN", f"Diarization skipped: {exc}")
+        _push_event(job_id, "warning", 0.82, f"Diarization skipped: {exc}")
+        return False
+
+    if outcome == "installed":
+        _append_job_log(job_id, "INFO", "PyTorch runtime installed")
+    return True
+
+
 def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) -> list[str]:
     """Run pyannote diarization and annotate segment speakers in place."""
     opts = job["options"]
@@ -246,6 +270,13 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
         return []
 
     _push_event(job_id, "diarizing", 0.82, "Running speaker diarization...")
+
+    # Before the shims, which import torch, and before anything else on this
+    # path does: in the packaged app torch is not in the bundle, and this is
+    # what fetches it. Placed after the early returns above so a job that is
+    # not going to diarize never downloads a PyTorch runtime.
+    if not _ensure_torch_runtime(job_id):
+        return []
 
     inject_torchcodec_shim()
     inject_torch_load_shim()

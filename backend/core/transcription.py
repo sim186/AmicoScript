@@ -124,6 +124,32 @@ def _get_whisper_model(
         return model, active_device
 
 
+def _ensure_cuda_runtime(job_id: str, requested_device: str) -> None:
+    """Fetch the CUDA runtime before Whisper looks for it, if this machine wants one.
+
+    Whisper never touches torch, but it does transcribe through CTranslate2,
+    which needs cuBLAS and cuDNN — and those ship in the same downloaded pack
+    as torch, because on Windows they arrive inside the torch wheel itself and
+    cannot be separated from it.
+
+    A machine with no NVIDIA driver, or a job pinned to the CPU, downloads
+    nothing. A failure here is not fatal: the CPU path below is the one that
+    would have run anyway.
+    """
+    import runtime_pack
+
+    if not runtime_pack.wants_cuda(requested_device):
+        return
+
+    try:
+        runtime_pack.ensure(
+            progress=lambda message: _append_job_log(job_id, "INFO", message),
+            prefer_cuda=True,
+        )
+    except runtime_pack.RuntimePackError as exc:
+        _append_job_log(job_id, "WARN", f"GPU runtime unavailable ({exc}); using the CPU")
+
+
 def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     """Run the Whisper transcription phase and return segments and metadata."""
     job = state.jobs[job_id]
@@ -139,6 +165,11 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     )
 
     requested_device = opts.get("device", "auto")
+    _ensure_cuda_runtime(job_id, requested_device)
+    # After the runtime is in place, not before: resolve_compute_type asks
+    # torch what device it can have, and on a GPU machine that question has a
+    # different answer once the CUDA libraries exist. Asking first pins int8 on
+    # hardware that was about to be able to run float16.
     compute_type = resolve_compute_type(opts.get("compute_type", "auto"), requested_device)
     model, model_device = _get_whisper_model(
         opts["model"],

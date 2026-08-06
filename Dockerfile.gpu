@@ -31,12 +31,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
     ln -sf /usr/bin/python3.11 /usr/bin/python3
 
-COPY backend/requirements-gpu.txt /tmp/requirements-gpu.txt
+COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements-diarization-cu121.txt /tmp/requirements-diarization-cu121.txt
 
-# requirements-gpu.txt carries the cu121 extra index, so torch arrives
-# CUDA-linked rather than as the CPU wheel the other image installs.
+# requirements-diarization-cu121.txt carries the cu121 extra index, so torch
+# arrives CUDA-linked rather than as the CPU wheel the other image installs.
+# Both files are installed: a container carries its whole stack, unlike the
+# packaged app, which downloads this half on first use (backend/runtime_pack.py).
 RUN python -m pip install --no-cache-dir --upgrade pip && \
-    python -m pip install --no-cache-dir -r /tmp/requirements-gpu.txt
+    python -m pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python -m pip install --no-cache-dir -r /tmp/requirements-diarization-cu121.txt
 
 COPY backend/ backend/
 COPY frontend/ frontend/

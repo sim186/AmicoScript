@@ -14,13 +14,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements-diarization.txt /tmp/requirements-diarization.txt
 
 # Install CPU-only PyTorch from the official CPU index
 # to avoid pulling CUDA-linked wheels (libnppicc, libnvrtc etc.)
-# torchcodec is installed from PyPI via requirements.txt but its C extension
-# is mocked at runtime in main.py (no CPU aarch64 wheel exists).
+# torchcodec arrives as a pyannote dependency but its C extension is mocked at
+# runtime in main.py (no CPU aarch64 wheel exists).
 RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# The diarization stack, installed here rather than downloaded on first use as
+# the packaged app does: a container should carry everything it needs, and
+# anything written to the cache directory is gone on the next `docker run`.
+RUN pip install --no-cache-dir -r /tmp/requirements-diarization.txt
 
 # Preserve backend/ as a subdirectory so it is importable as the 'backend'
 # package (matching the venv layout where run.py adds backend/ to sys.path).
