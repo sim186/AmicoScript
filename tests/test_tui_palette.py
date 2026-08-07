@@ -7,7 +7,7 @@ multiple response shapes.
 """
 from __future__ import annotations
 
-from tui.palette import (
+from tui.entries import (
     entries_from_folders,
     entries_from_models,
     entries_from_tags,

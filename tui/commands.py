@@ -227,8 +227,8 @@ async def _move(app, args):
         except Exception as e:
             app.notify(f"move failed: {e}", severity="error")
         return
-    from .palette import _open_move_to_folder_picker
-    _open_move_to_folder_picker(app, rec_id)
+    from .palette import open_move_to_folder_picker
+    open_move_to_folder_picker(app, rec_id)
 
 
 @command("tag-toggle", "add/remove a tag on recording <id>")
@@ -236,8 +236,8 @@ async def _tag_toggle(app, args):
     if not args:
         app.notify("usage: /tag-toggle <id>")
         return
-    from .palette import _open_tag_toggle_picker
-    _open_tag_toggle_picker(app, args[0])
+    from .palette import open_tag_toggle_picker
+    open_tag_toggle_picker(app, args[0])
 
 
 @command("ask", "ask a question across every transcript")

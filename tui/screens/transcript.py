@@ -290,8 +290,8 @@ class TranscriptScreen(Screen):
         self.query_one(StatusBar).flash("stopped")
 
     def action_analyze(self) -> None:
-        from ..palette import _open_analysis_type_picker
-        _open_analysis_type_picker(self.app, self.recording_id)
+        from ..palette import open_analysis_type_picker
+        open_analysis_type_picker(self.app, self.recording_id)
 
     def action_edit_segment(self) -> None:
         seg_list = self.query_one(SegmentList)
