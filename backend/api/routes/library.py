@@ -220,7 +220,9 @@ def retry_recording(recording_id: str) -> dict:
     re-import the file. This reuses the stored options, so a retry runs with the
     same model, language and diarization settings as the original attempt.
     """
-    from core.requeue import RETRYABLE_STATUSES, RequeueError, enqueue_from_loop, requeue_recording
+    from core.job_status import RETRYABLE as RETRYABLE_STATUSES
+    from core.jobs import submit
+    from core.requeue import RequeueError, requeue_recording
 
     with new_session() as session:
         rec = session.get(Recording, recording_id)
@@ -236,7 +238,7 @@ def retry_recording(recording_id: str) -> dict:
     except RequeueError as exc:
         raise HTTPException(409, str(exc)) from exc
 
-    enqueue_from_loop(job_id)
+    submit(job_id)
     return {"ok": True, "job_id": job_id, "recording_id": recording_id}
 
 

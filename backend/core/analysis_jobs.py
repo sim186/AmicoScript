@@ -7,12 +7,10 @@ transcription worker thread, so enqueueing has to be done thread-safely.
 """
 from __future__ import annotations
 
-import asyncio
-import threading
-import time
 import uuid
 
 import state
+from core.jobs import create_job, submit, submit_threadsafe
 from db import new_session
 from llm_providers import refusal_reason
 from models import Analysis, Recording, Transcript
@@ -59,18 +57,13 @@ def create_analysis_job(
         )
         session.commit()
 
-    job_id = str(uuid.uuid4())
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "analysis",
-        "recording_id": recording_id,
-        "analysis_id": analysis_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": file_path,
-        "original_filename": filename,
-        "options": {
+    job_id = create_job(
+        job_type="analysis",
+        recording_id=recording_id,
+        analysis_id=analysis_id,
+        original_filename=filename,
+        file_path=file_path,
+        options={
             "analysis_type": analysis_type,
             "target_language": target_language,
             "custom_prompt": custom_prompt,
@@ -78,29 +71,12 @@ def create_analysis_job(
             "transcript_full_text": transcript_full_text,
             **cfg,
         },
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": state.event_loop,
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-        "auto_generated": auto_generated,
-    }
+        auto_generated=auto_generated,
+    )
 
     if enqueue:
-        state.JOB_QUEUE.put_nowait(job_id)
+        submit(job_id)
     return job_id, analysis_id
-
-
-def _enqueue_from_worker_thread(job_id: str) -> bool:
-    """Put *job_id* on the queue from a non-loop thread."""
-    loop = state.event_loop
-    if loop is None or not loop.is_running():
-        return False
-    loop.call_soon_threadsafe(state.JOB_QUEUE.put_nowait, job_id)
-    return True
 
 
 def maybe_queue_auto_summary(recording_id: str) -> str:
@@ -150,7 +126,7 @@ def maybe_queue_auto_summary(recording_id: str) -> str:
             auto_generated=True,
             enqueue=False,
         )
-        if not _enqueue_from_worker_thread(job_id):
+        if not submit_threadsafe(job_id):
             state.jobs.pop(job_id, None)
             logger.warning("Auto-summary skipped: event loop unavailable")
             return ""

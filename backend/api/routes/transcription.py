@@ -4,7 +4,6 @@ import asyncio
 import datetime
 import json
 import os
-import threading
 import time
 import uuid
 from pathlib import Path
@@ -16,7 +15,7 @@ import aiofiles
 import state
 from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
 from core.job_status import ACTIVE as ACTIVE_STATUSES
-from core.job_status import JobStatus
+from core.jobs import create_job, submit
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
@@ -178,29 +177,18 @@ def _create_job(
     source_url: str = "",
     source_platform: str = "",
 ) -> None:
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": job_type,
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": file_path,
-        "original_filename": original_filename,
-        "options": {**opts_dict, "hf_token": hf_token or _get_saved_hf_token()},
-        "source_url": source_url,
-        "source_platform": source_platform,
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-    }
+    create_job(
+        job_id=job_id,
+        job_type=job_type,
+        recording_id=recording_id,
+        original_filename=original_filename,
+        file_path=file_path,
+        options={**opts_dict, "hf_token": hf_token or _get_saved_hf_token()},
+        source_url=source_url,
+        source_platform=source_platform,
+    )
     _append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
-    state.JOB_QUEUE.put_nowait(job_id)
+    submit(job_id)
     # URL imports start fetching immediately instead of waiting for the model
     # stage to reach them; see core/transcription.start_download_prefetch.
     start_download_prefetch(job_id)
@@ -505,9 +493,8 @@ def get_result(job_id: str) -> dict:
 def get_job_logs(job_id: str, limit: int = 300) -> dict:
     job = _get_live_job(job_id)
     safe_limit = max(1, min(limit, 1000))
-    logs = job.get("logs", [])
-    if not isinstance(logs, list):
-        logs = list(logs)
+    # A deque, so it has to be materialised before it can be sliced.
+    logs = list(job["logs"])
     return {
         "status": job.get("status"),
         "progress": job.get("progress"),
@@ -611,28 +598,14 @@ async def translate_all_api(recording_id: str, session: Session = Depends(get_se
         raise HTTPException(404, "Recording not found")
 
     opts = json.loads(rec.transcription_options or "{}")
-    model_name = opts.get("model", "small")
-    job_id = str(uuid.uuid4())
 
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "translate",
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": rec.file_path,
-        "original_filename": rec.filename,
-        "options": {"model": model_name},
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-    }
+    job_id = create_job(
+        job_type="translate",
+        recording_id=recording_id,
+        original_filename=rec.filename,
+        file_path=rec.file_path,
+        options={"model": opts.get("model", "small")},
+    )
     _append_job_log(job_id, "INFO", f"Bulk translation job created for recording '{rec.filename}'")
-    state.JOB_QUEUE.put_nowait(job_id)
+    submit(job_id)
     return {"ok": True, "job_id": job_id}

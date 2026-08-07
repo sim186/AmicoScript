@@ -24,9 +24,9 @@ def _append_job_log(job_id: str, level: str, message: str) -> None:
     if not job:
         return
 
-    from collections import deque
-    if "logs" not in job or not isinstance(job["logs"], deque):
-        job["logs"] = deque(job.get("logs", []), maxlen=1000)
+    # core.jobs.create_job seeds this as a bounded deque, so there is nothing to
+    # check or convert here. Expired jobs carry a plain list, which appends fine
+    # and is never written to anyway.
     job["logs"].append({"ts": round(time.time(), 3), "level": level, "message": message})
 
     log_level = getattr(logging, level.upper(), None)
