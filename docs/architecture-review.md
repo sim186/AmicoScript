@@ -5,8 +5,10 @@ Scope: the whole repository as of `2fd637e` — `backend/` (10.5k LOC Python),
 (7.7k LOC). Read against clean-architecture layering and clean-code rules on
 duplication, naming, function size and error handling.
 
-**Status: all eleven findings have been fixed** — see the per-section notes
-below and the commits following this document.
+**Status: all eleven original findings have been fixed** — see the per-section
+notes below and the commits following this document. Two further findings, §12
+and §13, were turned up by that work and are documented but **not** fixed; §12
+is a user-visible defect and is the next thing worth doing.
 
 The findings were originally derived by reading the code. They have since been
 verified against a running suite: the two defects in §2 were reproduced as
@@ -46,6 +48,8 @@ from four angles.
 | 9 | `main.py` owns six unrelated concerns | Medium | M | **fixed** |
 | 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M | **fixed** |
 | 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | **fixed** |
+| 12 | A failed analysis marks the *recording* as failed | Medium | S | **open** |
+| 13 | Dead-code leftovers (10 unused imports, 1 unused local) | Low | XS | **open** |
 
 ---
 
@@ -451,6 +455,63 @@ done.
 
 ---
 
+---
+
+## 12. A failed analysis marks the *recording* as failed
+
+Found while working through §1, set aside as out of scope at the time, and
+reproducible today. Not fixed.
+
+`sync_job_to_db` (`core/job_helpers.py:105`) writes the job's status onto the
+Recording row:
+
+```python
+rec.status = job.get("status", rec.status)
+```
+
+That is right for a transcription job, whose status *is* the recording's
+status. It is wrong for the other two job types, which do not own the
+recording at all. `handle_job_error` calls it on every failure, and
+`cancel_job` (`routes/transcription.py:459`) calls it on every cancellation —
+for analysis and translation jobs too.
+
+So an analysis that fails because the LLM refused, or is simply cancelled,
+leaves the transcript perfectly intact and the recording reading `error` or
+`cancelled`:
+
+```
+recording status after a FAILED ANALYSIS: error
+```
+
+The consequences are visible: the library lists the recording as failed, and
+because `error` is in `RETRYABLE` the UI offers to transcribe it again —
+re-running a two-hour transcription to recover from a failed summary.
+
+**Fix.** `sync_job_to_db` should write `rec.status` only for jobs that own the
+recording's state, and an analysis failure belongs on the `Analysis` row, which
+already has its own `status` column and is already set to `error` by
+`_process_analysis_job`. The job-type check is one line; the reason it is not
+already there is that the four job factories (§1) never made the distinction
+explicit.
+
+---
+
+## 13. Dead-code leftovers
+
+Small, and listed here so they are not rediscovered as findings:
+
+- `backend/ffmpeg_helper.py` imports `sys`, `urllib.request` and `json`, none
+  of which it uses.
+- `backend/core/transcription.py` imports `COLAB_UPLOADING` from
+  `core/messages.py` and never uses it — as does nothing else, so the constant
+  is dead too.
+- `tui/palette.py` imports `COMMANDS`, `tui/screens/search.py` imports
+  `VerticalScroll`, `tui/widgets/waveform_view.py` imports `Segment`, none used.
+- `tui/screens/library.py:380` assigns a local `name` that is never read.
+
+`python -m pyflakes backend/ tui/` reports exactly these and nothing else, so
+adding it to CI would keep the list at zero rather than letting it grow back.
+
 ## What is working well — keep doing it
 
 Worth stating explicitly, because these are the parts a future refactor should
@@ -522,14 +583,19 @@ swaps out.
 
 ## Still worth doing
 
-Nothing from the original eleven. Two smaller things surfaced while working
-through them:
+Nothing from the original eleven. Four things surfaced while working through
+them, in the order they are worth attention:
 
-- `tui/palette.py` is still 1000 lines mixing the modal widget, entry
-  construction for six data types, and six picker flows. The `entries_from_*`
-  builders are a coherent unit that belongs in its own module.
-- Eight transcription options (`compute_type`, `device`, `vad_filter`,
-  `beam_size`, …) are carried through the form layer for clients that do not
-  exist — no caller sends them, and the backend falls back to saved settings.
-  Either a client should start sending them or the API should stop offering
-  them.
+1. **§12 — a failed analysis marks the recording as failed.** The only one of
+   these a user can see, and it costs them a re-transcription. One line, plus
+   a test.
+2. **§13 — the dead-code leftovers**, and `pyflakes` in CI so the list stays
+   empty.
+3. `tui/palette.py` is still 1000 lines mixing the modal widget, entry
+   construction for six data types, and six picker flows. The `entries_from_*`
+   builders are a coherent unit that belongs in its own module.
+4. Eight transcription options (`compute_type`, `device`, `vad_filter`,
+   `beam_size`, …) are carried through the form layer for clients that do not
+   exist — no caller sends them, and the backend falls back to saved settings.
+   Either a client should start sending them or the API should stop offering
+   them.

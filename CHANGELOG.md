@@ -6,6 +6,64 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🧹 A structural pass over the whole codebase
+
+A review of the repository against clean-architecture layering and clean-code
+rules on duplication, naming, function size and error handling. The finding
+was that nothing is tangled — the same concept had simply been re-implemented
+at each place it was needed instead of extracted once, and the copies had
+drifted. Two of those divergences were live defects. The full write-up, with
+what each fix cost, is in `docs/architecture-review.md`.
+
+**Two bugs, both caused by five modules each keeping their own idea of which
+job statuses mean "still running":**
+
+- **Jobs disappeared from the queue widget while they were working.** The
+  `/api/jobs` filter left out `loading_model`, `translating`, `running` and
+  `streaming` — so a job vanished for the whole model load, and for the entire
+  span of an LLM analysis, then reappeared. The two states it *did* filter on,
+  `preparing` and `postprocessing`, are never job statuses at all.
+- **A download or an analysis running longer than an hour was killed
+  mid-flight.** The hourly cleanup treated anything not in its own (different,
+  shorter) list as abandoned: temp files deleted, the job record replaced by a
+  tombstone with no SSE queue. The worker carried on pushing progress nobody
+  received, and cancel, logs, result and export all began answering 410. A
+  playlist import or a chunked summary of a long meeting reaches an hour
+  routinely. The audio itself was never at risk.
+- `core/job_status.py` now holds the vocabulary and the sets derived from it,
+  and a test fails if a new status is added without classifying it.
+
+**A transcription could be lost with no error at all.** If the recording row
+could not be written, the upload still answered 200, the worker transcribed the
+whole file, and the step that saves the transcript found nothing to attach it
+to and returned quietly. The user waited out a full run of a long recording and
+got no transcript, no error and nothing in the log. The upload is now refused
+with an explanation, and the audio it had already ingested is removed rather
+than orphaned.
+
+**Everything a job needs is now built in one place.** The job record was
+assembled in four, with four different sets of keys, so every reader defended
+itself with a default and the log handler repaired the type of its own log
+buffer on first use. Also: the transcription form was declared twice on the
+backend and three times on the frontend; the meeting watcher, job recovery, job
+expiry and release polling moved out of `main.py` (456 lines to 186); 38
+functions that were named private and imported everywhere lost their
+underscore; and 92 function-local imports became 44, with the ones that defer a
+heavy dependency or break a cycle now saying so.
+
+**The terminal UI stopped behaving differently depending on how you asked.**
+Each operation was written two or three times — once for the slash command,
+once for the palette, once for a keybinding — and the copies had drifted.
+`/retry` would fire a retry the library screen had just refused, and got a 409
+back. Picking "translate" from the palette had no way to say which language,
+though `/analyze` did. A failed delete left the busy spinner spinning. There is
+now one implementation per operation.
+
+**Nothing about how the app is used changed.** No API contract, no setting, no
+file on disk. The test suite went from 649 to 749 passing and stopped being
+intermittently red — one test had been racing the live background worker about
+one run in eight.
+
 ### 📦 One download per platform, not four
 
 - **There is no longer a CPU build and a GPU build.** The two differed only in
