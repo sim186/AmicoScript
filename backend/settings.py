@@ -19,13 +19,19 @@ def _settings_file() -> Path:
 
 
 def _load_settings() -> dict:
-    """Load settings from disk, returning an empty dict on any error."""
+    """Load settings from disk, falling back to defaults on any error.
+
+    Failing closed is right — a truncated settings.json must not stop the app
+    from starting, and every caller has a safe default — but it is not silent.
+    Reverting to defaults quietly would also revert llm_allow_cloud, and the
+    user deserves to know their settings were not read.
+    """
+    sf = _settings_file()
     try:
-        sf = _settings_file()
         if sf.exists():
             return json.loads(sf.read_text(encoding="utf-8"))
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        print(f"Could not read settings from {sf} ({exc}); using defaults.")
     return {}
 
 

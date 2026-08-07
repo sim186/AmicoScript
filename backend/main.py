@@ -158,10 +158,7 @@ async def _startup() -> None:
         app.state.local_version = ""
     asyncio.create_task(_worker_loop_async())
     asyncio.create_task(_cleanup_loop())
-    try:
-        asyncio.create_task(_release_poller_loop())
-    except Exception:
-        pass
+    asyncio.create_task(_release_poller_loop())
     _maybe_start_embedded_watcher()
 
 

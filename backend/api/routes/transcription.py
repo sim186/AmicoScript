@@ -15,6 +15,7 @@ import aiofiles
 import state
 from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
 from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import JobStatus
 from core.jobs import create_job, submit
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
@@ -148,21 +149,34 @@ def _create_recording_row(
     opts_dict: dict[str, Any],
     source: str = "upload",
 ) -> None:
-    try:
-        with new_session() as session:
-            recording = Recording(
-                id=recording_id,
-                filename=filename or "audio",
-                file_path=file_path,
-                folder_id=folder_id or None,
-                status="queued",
-                source=source if source in _VALID_SOURCES else "upload",
-                transcription_options=json.dumps(opts_dict),
-            )
-            session.add(recording)
-            session.commit()
-    except Exception:
-        pass
+    """Insert the Recording row a job will later write its transcript against.
+
+    Not best-effort. This row is the job's destination: without it the worker
+    transcribes the whole file and _sync_job_to_db finds nothing to attach the
+    transcript to and returns quietly, so the user waits out a full run and
+    ends up with nothing and no error. Better to refuse the upload.
+    """
+    with new_session() as session:
+        recording = Recording(
+            id=recording_id,
+            filename=filename or "audio",
+            file_path=file_path,
+            folder_id=folder_id or None,
+            status=JobStatus.QUEUED,
+            source=source if source in _VALID_SOURCES else "upload",
+            transcription_options=json.dumps(opts_dict),
+        )
+        session.add(recording)
+        session.commit()
+
+
+def _discard_ingested_audio(recording_id: str) -> None:
+    """Remove audio that was ingested for a recording that never came to exist."""
+    import shutil
+
+    from config import RECORDINGS_DIR
+
+    shutil.rmtree(RECORDINGS_DIR / recording_id, ignore_errors=True)
 
 
 def _create_job(
@@ -279,14 +293,22 @@ async def transcribe(
         force_normalize_audio=force_normalize_audio,
     )
 
-    _create_recording_row(
-        recording_id=recording_id,
-        filename=file.filename or "audio",
-        file_path=str(permanent_path),
-        folder_id=folder_id,
-        opts_dict=opts_dict,
-        source=source,
-    )
+    try:
+        _create_recording_row(
+            recording_id=recording_id,
+            filename=file.filename or "audio",
+            file_path=str(permanent_path),
+            folder_id=folder_id,
+            opts_dict=opts_dict,
+            source=source,
+        )
+    except Exception as exc:
+        # The audio is already in managed storage but nothing will ever point
+        # at it, so take it back out rather than leave an orphan directory.
+        _discard_ingested_audio(recording_id)
+        raise HTTPException(
+            500, f"Could not save this recording to the library: {exc}"
+        ) from exc
 
     _create_job(
         job_id=job_id,
