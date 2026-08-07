@@ -199,11 +199,11 @@ def test_safe_member_path_accepts_normal_entries():
 
 def test_bundle_never_contains_settings(client, make_recording, sample_segments):
     """Tokens and the password hash must not travel inside an exported file."""
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
-    settings = _load_settings()
+    settings = load_settings()
     settings["hf_token"] = "hf_secret_do_not_export"
-    _save_settings(settings)
+    save_settings(settings)
     make_recording(segments=sample_segments)
 
     raw = client.get("/api/library/export", params={"include_audio": False}).content

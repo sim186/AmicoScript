@@ -1,7 +1,7 @@
 """Job logs are a bounded ring, so a chatty job cannot grow without limit.
 
 The bound used to be applied on the first append, because the four job
-factories seeded `logs` with a plain list and `_append_job_log` had to convert
+factories seeded `logs` with a plain list and `append_job_log` had to convert
 it. core.jobs.create_job now establishes it at construction, so these tests
 build their jobs the way the application does rather than by hand — a job dict
 assembled in a test would only prove that the repair still works.
@@ -10,14 +10,14 @@ from collections import deque
 
 import state
 from api.routes.transcription import get_job_logs
-from core.job_helpers import _append_job_log
+from core.job_helpers import append_job_log
 from core.jobs import JOB_LOG_LIMIT, create_job
 
 
 def test_logs_are_capped():
     job_id = create_job(original_filename="chatty.mp3")
     for i in range(JOB_LOG_LIMIT + 200):
-        _append_job_log(job_id, "INFO", f"msg {i}")
+        append_job_log(job_id, "INFO", f"msg {i}")
 
     logs = state.jobs[job_id]["logs"]
     assert len(logs) == JOB_LOG_LIMIT
@@ -38,7 +38,7 @@ def test_a_new_job_starts_with_a_bounded_deque():
 def test_logs_preserve_order():
     job_id = create_job()
     for i in range(5):
-        _append_job_log(job_id, "INFO", f"msg {i}")
+        append_job_log(job_id, "INFO", f"msg {i}")
 
     messages = [e["message"] for e in state.jobs[job_id]["logs"]]
     assert messages == [f"msg {i}" for i in range(5)]
@@ -48,7 +48,7 @@ def test_get_job_logs_returns_the_tail():
     job_id = create_job()
     state.jobs[job_id]["status"] = "done"
     for i in range(3):
-        _append_job_log(job_id, "INFO", f"msg {i}")
+        append_job_log(job_id, "INFO", f"msg {i}")
 
     result = get_job_logs(job_id, limit=1)
 

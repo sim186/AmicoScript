@@ -19,7 +19,7 @@ from json import JSONDecodeError
 import requests as _req
 
 import state
-from core.job_helpers import _append_job_log, _handle_job_error, _push_event
+from core.job_helpers import append_job_log, handle_job_error, push_event
 from db import new_session
 from llm_providers import build_headers, chat_url, get_provider
 from models import Analysis
@@ -96,7 +96,7 @@ def chunk_text(text: str, max_tokens: int) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _build_analysis_prompt(
+def build_analysis_prompt(
     analysis_type: str,
     full_text: str,
     target_language: str = "",
@@ -360,7 +360,7 @@ def _persist(analysis_id: str, *, text: str | None = None, status: str | None = 
         session.commit()
 
 
-def _process_analysis_job(job_id: str) -> None:
+def process_analysis_job(job_id: str) -> None:
     """Run the analysis job and stream progress to the SSE queue."""
     job = state.jobs[job_id]
     opts = job["options"]
@@ -372,8 +372,8 @@ def _process_analysis_job(job_id: str) -> None:
         return bool(flag and flag.is_set())
 
     try:
-        _append_job_log(job_id, "INFO", f"Analysis worker started (type={analysis_type})")
-        _push_event(job_id, "running", 0.05, "Building prompt...")
+        append_job_log(job_id, "INFO", f"Analysis worker started (type={analysis_type})")
+        push_event(job_id, "running", 0.05, "Building prompt...")
 
         target = LLMTarget.from_options(opts)
         provider = get_provider(target.provider_id)
@@ -394,7 +394,7 @@ def _process_analysis_job(job_id: str) -> None:
         if needed <= input_budget:
             _single_pass(job_id, analysis_id, opts, target, _cancelled)
         else:
-            _append_job_log(
+            append_job_log(
                 job_id,
                 "INFO",
                 f"Transcript is ~{needed} tokens, over the {input_budget}-token input budget; "
@@ -402,21 +402,21 @@ def _process_analysis_job(job_id: str) -> None:
             )
             _map_reduce(job_id, analysis_id, opts, target, input_budget, _cancelled)
     except Exception as exc:
-        _handle_job_error(job_id, exc)
+        handle_job_error(job_id, exc)
         try:
             _persist(analysis_id, status="error")
         except Exception as db_exc:
-            _append_job_log(job_id, "ERROR", f"Failed to persist analysis error state: {db_exc}")
+            append_job_log(job_id, "ERROR", f"Failed to persist analysis error state: {db_exc}")
 
 
 def _finish_cancelled(job_id: str, analysis_id: str, partial: str) -> None:
-    _push_event(job_id, "cancelled", 0.0, "Cancelled by user.")
-    _append_job_log(job_id, "INFO", "Analysis job cancelled")
+    push_event(job_id, "cancelled", 0.0, "Cancelled by user.")
+    append_job_log(job_id, "INFO", "Analysis job cancelled")
     _persist(analysis_id, text=partial, status="error")
 
 
 def _single_pass(job_id, analysis_id, opts, target, cancelled) -> None:
-    prompt = _build_analysis_prompt(
+    prompt = build_analysis_prompt(
         analysis_type=opts["analysis_type"],
         full_text=opts["transcript_full_text"],
         target_language=opts.get("target_language", ""),
@@ -424,10 +424,10 @@ def _single_pass(job_id, analysis_id, opts, target, cancelled) -> None:
         output_language=opts.get("output_language", ""),
     )
     _persist(analysis_id, prompt=prompt)
-    _push_event(job_id, "running", 0.10, "Connecting to LLM...")
+    push_event(job_id, "running", 0.10, "Connecting to LLM...")
 
     def _on_delta(delta: str, partial: str) -> None:
-        _push_event(
+        push_event(
             job_id, "streaming", 0.5, "Generating...",
             data={"chunk": delta, "partial": partial},
         )
@@ -440,11 +440,11 @@ def _single_pass(job_id, analysis_id, opts, target, cancelled) -> None:
         return
 
     _persist(analysis_id, text=text, status="done")
-    _push_event(
+    push_event(
         job_id, "done", 1.0, "Analysis complete.",
         data={"result_text": text, "analysis_id": analysis_id},
     )
-    _append_job_log(job_id, "INFO", "Analysis job finished successfully")
+    append_job_log(job_id, "INFO", "Analysis job finished successfully")
 
 
 def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> None:
@@ -474,7 +474,7 @@ def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> N
             return
 
         start = 0.05 + map_span * (index - 1) / total
-        _push_event(job_id, "running", start, f"Processing part {index} of {total}...")
+        push_event(job_id, "running", start, f"Processing part {index} of {total}...")
 
         prompt = _build_map_prompt(
             analysis_type, chunk, index, total,
@@ -485,7 +485,7 @@ def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> N
 
         def _on_delta(delta: str, partial: str, _done="\n\n".join(partials)) -> None:
             combined = f"{_done}\n\n{partial}" if _done else partial
-            _push_event(
+            push_event(
                 job_id, "streaming", start, f"Processing part {index} of {total}...",
                 data={"chunk": delta, "partial": combined},
             )
@@ -503,18 +503,18 @@ def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> N
     if concatenate:
         result = "\n\n".join(p for p in partials if p)
         _persist(analysis_id, text=result, status="done")
-        _push_event(
+        push_event(
             job_id, "done", 1.0, "Analysis complete.",
             data={"result_text": result, "analysis_id": analysis_id},
         )
-        _append_job_log(job_id, "INFO", f"Analysis finished ({total} chunks, concatenated)")
+        append_job_log(job_id, "INFO", f"Analysis finished ({total} chunks, concatenated)")
         return
 
     if cancelled():
         _finish_cancelled(job_id, analysis_id, "\n\n".join(partials))
         return
 
-    _push_event(job_id, "running", 0.75, f"Merging {total} parts...")
+    push_event(job_id, "running", 0.75, f"Merging {total} parts...")
     reduce_prompt = _build_reduce_prompt(
         analysis_type, partials,
         custom_prompt=opts.get("custom_prompt", ""),
@@ -551,7 +551,7 @@ def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> N
         )
 
     def _on_delta(delta: str, partial: str) -> None:
-        _push_event(
+        push_event(
             job_id, "streaming", 0.85, "Merging parts...",
             data={"chunk": delta, "partial": partial},
         )
@@ -564,8 +564,8 @@ def _map_reduce(job_id, analysis_id, opts, target, input_budget, cancelled) -> N
         return
 
     _persist(analysis_id, text=result, status="done")
-    _push_event(
+    push_event(
         job_id, "done", 1.0, "Analysis complete.",
         data={"result_text": result, "analysis_id": analysis_id},
     )
-    _append_job_log(job_id, "INFO", f"Analysis finished ({total} chunks, merged)")
+    append_job_log(job_id, "INFO", f"Analysis finished ({total} chunks, merged)")

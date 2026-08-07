@@ -14,7 +14,7 @@ from core.jobs import create_job, submit, submit_threadsafe
 from db import new_session
 from llm_providers import refusal_reason
 from models import Analysis, Recording, Transcript
-from settings import _get_auto_summarize_meetings, _get_llm_settings
+from settings import get_auto_summarize_meetings, get_llm_settings
 from sqlmodel import select
 from utils.logging_utils import get_logger
 
@@ -39,7 +39,7 @@ def create_analysis_job(
     ``enqueue=False`` leaves the job on the shelf for the caller to submit —
     used by the worker thread, which cannot touch the loop's queue directly.
     """
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     analysis_id = str(uuid.uuid4())
 
     with new_session() as session:
@@ -87,10 +87,10 @@ def maybe_queue_auto_summary(recording_id: str) -> str:
     must not fail the transcription that just succeeded.
     """
     try:
-        if not _get_auto_summarize_meetings():
+        if not get_auto_summarize_meetings():
             return ""
 
-        cfg = _get_llm_settings()
+        cfg = get_llm_settings()
         refusal = refusal_reason(cfg)
         if refusal:
             logger.info("Auto-summary skipped: %s", refusal)

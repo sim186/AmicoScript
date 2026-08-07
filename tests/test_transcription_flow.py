@@ -60,12 +60,12 @@ def test_run_transcription_phase_emits_progress_and_segments(monkeypatch):
     state.jobs[job_id] = _base_job()
 
     events = []
-    monkeypatch.setattr(transcription, "_push_event", lambda *_args, **kwargs: events.append((_args, kwargs)))
-    monkeypatch.setattr(transcription, "_get_whisper_model", lambda *args, **kwargs: (_FakeModel(), "cpu"))
-    monkeypatch.setattr(transcription, "_convert_audio_for_transcription", lambda *_args, **_kwargs: "/tmp/input.mp3")
+    monkeypatch.setattr(transcription, "push_event", lambda *_args, **kwargs: events.append((_args, kwargs)))
+    monkeypatch.setattr(transcription, "get_whisper_model", lambda *args, **kwargs: (_FakeModel(), "cpu"))
+    monkeypatch.setattr(transcription, "convert_audio_for_transcription", lambda *_args, **_kwargs: "/tmp/input.mp3")
     monkeypatch.setattr(transcription.ffmpeg_helper, "start_background_download", lambda: None)
 
-    segments, meta = transcription._run_transcription_phase(job_id)
+    segments, meta = transcription.run_transcription_phase(job_id)
 
     assert len(segments) == 2
     assert segments[0]["text"] == "hello"
@@ -82,11 +82,11 @@ def test_process_job_cancelled_path(monkeypatch):
         return [], {"cancelled": True}
 
     finalized = []
-    monkeypatch.setattr(transcription, "_run_transcription_phase", _cancelled_phase)
-    monkeypatch.setattr(transcription, "_run_diarization_phase", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(transcription, "_finalize_transcription_result", lambda *_args, **_kwargs: finalized.append(True))
-    monkeypatch.setattr(transcription, "_cleanup_job_temp_files", lambda _job: None)
+    monkeypatch.setattr(transcription, "run_transcription_phase", _cancelled_phase)
+    monkeypatch.setattr(transcription, "run_diarization_phase", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(transcription, "finalize_transcription_result", lambda *_args, **_kwargs: finalized.append(True))
+    monkeypatch.setattr(transcription, "cleanup_job_temp_files", lambda _job: None)
 
-    transcription._process_job(job_id)
+    transcription.process_job(job_id)
 
     assert finalized == []

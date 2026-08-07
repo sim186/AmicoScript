@@ -16,7 +16,7 @@ from core.job_status import JobStatus
 from core.jobs import create_job
 from db import new_session
 from models import Recording
-from settings import _get_saved_hf_token
+from settings import get_saved_hf_token
 
 
 class RequeueError(RuntimeError):
@@ -35,7 +35,7 @@ def build_job(recording_id: str, filename: str, file_path: str, opts: dict,
         recording_id=recording_id,
         original_filename=filename,
         file_path=file_path,
-        options={**opts, "hf_token": opts.get("hf_token") or _get_saved_hf_token()},
+        options={**opts, "hf_token": opts.get("hf_token") or get_saved_hf_token()},
         message="Requeued",
         resumed=resumed,
     )

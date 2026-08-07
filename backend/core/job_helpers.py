@@ -18,7 +18,7 @@ from utils.logging_utils import get_logger
 logger = get_logger("amicoscript.worker")
 
 
-def _append_job_log(job_id: str, level: str, message: str) -> None:
+def append_job_log(job_id: str, level: str, message: str) -> None:
     """Append an in-memory log line and emit a structured logger event."""
     job = state.jobs.get(job_id)
     if not job:
@@ -36,7 +36,7 @@ def _append_job_log(job_id: str, level: str, message: str) -> None:
         logger.info(message, extra={"job_id": job_id})
 
 
-def _push_event(
+def push_event(
     job_id: str,
     status: str,
     progress: float,
@@ -57,7 +57,7 @@ def _push_event(
     job["message"] = message
 
     level = "ERROR" if status == "error" else "INFO"
-    _append_job_log(job_id, level, f"{status}: {message}")
+    append_job_log(job_id, level, f"{status}: {message}")
 
     queue = job.get("sse_queue")
     if queue is None:
@@ -73,7 +73,7 @@ def _push_event(
             pass
 
 
-def _cleanup_job_temp_files(job: dict) -> None:
+def cleanup_job_temp_files(job: dict) -> None:
     """Delete all temporary files associated with a job."""
     for temp_fp in job.get("temp_files", []):
         if temp_fp and os.path.exists(temp_fp):
@@ -84,7 +84,7 @@ def _cleanup_job_temp_files(job: dict) -> None:
     job["temp_files"] = []
 
 
-def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
+def sync_job_to_db(job_id: str, retries: int = 3) -> None:
     """Persist final job state/result into SQLite with basic retry."""
     job = state.jobs.get(job_id)
     if not job:
@@ -150,11 +150,11 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
             time.sleep(retry_delay * attempt)
 
 
-def _handle_job_error(job_id: str, exc: Exception) -> None:
+def handle_job_error(job_id: str, exc: Exception) -> None:
     """Centralized job error handling with traceback logging and DB sync."""
     job = state.jobs.get(job_id)
     if job is not None:
         job["error"] = str(exc)
     logger.exception("Job failed", extra={"job_id": job_id})
-    _push_event(job_id, "error", -1, str(exc))
-    _sync_job_to_db(job_id)
+    push_event(job_id, "error", -1, str(exc))
+    sync_job_to_db(job_id)

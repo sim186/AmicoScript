@@ -115,17 +115,17 @@ def idle_worker(monkeypatch):
     """
     import core.transcription
 
-    monkeypatch.setattr(core.transcription, "_process_job", lambda job_id: None)
+    monkeypatch.setattr(core.transcription, "process_job", lambda job_id: None)
 
 
 @pytest.fixture()
 def clean_settings():
     """Empty settings.json before and after a test that writes to it."""
-    from settings import _save_settings
+    from settings import save_settings
 
-    _save_settings({})
+    save_settings({})
     yield
-    _save_settings({})
+    save_settings({})
 
 
 def _truncate_all(db_module, sqlmodel_base) -> None:

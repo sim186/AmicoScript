@@ -9,26 +9,26 @@ pytestmark = pytest.mark.usefixtures("no_auth")
 @pytest.fixture()
 def llm_configured(monkeypatch):
     from core import analysis
-    from settings import _load_settings, _save_llm_settings, _save_settings
+    from settings import load_settings, save_llm_settings, save_settings
 
     # Stub the transport: a queued auto-summary is picked up by the app's real
     # worker loop, and it must not reach for the network during tests.
     monkeypatch.setattr(analysis, "run_completion", lambda *a, **k: ("SUMMARY", False))
-    _save_llm_settings("http://llm.test", "test-model", "")
+    save_llm_settings("http://llm.test", "test-model", "")
     yield
-    settings = _load_settings()
+    settings = load_settings()
     for key in ("llm_base_url", "llm_model_name", "llm_api_key"):
         settings.pop(key, None)
-    _save_settings(settings)
+    save_settings(settings)
 
 
 @pytest.fixture()
 def auto_summary_on():
-    from settings import _set_auto_summarize_meetings
+    from settings import set_auto_summarize_meetings
 
-    _set_auto_summarize_meetings(True)
+    set_auto_summarize_meetings(True)
     yield
-    _set_auto_summarize_meetings(False)
+    set_auto_summarize_meetings(False)
 
 
 def _queue_for(recording_id: str) -> str:
@@ -87,11 +87,11 @@ def test_nothing_happens_when_the_setting_is_off(client, make_recording, sample_
 
 @pytest.mark.usefixtures("auto_summary_on")
 def test_nothing_happens_without_a_configured_llm(client, make_recording, sample_segments):
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
-    settings = _load_settings()
+    settings = load_settings()
     settings["llm_model_name"] = ""
-    _save_settings(settings)
+    save_settings(settings)
 
     rec_id = make_recording(source="meeting", segments=sample_segments)
     assert _queue_for(rec_id) == ""
@@ -143,16 +143,16 @@ def test_saving_an_unrelated_setting_leaves_the_toggle_alone(client):
 
 def test_saving_settings_does_not_clobber_the_stored_hf_token(client):
     """The UI only ever sees a masked token; saving must not write the mask back."""
-    from settings import _load_settings
+    from settings import load_settings
 
     client.post("/api/settings", data={"hf_token": "hf_realtoken"})
     client.post("/api/settings", data={"hf_token": "__unchanged__", "model": "small"})
 
-    assert _load_settings()["hf_token"] == "hf_realtoken"
+    assert load_settings()["hf_token"] == "hf_realtoken"
 
 
 def test_llm_settings_never_return_the_api_key(client):
-    from settings import _load_settings
+    from settings import load_settings
 
     client.post(
         "/api/llm/settings",
@@ -171,7 +171,7 @@ def test_llm_settings_never_return_the_api_key(client):
         "/api/llm/settings",
         data={"llm_base_url": "http://llm.test", "llm_model_name": "m2"},
     )
-    assert _load_settings()["llm_api_key"] == "sk-secret-value"
+    assert load_settings()["llm_api_key"] == "sk-secret-value"
 
 
 def test_llm_context_budget_is_configurable(client):

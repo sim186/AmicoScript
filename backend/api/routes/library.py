@@ -5,11 +5,11 @@ import json
 import time
 from pathlib import Path
 
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 
 from db import get_session, new_session
 
-from exports import _format_md_bulk, render_export
+from exports import format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
@@ -311,7 +311,7 @@ def export_recording(
     return StreamingResponse(
         iter([content]),
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.{ext}")},
     )
 
 
@@ -344,12 +344,12 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
         })
     if not recordings:
         raise HTTPException(404, "No valid transcripts found for provided IDs")
-    content = _format_md_bulk(recordings, wikilinks=body.wikilinks)
+    content = format_md_bulk(recordings, wikilinks=body.wikilinks)
     filename = "transcripts" if len(recordings) > 1 else recordings[0]["title"]
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type="text/markdown",
-        headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.md")},
     )
 
 

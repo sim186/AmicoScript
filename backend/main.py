@@ -55,14 +55,14 @@ from api.routes.releases import get_version
 from api.routes.releases import router as releases_router
 from api.routes.settings import router as settings_router
 from api.routes.transcription import router as transcription_router
-from core.job_helpers import _cleanup_job_temp_files
+from core.job_helpers import cleanup_job_temp_files
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import RESUMABLE as RESUMABLE_STATUSES
 from core.job_status import JobStatus
-from core.transcription import _worker_loop_async
+from core.transcription import worker_loop_async
 from db import init_db, new_session
 from models import Recording
-from releases import _fetch_latest_release, _is_version_newer
+from releases import fetch_latest_release, is_version_newer
 
 if hasattr(sys, "_MEIPASS"):
     BASE_DIR = Path(sys._MEIPASS)
@@ -156,7 +156,7 @@ async def _startup() -> None:
         app.state.local_version = _get_local_version() or ""
     except Exception:
         app.state.local_version = ""
-    asyncio.create_task(_worker_loop_async())
+    asyncio.create_task(worker_loop_async())
     asyncio.create_task(_cleanup_loop())
     asyncio.create_task(_release_poller_loop())
     _maybe_start_embedded_watcher()
@@ -360,7 +360,7 @@ async def _release_poller_loop() -> None:
 
     while True:
         try:
-            info = _fetch_latest_release(owner, repo, token or None)
+            info = fetch_latest_release(owner, repo, token or None)
             if info and not info.get("error"):
                 tag = info.get("tag_name", "")
                 app.state.latest_release = {
@@ -371,7 +371,7 @@ async def _release_poller_loop() -> None:
                 }
                 local = _get_local_version()
                 try:
-                    app.state.update_available = _is_version_newer(local, tag)
+                    app.state.update_available = is_version_newer(local, tag)
                     app.state.local_version = local
                 except Exception:
                     app.state.update_available = False
@@ -411,7 +411,7 @@ async def _cleanup_loop() -> None:
                         os.remove(fp)
                 except OSError:
                     pass
-            _cleanup_job_temp_files(job)
+            cleanup_job_temp_files(job)
             _expire_job(job_id)
 
 

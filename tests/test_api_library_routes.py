@@ -389,11 +389,11 @@ def test_transcribe_url_rejects_unsupported_urls(client):
 
 
 def test_settings_never_returns_the_hugging_face_token(client):
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
-    settings = _load_settings()
+    settings = load_settings()
     settings["hf_token"] = "hf_secretvalue1234"
-    _save_settings(settings)
+    save_settings(settings)
     try:
         body = client.get("/api/settings").json()
         assert "hf_token" not in body
@@ -401,7 +401,7 @@ def test_settings_never_returns_the_hugging_face_token(client):
         assert "secretvalue" not in json.dumps(body)
     finally:
         settings.pop("hf_token", None)
-        _save_settings(settings)
+        save_settings(settings)
 
 
 # --- retry ------------------------------------------------------------------

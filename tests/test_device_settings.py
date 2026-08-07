@@ -32,9 +32,9 @@ def _options(**overrides) -> dict:
 
 @pytest.mark.usefixtures("clean_settings")
 def test_a_saved_device_is_used_when_the_client_names_none():
-    from settings import _save_whisper_settings
+    from settings import save_whisper_settings
 
-    _save_whisper_settings("small", "cuda", "float16")
+    save_whisper_settings("small", "cuda", "float16")
 
     opts = _options()
 
@@ -44,9 +44,9 @@ def test_a_saved_device_is_used_when_the_client_names_none():
 
 @pytest.mark.usefixtures("clean_settings")
 def test_an_explicit_request_still_beats_the_saved_setting():
-    from settings import _save_whisper_settings
+    from settings import save_whisper_settings
 
-    _save_whisper_settings("small", "cuda", "float16")
+    save_whisper_settings("small", "cuda", "float16")
 
     opts = _options(device="cpu", compute_type="int8")
 

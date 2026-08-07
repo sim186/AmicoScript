@@ -11,18 +11,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException
 
-from settings import (
-    _get_auto_summarize_meetings,
-    _get_meeting_capture_enabled,
-    _get_transcription_defaults,
-    _get_whisper_settings,
-    _load_settings,
-    _save_settings,
-    _save_whisper_settings,
-    _set_auto_summarize_meetings,
-    _set_meeting_capture_enabled,
-    _set_transcription_defaults,
-)
+# Reached through the module, not imported by name: several route handlers here
+# are named after the operation they expose (save_settings, get_settings) and
+# would otherwise shadow the store function they call.
+import settings
 
 router = APIRouter()
 
@@ -85,16 +77,16 @@ def _mask_secret(value: str) -> str:
 @router.get("/api/settings")
 def get_settings() -> dict:
     import state
-    settings = _load_settings()
-    defaults = _get_transcription_defaults()
-    ws = _get_whisper_settings()
-    hf_token = settings.get("hf_token", "")
+    stored = settings.load_settings()
+    defaults = settings.get_transcription_defaults()
+    ws = settings.get_whisper_settings()
+    hf_token = stored.get("hf_token", "")
     return {
         "hf_token_set": bool(hf_token),
         "hf_token_preview": _mask_secret(hf_token),
         "exit_token": getattr(state, "exit_token", ""),
-        "meeting_capture_enabled": _get_meeting_capture_enabled(),
-        "auto_summarize_meetings": _get_auto_summarize_meetings(),
+        "meeting_capture_enabled": settings.get_meeting_capture_enabled(),
+        "auto_summarize_meetings": settings.get_auto_summarize_meetings(),
         # Shared by the web UI and the meeting watcher so auto-captured
         # meetings use the same model / language / diarize as manual uploads.
         "default_model": defaults["default_model"],
@@ -122,14 +114,14 @@ async def save_settings(
     Fields are optional so the UI can save the HF token alone (existing
     behaviour) or push model/language/diarize without clearing the token.
     """
-    settings = _load_settings()
+    stored = settings.load_settings()
     if hf_token is not None and hf_token != _UNCHANGED:
-        settings["hf_token"] = hf_token
-        _save_settings(settings)
+        stored["hf_token"] = hf_token
+        settings.save_settings(stored)
     if auto_summarize_meetings is not None:
-        _set_auto_summarize_meetings(_to_bool(auto_summarize_meetings))
+        settings.set_auto_summarize_meetings(_to_bool(auto_summarize_meetings))
     if model is not None or language is not None or diarize is not None:
-        _set_transcription_defaults(
+        settings.set_transcription_defaults(
             model=model,
             language=language,
             diarize=_to_bool(diarize) if diarize is not None else None,
@@ -137,13 +129,13 @@ async def save_settings(
     # Any one of the three is enough to save. Gating on whisper_model meant a
     # request that set only the device silently did nothing.
     if whisper_model or whisper_device or whisper_compute:
-        ws = _get_whisper_settings()
-        _save_whisper_settings(
+        ws = settings.get_whisper_settings()
+        settings.save_whisper_settings(
             whisper_model or ws["whisper_model"],
             whisper_device or ws["whisper_device"],
             whisper_compute or ws["whisper_compute"],
         )
-    return {"ok": True, **_get_transcription_defaults(), **_get_whisper_settings()}
+    return {"ok": True, **settings.get_transcription_defaults(), **settings.get_whisper_settings()}
 
 
 @router.post("/api/settings/meeting-capture")
@@ -155,7 +147,7 @@ async def set_meeting_capture(enabled: str = Form("false"), token: str = Form(""
     """
     _require_session_token(token)
     value = _to_bool(enabled)
-    _set_meeting_capture_enabled(value)
+    settings.set_meeting_capture_enabled(value)
     return {"ok": True, "enabled": value}
 
 

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from llm_providers import refusal_reason
 from models import TranscriptChunk
 from pydantic import BaseModel
-from settings import _get_llm_settings
+from settings import get_llm_settings
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -29,7 +29,7 @@ def chat_with_library(body: ChatRequest, session: Session = Depends(get_session)
     if not question:
         raise HTTPException(400, "A question is required.")
 
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     refusal = refusal_reason(cfg)
     if refusal:
         raise HTTPException(400, refusal)
@@ -62,7 +62,7 @@ def chat_with_library(body: ChatRequest, session: Session = Depends(get_session)
 
 @router.get("/api/library/index")
 def get_index_status(session: Session = Depends(get_session)) -> dict:
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     status = index_status(session)
     status["embedding_model"] = cfg.get("llm_embedding_model", "")
     # Without an embedding model this is keyword-only retrieval — which works,
@@ -83,7 +83,7 @@ def rebuild_index(all: bool = False, session: Session = Depends(get_session)) ->
 @router.post("/api/library/index/embed")
 def embed_index(session: Session = Depends(get_session)) -> dict:
     """Embed a slice of the chunks that have none. Call until pending is 0."""
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     refusal = refusal_reason(cfg)
     if refusal:
         raise HTTPException(400, refusal)

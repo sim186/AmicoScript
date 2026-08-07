@@ -6,7 +6,7 @@ import urllib.request as _urlreq
 from typing import Optional
 
 
-def _fetch_latest_release(owner: str, repo: str, token: Optional[str] = None) -> dict:
+def fetch_latest_release(owner: str, repo: str, token: Optional[str] = None) -> dict:
     """Fetch the latest GitHub release metadata for owner/repo."""
     url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
     req = _urlreq.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
@@ -25,7 +25,7 @@ def _fetch_latest_release(owner: str, repo: str, token: Optional[str] = None) ->
         return {"error": str(exc)}
 
 
-def _is_version_newer(local: str, remote_tag: str) -> bool:
+def is_version_newer(local: str, remote_tag: str) -> bool:
     """Return True if remote_tag represents a version strictly newer than local."""
     def parse(v: str) -> tuple:
         s = re.sub(r"[^0-9.]", "", v or "").strip(".")

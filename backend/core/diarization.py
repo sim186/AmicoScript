@@ -3,8 +3,8 @@ import gc
 from typing import Any
 
 import state
-from core.audio_utils import _convert_audio_for_diarization
-from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
+from core.audio_utils import convert_audio_for_diarization
+from core.job_helpers import append_job_log, push_event, sync_job_to_db
 from shims import inject_torch_load_shim, inject_torchcodec_shim
 from utils.logging_utils import get_logger
 
@@ -150,7 +150,7 @@ def _run_pipeline_with_progress(
     def _emit(label: str, fraction_within_step: float) -> None:
         local = completed_weight + _DIARIZATION_STEP_WEIGHTS.get(label, 0.0) * fraction_within_step
         progress = _DIARIZATION_PROGRESS_START + span * min(max(local, 0.0), 1.0)
-        _push_event(job_id, "diarizing", progress, f"Diarization: {label.replace('_', ' ')}")
+        push_event(job_id, "diarizing", progress, f"Diarization: {label.replace('_', ' ')}")
 
     class _ProgressHookAdapter:
         def __enter__(self):
@@ -197,13 +197,13 @@ def _run_pipeline_with_progress(
         )
     except RuntimeError as exc:
         if "cancelled" in str(exc).lower():
-            _push_event(job_id, "cancelled", 0.0, "Job cancelled during diarization")
-            _sync_job_to_db(job_id)
+            push_event(job_id, "cancelled", 0.0, "Job cancelled during diarization")
+            sync_job_to_db(job_id)
             return None
         raise
 
 
-def _assign_speaker(seg_start: float, seg_end: float, diarization: Any) -> str:
+def assign_speaker(seg_start: float, seg_end: float, diarization: Any) -> str:
     """Return the speaker label with maximum overlap or closest turn fallback."""
     best_speaker = None
     best_overlap = 0.0
@@ -235,41 +235,41 @@ def _ensure_torch_runtime(job_id: str) -> bool:
 
     try:
         outcome = runtime_pack.ensure(
-            progress=lambda message: _append_job_log(job_id, "INFO", message)
+            progress=lambda message: append_job_log(job_id, "INFO", message)
         )
     except runtime_pack.RuntimePackError as exc:
-        _append_job_log(job_id, "WARN", f"Diarization skipped: {exc}")
-        _push_event(job_id, "warning", 0.82, f"Diarization skipped: {exc}")
+        append_job_log(job_id, "WARN", f"Diarization skipped: {exc}")
+        push_event(job_id, "warning", 0.82, f"Diarization skipped: {exc}")
         return False
 
     if outcome == "installed":
-        _append_job_log(job_id, "INFO", "PyTorch runtime installed")
+        append_job_log(job_id, "INFO", "PyTorch runtime installed")
     return True
 
 
-def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) -> list[str]:
+def run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) -> list[str]:
     """Run pyannote diarization and annotate segment speakers in place."""
     opts = job["options"]
     if not opts.get("diarize"):
         return []
 
     if not opts.get("hf_token"):
-        _push_event(
+        push_event(
             job_id,
             "warning",
             0.82,
             "Diarization skipped: no Hugging Face token provided. Add your token in Settings.",
         )
-        _append_job_log(job_id, "WARN", "Diarization requested but hf_token missing; skipping")
+        append_job_log(job_id, "WARN", "Diarization requested but hf_token missing; skipping")
         return []
 
     cancel_flag = job.get("cancel_flag")
     if cancel_flag and cancel_flag.is_set():
-        _push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
-        _sync_job_to_db(job_id)
+        push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
+        sync_job_to_db(job_id)
         return []
 
-    _push_event(job_id, "diarizing", 0.82, "Running speaker diarization...")
+    push_event(job_id, "diarizing", 0.82, "Running speaker diarization...")
 
     # Before the shims, which import torch, and before anything else on this
     # path does: in the packaged app torch is not in the bundle, and this is
@@ -297,20 +297,20 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
     )
     # Worth saying out loud: diarization on the CPU is the difference between
     # a minute and ten, and this is how a user finds out which they are getting.
-    _append_job_log(job_id, "INFO", f"Diarization running on {active_device}")
+    append_job_log(job_id, "INFO", f"Diarization running on {active_device}")
     if active_device == "cpu":
-        _push_event(
+        push_event(
             job_id,
             "diarizing",
             0.82,
             "Running speaker diarization on the CPU — this is much slower than a GPU.",
         )
 
-    diarization_input = _convert_audio_for_diarization(job_id, job["file_path"], force=True)
+    diarization_input = convert_audio_for_diarization(job_id, job["file_path"], force=True)
 
     if cancel_flag and cancel_flag.is_set():
-        _push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
-        _sync_job_to_db(job_id)
+        push_event(job_id, "cancelled", 0.0, "Job cancelled before diarization")
+        sync_job_to_db(job_id)
         return []
 
     diarization = _run_pipeline_with_progress(
@@ -320,8 +320,8 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
         return []
 
     if cancel_flag and cancel_flag.is_set():
-        _push_event(job_id, "cancelled", 0.0, "Job cancelled after diarization")
-        _sync_job_to_db(job_id)
+        push_event(job_id, "cancelled", 0.0, "Job cancelled after diarization")
+        sync_job_to_db(job_id)
         return []
 
     if not hasattr(diarization, "itertracks"):
@@ -343,6 +343,6 @@ def _run_diarization_phase(job_id: str, segments_list: list[dict], job: dict) ->
         diarization = annotation
 
     for seg in segments_list:
-        seg["speaker"] = _assign_speaker(seg["start"], seg["end"], diarization)
+        seg["speaker"] = assign_speaker(seg["start"], seg["end"], diarization)
 
     return sorted(set(seg["speaker"] for seg in segments_list))

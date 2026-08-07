@@ -9,11 +9,11 @@ import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 
 import aiofiles
 import state
-from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
+from core.job_helpers import append_job_log, push_event, sync_job_to_db
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import JobStatus
 from core.jobs import create_job, submit
@@ -25,7 +25,7 @@ from exports import render_export
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from models import Recording, RecordingTag, Tag, Transcript
-from settings import _get_saved_hf_token, _get_whisper_settings
+from settings import get_saved_hf_token, get_whisper_settings
 from sqlmodel import Session, select
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
@@ -162,7 +162,7 @@ class TranscriptionForm:
         # name a device or precision — which is every client today. Without
         # this the stored values were write-only: the settings page offered
         # them, the TUI could set them, and no job ever read them.
-        saved = _get_whisper_settings()
+        saved = get_whisper_settings()
 
         return TranscriptionConfig(
             model=self.model,
@@ -194,7 +194,7 @@ def _create_recording_row(
     """Insert the Recording row a job will later write its transcript against.
 
     Not best-effort. This row is the job's destination: without it the worker
-    transcribes the whole file and _sync_job_to_db finds nothing to attach the
+    transcribes the whole file and sync_job_to_db finds nothing to attach the
     transcript to and returns quietly, so the user waits out a full run and
     ends up with nothing and no error. Better to refuse the upload.
     """
@@ -239,11 +239,11 @@ def _create_job(
         recording_id=recording_id,
         original_filename=original_filename,
         file_path=file_path,
-        options={**opts_dict, "hf_token": hf_token or _get_saved_hf_token()},
+        options={**opts_dict, "hf_token": hf_token or get_saved_hf_token()},
         source_url=source_url,
         source_platform=source_platform,
     )
-    _append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
+    append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
     submit(job_id)
     # URL imports start fetching immediately instead of waiting for the model
     # stage to reach them; see core/transcription.start_download_prefetch.
@@ -455,8 +455,8 @@ def cancel_job(job_id: str) -> dict:
     # its next cancel check. The worker may still spend a bit of CPU until
     # the current blocking call (e.g. model load, pyannote step) returns,
     # but its further phases will see cancel_flag and bail.
-    _push_event(job_id, "cancelled", 0.0, "Job cancelled")
-    _sync_job_to_db(job_id)
+    push_event(job_id, "cancelled", 0.0, "Job cancelled")
+    sync_job_to_db(job_id)
     return {"ok": True}
 
 
@@ -501,7 +501,7 @@ def get_job_logs(job_id: str, limit: int = 300) -> dict:
 
 @router.post("/api/jobs/{job_id}/rename-speaker")
 async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str = Form(...)) -> dict:
-    from core.job_helpers import _sync_job_to_db
+    from core.job_helpers import sync_job_to_db
     job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
@@ -518,7 +518,7 @@ async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str =
         if seg.get("speaker") == old_name:
             seg["speaker"] = new_name
 
-    _sync_job_to_db(job_id)
+    sync_job_to_db(job_id)
     return {"ok": True, "new_name": new_name}
 
 
@@ -551,13 +551,13 @@ def export_job(job_id: str, fmt: str, wikilinks: bool = False):
     return StreamingResponse(
         iter([content]),
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.{ext}")},
     )
 
 
 @router.post("/api/recordings/{recording_id}/transcript/segments/{segment_index}/translate")
 async def translate_segment_api(recording_id: str, segment_index: int, session: Session = Depends(get_session)) -> dict:
-    from core.translation import _translate_audio_chunk
+    from core.translation import translate_audio_chunk
 
     rec = session.get(Recording, recording_id)
     if not rec:
@@ -576,7 +576,7 @@ async def translate_segment_api(recording_id: str, segment_index: int, session: 
     opts = json.loads(rec.transcription_options or "{}")
     model_name = opts.get("model", "small")
 
-    translated_text = await run_in_threadpool(_translate_audio_chunk, rec.file_path, seg["start"], seg["end"], model_name)
+    translated_text = await run_in_threadpool(translate_audio_chunk, rec.file_path, seg["start"], seg["end"], model_name)
 
     seg["translation"] = translated_text
     data["segments"] = segments
@@ -602,6 +602,6 @@ async def translate_all_api(recording_id: str, session: Session = Depends(get_se
         file_path=rec.file_path,
         options={"model": opts.get("model", "small")},
     )
-    _append_job_log(job_id, "INFO", f"Bulk translation job created for recording '{rec.filename}'")
+    append_job_log(job_id, "INFO", f"Bulk translation job created for recording '{rec.filename}'")
     submit(job_id)
     return {"ok": True, "job_id": job_id}

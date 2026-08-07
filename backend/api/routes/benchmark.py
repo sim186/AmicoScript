@@ -153,12 +153,12 @@ def _evict_model_cache() -> None:
 
 
 def _benchmark_model(model_name: str, audio_path: Path) -> dict:
-    from core.transcription import _get_whisper_model
+    from core.transcription import get_whisper_model
 
     _evict_model_cache()
 
     t0 = time.perf_counter()
-    model, _ = _get_whisper_model(model_name, compute_type="int8", device="auto")
+    model, _ = get_whisper_model(model_name, compute_type="int8", device="auto")
     load_time = time.perf_counter() - t0
 
     t1 = time.perf_counter()

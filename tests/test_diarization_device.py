@@ -220,13 +220,13 @@ def test_the_phase_passes_the_jobs_device_through(monkeypatch):
     _fake_torch(monkeypatch, cuda_available=True)
     monkeypatch.setattr(diarization, "inject_torchcodec_shim", lambda: None)
     monkeypatch.setattr(diarization, "inject_torch_load_shim", lambda: None)
-    monkeypatch.setattr(diarization, "_push_event", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "push_event", lambda *a, **k: None)
     monkeypatch.setattr(
-        diarization, "_convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
+        diarization, "convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
     )
     logged: list = []
     monkeypatch.setattr(
-        diarization, "_append_job_log", lambda job_id, level, msg: logged.append(msg)
+        diarization, "append_job_log", lambda job_id, level, msg: logged.append(msg)
     )
 
     segments = [{"start": 0.0, "end": 5.0, "text": "hi", "speaker": ""}]
@@ -237,7 +237,7 @@ def test_the_phase_passes_the_jobs_device_through(monkeypatch):
         "file_path": "/tmp/whatever.mp3",
     }
 
-    assert diarization._run_diarization_phase("job-1", segments, job) == ["SPEAKER_00"]
+    assert diarization.run_diarization_phase("job-1", segments, job) == ["SPEAKER_00"]
     assert loads[0].moved_to == "device(cuda:1)"
     # The user is told which device they got — a CPU run is 10x slower and
     # there was previously no way to tell from the outside.
@@ -252,10 +252,10 @@ def test_a_second_job_does_not_reload_the_model(monkeypatch):
     _fake_torch(monkeypatch, cuda_available=False)
     monkeypatch.setattr(diarization, "inject_torchcodec_shim", lambda: None)
     monkeypatch.setattr(diarization, "inject_torch_load_shim", lambda: None)
-    monkeypatch.setattr(diarization, "_push_event", lambda *a, **k: None)
-    monkeypatch.setattr(diarization, "_append_job_log", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "push_event", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "append_job_log", lambda *a, **k: None)
     monkeypatch.setattr(
-        diarization, "_convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
+        diarization, "convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
     )
 
     job = {
@@ -263,7 +263,7 @@ def test_a_second_job_does_not_reload_the_model(monkeypatch):
         "file_path": "/tmp/whatever.mp3",
     }
     for _ in range(3):
-        diarization._run_diarization_phase(
+        diarization.run_diarization_phase(
             "job", [{"start": 0.0, "end": 5.0, "text": "hi", "speaker": ""}], job
         )
 

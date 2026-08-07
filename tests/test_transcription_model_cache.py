@@ -43,8 +43,8 @@ def _setup_fake_modules(monkeypatch):
 
 
 def test_get_whisper_model_uses_cache_for_same_key() -> None:
-    model1, device1 = transcription._get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
-    model2, device2 = transcription._get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
+    model1, device1 = transcription.get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
+    model2, device2 = transcription.get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
 
     assert model1 is model2
     assert device1 == device2 == "cpu"
@@ -52,8 +52,8 @@ def test_get_whisper_model_uses_cache_for_same_key() -> None:
 
 
 def test_get_whisper_model_cache_miss_when_config_changes() -> None:
-    model1, _ = transcription._get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
-    model2, _ = transcription._get_whisper_model("small", compute_type="float32", device="cpu", device_index=0)
+    model1, _ = transcription.get_whisper_model("small", compute_type="int8", device="cpu", device_index=0)
+    model2, _ = transcription.get_whisper_model("small", compute_type="float32", device="cpu", device_index=0)
 
     assert model1 is not model2
     assert len(_FakeWhisperModel.created) == 2

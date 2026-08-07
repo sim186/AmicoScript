@@ -265,7 +265,7 @@ def suggest_recording_tags(recording_id: str, session: Session = Depends(get_ses
     from core.analysis import LLMError
     from core.tagging import suggest_tags
     from llm_providers import refusal_reason
-    from settings import _get_llm_settings
+    from settings import get_llm_settings
 
     if not session.get(Recording, recording_id):
         raise HTTPException(404, "Recording not found")
@@ -275,7 +275,7 @@ def suggest_recording_tags(recording_id: str, session: Session = Depends(get_ses
     if not transcript or not transcript.full_text.strip():
         raise HTTPException(404, "Transcript not found — complete transcription first")
 
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     refusal = refusal_reason(cfg)
     if refusal:
         raise HTTPException(400, refusal)

@@ -2,7 +2,7 @@
 
 _create_recording_row used to end in `except Exception: pass`. When the insert
 failed the upload still returned 200, the worker transcribed the whole file,
-and _sync_job_to_db found no row to attach the transcript to and returned
+and sync_job_to_db found no row to attach the transcript to and returned
 quietly. The user waited out a full transcription and got nothing — no
 transcript, no error, nothing in the log.
 """

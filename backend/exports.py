@@ -30,7 +30,7 @@ def _vtt_ts(seconds: float) -> str:
     return _ms(seconds).replace(",", ".")
 
 
-def _ts(seconds: float) -> str:
+def format_timestamp(seconds: float) -> str:
     """Format seconds as M:SS for human-readable display."""
     total = int(seconds)
     m = total // 60
@@ -113,8 +113,8 @@ def _format_csv(result: dict) -> str:
             i,
             f"{float(seg.get('start', 0.0)):.3f}",
             f"{float(seg.get('end', 0.0)):.3f}",
-            _ts(seg.get("start", 0.0)),
-            _ts(seg.get("end", 0.0)),
+            format_timestamp(seg.get("start", 0.0)),
+            format_timestamp(seg.get("end", 0.0)),
             _csv_safe(seg.get("speaker", "")),
             _csv_safe((seg.get("text") or "").strip()),
             _csv_safe((seg.get("translation") or "").strip()),
@@ -133,7 +133,7 @@ def _format_txt(result: dict) -> str:
                 lines.append("")
             lines.append(f"{speaker}:")
             prev_speaker = speaker
-        ts = _ts(seg["start"])
+        ts = format_timestamp(seg["start"])
         prefix = f"[{ts}] " if not speaker else f"  [{ts}] "
         lines.append(f"{prefix}{seg['text']}")
     return "\n".join(lines)
@@ -204,7 +204,7 @@ def _frontmatter(
 
     duration = result.get("duration") or meta.get("duration")
     if duration:
-        lines.append(f"duration: {_yaml_str(_ts(duration))}")
+        lines.append(f"duration: {_yaml_str(format_timestamp(duration))}")
         lines.append(f"duration_seconds: {round(float(duration), 3)}")
 
     language = (result.get("language") or "").strip()
@@ -262,7 +262,7 @@ def _format_md(
         lines.extend(["", f"# {title}", ""])
     else:
         lang = (result.get("language") or "").upper()
-        dur = _ts(result.get("duration", 0))
+        dur = format_timestamp(result.get("duration", 0))
         meta_parts = [f"**Duration:** {dur}", f"**Language:** {lang or 'auto'}"]
         if speakers:
             meta_parts.append(f"**Speakers:** {', '.join(speakers)}")
@@ -284,7 +284,7 @@ def _format_md(
 
     for run in runs:
         speaker = run["speaker"]
-        ts = _ts(run["start"])
+        ts = format_timestamp(run["start"])
         if speaker:
             name = f"[[{speaker}]]" if wikilinks else speaker
             lines.append(f"**{name}** · `{ts}`")
@@ -348,7 +348,7 @@ def render_export(
     return formatter(result).encode(encoding), media_type, ext
 
 
-def _format_md_bulk(recordings: list[dict], wikilinks: bool = False) -> str:
+def format_md_bulk(recordings: list[dict], wikilinks: bool = False) -> str:
     """Combine multiple transcripts into a single markdown document.
 
     One recording is just a note, frontmatter and all. Several become a

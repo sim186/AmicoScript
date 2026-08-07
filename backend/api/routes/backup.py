@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from db import get_session
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
 
 router = APIRouter()
@@ -156,7 +156,7 @@ def export_library(
     return FileResponse(
         str(tmp_path),
         media_type="application/zip",
-        headers={"Content-Disposition": _content_disposition(f"amicoscript-library-{stamp}.zip")},
+        headers={"Content-Disposition": content_disposition_attachment(f"amicoscript-library-{stamp}.zip")},
     )
 
 
