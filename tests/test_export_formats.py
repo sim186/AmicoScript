@@ -8,7 +8,7 @@ from exports import (
     _format_csv,
     _format_json,
     _format_md,
-    _format_md_bulk,
+    format_md_bulk,
     _format_srt,
     _format_txt,
     _format_vtt,
@@ -303,7 +303,7 @@ def _bulk(n: int) -> list[dict]:
 
 
 def test_bulk_export_of_one_recording_is_just_that_note():
-    out = _format_md_bulk(_bulk(1))
+    out = format_md_bulk(_bulk(1))
     assert out.startswith("---\n")
     assert _frontmatter_of(out)["title"] == "Standup 1"
     assert "# Table of Contents" not in out
@@ -311,7 +311,7 @@ def test_bulk_export_of_one_recording_is_just_that_note():
 
 def test_bulk_export_has_exactly_one_frontmatter_block():
     """A second '---' block mid-file is body text, not properties."""
-    out = _format_md_bulk(_bulk(3))
+    out = format_md_bulk(_bulk(3))
     assert out.startswith("---\n")
     body = out.split("---\n", 2)[2]
     assert not any(line == "title:" for line in body.splitlines())
@@ -319,7 +319,7 @@ def test_bulk_export_has_exactly_one_frontmatter_block():
 
 
 def test_bulk_frontmatter_summarises_the_whole_collection():
-    fm = _frontmatter_of(_format_md_bulk(_bulk(3)))
+    fm = _frontmatter_of(format_md_bulk(_bulk(3)))
     assert fm["recordings"] == "3"
     assert fm["date_from"] == "2026-08-01"
     assert fm["date"] == "2026-08-03"
@@ -328,7 +328,7 @@ def test_bulk_frontmatter_summarises_the_whole_collection():
 
 
 def test_bulk_sections_keep_their_inline_metadata():
-    out = _format_md_bulk(_bulk(2))
+    out = format_md_bulk(_bulk(2))
     assert out.count("**Duration:** 1:05") == 2
 
 

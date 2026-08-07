@@ -9,17 +9,19 @@ from pathlib import Path
 from typing import Any
 
 import ffmpeg_helper
+import config
 import state
-from core.audio_utils import _convert_audio_for_transcription
-from core.colab_proxy import _handle_colab_job
-from core.diarization import _run_diarization_phase, resolve_device
+from core.audio_utils import convert_audio_for_transcription
+from core.colab_proxy import handle_colab_job
+from core.diarization import run_diarization_phase, resolve_device
 from core.job_helpers import (
-    _append_job_log,
-    _cleanup_job_temp_files,
-    _handle_job_error,
-    _push_event,
-    _sync_job_to_db,
+    append_job_log,
+    cleanup_job_temp_files,
+    handle_job_error,
+    push_event,
+    sync_job_to_db,
 )
+from core.runtime_config import download_concurrency, word_timestamps_default
 from core.messages import (
     COLAB_UPLOADING,
     DOWNLOAD_PREPARING,
@@ -32,21 +34,23 @@ from core.messages import (
     TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
     TRANSCRIPTION_WAITING_FIRST_SEGMENT,
 )
-from core.source_downloader import download_source_audio
+from core.analysis import process_analysis_job
+from core.analysis_jobs import maybe_queue_auto_summary
+from core.source_downloader import DownloadCancelled, download_source_audio
 from db import new_session
-from exports import _ts as format_timestamp
+from exports import format_timestamp
 from models import Recording
 from storage import ingest_file
 
 
-def _is_missing_cuda_runtime_error(exc: Exception) -> bool:
+def is_missing_cuda_runtime_error(exc: Exception) -> bool:
     """Detect missing CUDA runtime errors from Whisper init/inference."""
     message = str(exc).lower()
     markers = ("cublas", "cudnn", "cudart", "cuda", "nvcuda", "libcublas")
     return any(marker in message for marker in markers)
 
 
-def _is_missing_vad_asset_error(exc: Exception) -> bool:
+def is_missing_vad_asset_error(exc: Exception) -> bool:
     """Detect missing bundled Silero VAD file errors."""
     message = str(exc).lower()
     return "silero_vad_v6.onnx" in message or (
@@ -68,7 +72,7 @@ def resolve_compute_type(requested: str, device: str) -> str:
     return "int8" if resolve_device(device) == "cpu" else "float16"
 
 
-def _get_whisper_model(
+def get_whisper_model(
     model_name: str,
     compute_type: str = "int8",
     device: str = "auto",
@@ -112,7 +116,7 @@ def _get_whisper_model(
             )
             active_device = requested_device
         except Exception as exc:
-            if not _is_missing_cuda_runtime_error(exc):
+            if not is_missing_cuda_runtime_error(exc):
                 raise
             model = WhisperModel(model_name, device="cpu", compute_type=compute_type)
             active_device = "cpu"
@@ -143,21 +147,21 @@ def _ensure_cuda_runtime(job_id: str, requested_device: str) -> None:
 
     try:
         runtime_pack.ensure(
-            progress=lambda message: _append_job_log(job_id, "INFO", message),
+            progress=lambda message: append_job_log(job_id, "INFO", message),
             prefer_cuda=True,
         )
     except runtime_pack.RuntimePackError as exc:
-        _append_job_log(job_id, "WARN", f"GPU runtime unavailable ({exc}); using the CPU")
+        append_job_log(job_id, "WARN", f"GPU runtime unavailable ({exc}); using the CPU")
 
 
-def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
+def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     """Run the Whisper transcription phase and return segments and metadata."""
     job = state.jobs[job_id]
     opts = job["options"]
     file_path = job["file_path"]
     current_progress = float(job.get("progress", 0.0) or 0.0)
 
-    _push_event(
+    push_event(
         job_id,
         "loading_model",
         max(current_progress, 0.03),
@@ -171,7 +175,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     # different answer once the CUDA libraries exist. Asking first pins int8 on
     # hardware that was about to be able to run float16.
     compute_type = resolve_compute_type(opts.get("compute_type", "auto"), requested_device)
-    model, model_device = _get_whisper_model(
+    model, model_device = get_whisper_model(
         opts["model"],
         compute_type=compute_type,
         device=requested_device,
@@ -180,18 +184,18 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
 
     # Which device this actually landed on was previously invisible: a GPU
     # build quietly falling back to the CPU looked exactly like a slow machine.
-    _append_job_log(
+    append_job_log(
         job_id, "INFO", f"Transcribing on {model_device} ({compute_type})"
     )
     if model_device == "cpu" and requested_device not in {"cpu"}:
-        _push_event(
+        push_event(
             job_id,
             "loading_model",
             max(current_progress, 0.03),
             "No usable GPU found — transcribing on the CPU, which is much slower.",
         )
 
-    _push_event(
+    push_event(
         job_id,
         "transcribing",
         max(float(job.get("progress", 0.0) or 0.0), 0.05),
@@ -213,10 +217,10 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
             pass
 
     lang = opts.get("language") or None
-    use_word_timestamps = bool(opts.get("word_timestamps", os.environ.get("AMICO_WORD_TIMESTAMPS", "0") == "1"))
+    use_word_timestamps = bool(opts.get("word_timestamps", word_timestamps_default()))
     use_vad_filter = bool(opts.get("vad_filter", True))
 
-    whisper_input = _convert_audio_for_transcription(
+    whisper_input = convert_audio_for_transcription(
         job_id,
         file_path,
         force=bool(opts.get("force_normalize_audio", False)),
@@ -231,14 +235,14 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
             if first_segment_event.is_set():
                 return
             waited_seconds += 10
-            _push_event(
+            push_event(
                 job_id,
                 "transcribing",
                 max(float(job.get("progress", 0.0) or 0.0), 0.05),
                 TRANSCRIPTION_WAITING_FIRST_SEGMENT.format(seconds=waited_seconds),
             )
             if waited_seconds >= 600:
-                _push_event(
+                push_event(
                     job_id,
                     "error",
                     -1,
@@ -265,9 +269,9 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                 best_of=best_of,
             )
         except Exception as exc:
-            if use_vad_filter and _is_missing_vad_asset_error(exc):
+            if use_vad_filter and is_missing_vad_asset_error(exc):
                 use_vad_filter = False
-                _append_job_log(job_id, "WARN", "VAD asset missing; retrying with vad_filter=False")
+                append_job_log(job_id, "WARN", "VAD asset missing; retrying with vad_filter=False")
                 segments_gen, info = model.transcribe(
                     whisper_input,
                     language=lang,
@@ -276,9 +280,9 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                     beam_size=beam_size,
                     best_of=best_of,
                 )
-            elif model_device != "cpu" and _is_missing_cuda_runtime_error(exc):
-                _push_event(job_id, "transcribing", 0.05, TRANSCRIPTION_GPU_FALLBACK)
-                model, _ = _get_whisper_model(
+            elif model_device != "cpu" and is_missing_cuda_runtime_error(exc):
+                push_event(job_id, "transcribing", 0.05, TRANSCRIPTION_GPU_FALLBACK)
+                model, _ = get_whisper_model(
                     opts["model"],
                     compute_type=opts.get("compute_type", "int8"),
                     device="cpu",
@@ -304,8 +308,8 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                 stop_first_segment_watchdog.set()
 
             if job["cancel_flag"].is_set():
-                _push_event(job_id, "cancelled", 0.0, TRANSCRIPTION_CANCELLED)
-                _sync_job_to_db(job_id)
+                push_event(job_id, "cancelled", 0.0, TRANSCRIPTION_CANCELLED)
+                sync_job_to_db(job_id)
                 return [], {"cancelled": True}
 
             progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
@@ -328,7 +332,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
             }
             segments_list.append(seg_dict)
 
-            _push_event(
+            push_event(
                 job_id,
                 "transcribing",
                 progress,
@@ -355,7 +359,7 @@ def _run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                     pass
 
 
-def _finalize_transcription_result(
+def finalize_transcription_result(
     job_id: str,
     segments_list: list[dict],
     transcription_meta: dict,
@@ -371,17 +375,16 @@ def _finalize_transcription_result(
     }
     job = state.jobs[job_id]
     job["result"] = result
-    _push_event(job_id, "done", 1.0, TRANSCRIPTION_COMPLETE, data=result)
-    _sync_job_to_db(job_id)
+    push_event(job_id, "done", 1.0, TRANSCRIPTION_COMPLETE, data=result)
+    sync_job_to_db(job_id)
 
     recording_id = job.get("recording_id")
     if recording_id:
-        from core.analysis_jobs import maybe_queue_auto_summary
         # Only fires for meeting captures, and only when the user turned it on.
         summary_job = maybe_queue_auto_summary(recording_id)
         if summary_job:
-            _append_job_log(job_id, "INFO", "Queued automatic summary for this meeting")
-            _push_event(
+            append_job_log(job_id, "INFO", "Queued automatic summary for this meeting")
+            push_event(
                 job_id, "done", 1.0, TRANSCRIPTION_COMPLETE,
                 data={**result, "auto_summary_job_id": summary_job},
             )
@@ -395,18 +398,17 @@ def _run_download_phase(job_id: str) -> bool:
     if not source_url:
         raise RuntimeError("Missing source URL for download job")
 
-    _push_event(job_id, "downloading", 0.01, DOWNLOAD_STARTING)
+    push_event(job_id, "downloading", 0.01, DOWNLOAD_STARTING)
 
-    from config import STORAGE_ROOT
 
-    download_dir = STORAGE_ROOT / "downloads" / job_id
+    download_dir = config.STORAGE_ROOT / "downloads" / job_id
 
     def _progress(status: str, progress: float, message: str) -> None:
         if status == "downloading":
             mapped = 0.02 + (0.16 * min(max(progress, 0.0), 1.0))
-            _push_event(job_id, "downloading", mapped, message)
+            push_event(job_id, "downloading", mapped, message)
         elif status == "postprocessing":
-            _push_event(job_id, "downloading", 0.19, DOWNLOAD_PREPARING)
+            push_event(job_id, "downloading", 0.19, DOWNLOAD_PREPARING)
 
     cancel_flag = job.get("cancel_flag")
 
@@ -418,10 +420,9 @@ def _run_download_phase(job_id: str) -> bool:
             source_url, download_dir, on_progress=_progress, should_cancel=_should_cancel,
         )
     except Exception as exc:
-        from core.source_downloader import DownloadCancelled
         if isinstance(exc, DownloadCancelled) or _should_cancel():
-            _push_event(job_id, "cancelled", 0.0, "Job cancelled during download")
-            _sync_job_to_db(job_id)
+            push_event(job_id, "cancelled", 0.0, "Job cancelled during download")
+            sync_job_to_db(job_id)
             return True
         raise
     if not downloaded_path.exists():
@@ -450,46 +451,46 @@ def _run_download_phase(job_id: str) -> bool:
                 session.add(rec)
                 session.commit()
     except Exception:
-        _append_job_log(job_id, "WARN", "Downloaded file saved but database metadata update failed")
+        append_job_log(job_id, "WARN", "Downloaded file saved but database metadata update failed")
 
-    _append_job_log(job_id, "INFO", f"Download completed: {inferred_name}")
+    append_job_log(job_id, "INFO", f"Download completed: {inferred_name}")
     return False
 
 
-def _process_job(job_id: str) -> None:
+def process_job(job_id: str) -> None:
     """Process one queued job by delegating to type-specific handlers."""
     job = state.jobs[job_id]
     try:
         if job.get("cancel_flag") and job["cancel_flag"].is_set():
-            _push_event(job_id, "cancelled", 0.0, "Job cancelled before start")
-            _sync_job_to_db(job_id)
+            push_event(job_id, "cancelled", 0.0, "Job cancelled before start")
+            sync_job_to_db(job_id)
             return
 
         job_type = job.get("type", "transcribe")
 
         if job_type == "translate":
-            from core.translation import _process_translation_job
-            _process_translation_job(job_id)
+            # Deferred: translation calls get_whisper_model from this module.
+            from core.translation import process_translation_job
+            process_translation_job(job_id)
             return
 
         if job_type == "analysis":
-            from core.analysis import _process_analysis_job
-            _process_analysis_job(job_id)
+            process_analysis_job(job_id)
             return
 
         if job_type == "download_transcribe":
             if _consume_download_phase(job_id):
                 return
             if job.get("cancel_flag") and job["cancel_flag"].is_set():
-                _push_event(job_id, "cancelled", 0.0, "Job cancelled after download")
-                _sync_job_to_db(job_id)
+                push_event(job_id, "cancelled", 0.0, "Job cancelled after download")
+                sync_job_to_db(job_id)
                 return
 
         if job["options"].get("colab_url"):
-            _handle_colab_job(job_id)
+            handle_colab_job(job_id)
             return
 
-        _append_job_log(
+        append_job_log(
             job_id,
             "INFO",
             (
@@ -498,17 +499,17 @@ def _process_job(job_id: str) -> None:
             ),
         )
 
-        segments_list, transcription_meta = _run_transcription_phase(job_id)
+        segments_list, transcription_meta = run_transcription_phase(job_id)
         if transcription_meta.get("cancelled"):
             return
 
-        speakers = _run_diarization_phase(job_id, segments_list, job)
-        _finalize_transcription_result(job_id, segments_list, transcription_meta, speakers)
-        _append_job_log(job_id, "INFO", "Worker finished successfully")
+        speakers = run_diarization_phase(job_id, segments_list, job)
+        finalize_transcription_result(job_id, segments_list, transcription_meta, speakers)
+        append_job_log(job_id, "INFO", "Worker finished successfully")
     except Exception as exc:
-        _handle_job_error(job_id, exc)
+        handle_job_error(job_id, exc)
     finally:
-        _cleanup_job_temp_files(job)
+        cleanup_job_temp_files(job)
         try:
             import torch as _torch
             if hasattr(_torch, "cuda") and _torch.cuda.is_available():
@@ -518,9 +519,9 @@ def _process_job(job_id: str) -> None:
         gc.collect()
 
 
-def _worker_loop() -> None:
+def worker_loop() -> None:
     """Legacy sync worker entrypoint kept for compatibility."""
-    raise RuntimeError("Use _worker_loop_async with asyncio.Queue")
+    raise RuntimeError("Use worker_loop_async with asyncio.Queue")
 
 
 # ---------------------------------------------------------------------------
@@ -540,18 +541,10 @@ def _worker_loop() -> None:
 _download_semaphore: asyncio.Semaphore | None = None
 
 
-def _download_concurrency() -> int:
-    try:
-        value = int(os.environ.get("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "2"))
-    except ValueError:
-        return 2
-    return max(1, min(value, 8))
-
-
 def _get_download_semaphore() -> asyncio.Semaphore:
     global _download_semaphore
     if _download_semaphore is None:
-        _download_semaphore = asyncio.Semaphore(_download_concurrency())
+        _download_semaphore = asyncio.Semaphore(download_concurrency())
     return _download_semaphore
 
 
@@ -608,18 +601,18 @@ def _consume_download_phase(job_id: str) -> bool:
 
     error = job.pop("download_error", None)
     if error is not None:
-        # Raised here so it lands in _process_job's handler, exactly as it did
+        # Raised here so it lands in process_job's handler, exactly as it did
         # when the download ran inline.
         raise error
     return bool(job.pop("download_finished_job", False))
 
 
-async def _worker_loop_async() -> None:
+async def worker_loop_async() -> None:
     """Process jobs from the asyncio queue, one model run at a time."""
     while True:
         job_id = await state.JOB_QUEUE.get()
         try:
             await _await_download_prefetch(job_id)
-            await asyncio.to_thread(_process_job, job_id)
+            await asyncio.to_thread(process_job, job_id)
         finally:
             state.JOB_QUEUE.task_done()

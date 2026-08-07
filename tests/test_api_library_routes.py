@@ -389,11 +389,11 @@ def test_transcribe_url_rejects_unsupported_urls(client):
 
 
 def test_settings_never_returns_the_hugging_face_token(client):
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
-    settings = _load_settings()
+    settings = load_settings()
     settings["hf_token"] = "hf_secretvalue1234"
-    _save_settings(settings)
+    save_settings(settings)
     try:
         body = client.get("/api/settings").json()
         assert "hf_token" not in body
@@ -401,13 +401,15 @@ def test_settings_never_returns_the_hugging_face_token(client):
         assert "secretvalue" not in json.dumps(body)
     finally:
         settings.pop("hf_token", None)
-        _save_settings(settings)
+        save_settings(settings)
 
 
 # --- retry ------------------------------------------------------------------
 
 
-def test_a_failed_recording_can_be_transcribed_again(client, make_recording, tmp_path):
+def test_a_failed_recording_can_be_transcribed_again(
+    client, make_recording, tmp_path, idle_worker
+):
     """A failure used to be a dead end: delete the recording and re-upload."""
     import state
 
@@ -424,7 +426,9 @@ def test_a_failed_recording_can_be_transcribed_again(client, make_recording, tmp
     assert state.jobs[job_id]["file_path"] == str(audio)
 
 
-def test_retry_reuses_the_original_transcription_options(client, make_recording, tmp_path):
+def test_retry_reuses_the_original_transcription_options(
+    client, make_recording, tmp_path, idle_worker
+):
     import json
 
     import state

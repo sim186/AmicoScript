@@ -346,9 +346,9 @@ class TranscriptScreen(Screen):
         if idx is None or seg is None:
             return
         current = seg.get("speaker") or seg.get("speaker_label") or ""
-        self.run_worker(self._assign_speaker(idx, current), exclusive=False)
+        self.run_worker(self.assign_speaker(idx, current), exclusive=False)
 
-    async def _assign_speaker(self, index: int, current: str) -> None:
+    async def assign_speaker(self, index: int, current: str) -> None:
         from ..widgets.prompt import PromptDialog
         new_speaker = await self.app.push_screen_wait(
             PromptDialog("Speaker for this segment:", initial=current)

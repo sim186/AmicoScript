@@ -1,19 +1,19 @@
 """Transcript translation job helpers."""
+import json
 import os
 import shutil
 import subprocess
 import tempfile
 import time
-from pathlib import Path
 
 import state
-from core.job_helpers import _append_job_log, _handle_job_error, _push_event
+from core.job_helpers import append_job_log, handle_job_error, push_event
 from db import new_session
 from models import Recording, Transcript
 from sqlmodel import select
 
 
-def _translate_audio_chunk(
+def translate_audio_chunk(
     audio_path: str,
     start: float,
     end: float,
@@ -21,7 +21,8 @@ def _translate_audio_chunk(
     job_id: str = "internal",
 ) -> str:
     """Extract a time range and translate it to English via Whisper."""
-    from core.transcription import _get_whisper_model
+    # Deferred: transcription imports this module to dispatch translate jobs.
+    from core.transcription import get_whisper_model
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if not ffmpeg_bin:
@@ -53,7 +54,7 @@ def _translate_audio_chunk(
 
     try:
         subprocess.run(cmd, check=True, timeout=30)
-        model, _ = _get_whisper_model(model_name)
+        model, _ = get_whisper_model(model_name)
         segments, _ = model.transcribe(chunk_path, task="translate")
         return " ".join(s.text.strip() for s in segments).strip()
     except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as exc:
@@ -65,17 +66,18 @@ def _translate_audio_chunk(
             pass
 
 
-def _process_translation_job(job_id: str) -> None:
+def process_translation_job(job_id: str) -> None:
     """Translate all transcript segments for a recording."""
-    import json as _json
+    # Deferred: transcription imports this module to dispatch translate jobs.
+    from core.transcription import get_whisper_model
 
     job = state.jobs[job_id]
     recording_id = job["recording_id"]
     model_name = job["options"].get("model", "small")
 
     try:
-        _append_job_log(job_id, "INFO", f"Translation worker started for recording {recording_id}")
-        _push_event(job_id, "loading_model", 0.05, f"Loading model '{model_name}'...")
+        append_job_log(job_id, "INFO", f"Translation worker started for recording {recording_id}")
+        push_event(job_id, "loading_model", 0.05, f"Loading model '{model_name}'...")
 
         with new_session() as session:
             rec = session.get(Recording, recording_id)
@@ -83,27 +85,26 @@ def _process_translation_job(job_id: str) -> None:
             if not rec or not tr:
                 raise ValueError("Recording or Transcript not found")
 
-            data = _json.loads(tr.json_data)
+            data = json.loads(tr.json_data)
             segments = data.get("segments", [])
             total = len(segments)
             if total == 0:
-                _push_event(job_id, "done", 1.0, "No segments to translate.")
+                push_event(job_id, "done", 1.0, "No segments to translate.")
                 return
 
-            _push_event(job_id, "translating", 0.1, f"Found {total} segments. Starting bulk translation...")
+            push_event(job_id, "translating", 0.1, f"Found {total} segments. Starting bulk translation...")
 
-            from core.transcription import _get_whisper_model
-            _get_whisper_model(model_name)
+            get_whisper_model(model_name)
 
             translated_count = 0
             for idx, seg in enumerate(segments):
                 if job["cancel_flag"].is_set():
-                    _push_event(job_id, "cancelled", 0.0, "Translation cancelled by user.")
-                    _append_job_log(job_id, "INFO", "Translation job cancelled")
+                    push_event(job_id, "cancelled", 0.0, "Translation cancelled by user.")
+                    append_job_log(job_id, "INFO", "Translation job cancelled")
                     return
 
                 if not seg.get("edited") and not seg.get("translation"):
-                    seg["translation"] = _translate_audio_chunk(
+                    seg["translation"] = translate_audio_chunk(
                         rec.file_path,
                         seg["start"],
                         seg["end"],
@@ -113,19 +114,19 @@ def _process_translation_job(job_id: str) -> None:
                     translated_count += 1
 
                 prog = 0.1 + 0.8 * ((idx + 1) / total)
-                _push_event(job_id, "translating", prog, f"Translated {idx + 1}/{total} segments...")
+                push_event(job_id, "translating", prog, f"Translated {idx + 1}/{total} segments...")
 
-            tr.json_data = _json.dumps(data)
+            tr.json_data = json.dumps(data)
             tr.updated_at = time.time()
             session.add(tr)
             session.commit()
 
-            _push_event(
+            push_event(
                 job_id,
                 "done",
                 1.0,
                 f"Translation complete. {translated_count} new translations added.",
             )
-            _append_job_log(job_id, "INFO", "Translation job finished successfully")
+            append_job_log(job_id, "INFO", "Translation job finished successfully")
     except Exception as exc:
-        _handle_job_error(job_id, exc)
+        handle_job_error(job_id, exc)

@@ -5,7 +5,7 @@ from llm_providers import refusal_reason
 from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException
 from models import Analysis, Recording, Transcript
-from settings import _get_llm_settings
+from settings import get_llm_settings
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -30,7 +30,7 @@ async def create_analysis(
     # Refuse before queueing rather than failing the job later: a hosted
     # provider receives the whole transcript, which is the one thing this app
     # promises not to do unless asked.
-    cfg = _get_llm_settings()
+    cfg = get_llm_settings()
     refusal = refusal_reason(cfg)
     if refusal:
         raise HTTPException(400, refusal)

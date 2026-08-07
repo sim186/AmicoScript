@@ -82,7 +82,7 @@ def test_translate_has_no_reduce_step():
 
 def test_unknown_analysis_type_is_rejected():
     with pytest.raises(ValueError):
-        analysis._build_analysis_prompt("astrology", "text")
+        analysis.build_analysis_prompt("astrology", "text")
     with pytest.raises(ValueError):
         analysis._build_map_prompt("astrology", "text", 1, 1)
 
@@ -173,7 +173,7 @@ def test_short_transcript_uses_one_llm_call(monkeypatch, analysis_job):
     monkeypatch.setattr(analysis, "run_completion", fake)
 
     job_id, analysis_id = analysis_job("A short meeting transcript.")
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     assert len(fake.prompts) == 1
     assert "<transcript>" in fake.prompts[0]
@@ -187,7 +187,7 @@ def test_long_transcript_is_mapped_then_reduced(monkeypatch, analysis_job):
 
     text = "\n\n".join(f"Paragraph {i} of the discussion." for i in range(400))
     job_id, analysis_id = analysis_job(text, context_tokens=2048)
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     assert len(fake.prompts) > 2, "expected several map calls plus a reduce call"
     assert any("part 1 of" in p for p in fake.prompts)
@@ -203,7 +203,7 @@ def test_every_part_of_a_long_transcript_reaches_the_model(monkeypatch, analysis
 
     text = "\n\n".join(f"Unique marker {i} spoken aloud." for i in range(300))
     job_id, _ = analysis_job(text, context_tokens=2048)
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     combined = "\n".join(fake.prompts)
     assert "Unique marker 0 " in combined
@@ -221,7 +221,7 @@ def test_long_translation_is_concatenated_not_merged(monkeypatch, analysis_job):
     monkeypatch.setattr(analysis, "run_completion", fake)
     text = "\n\n".join(f"Paragraph {i} to translate." for i in range(400))
     job_id, analysis_id = analysis_job(text, context_tokens=2048, analysis_type="translate")
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     # No reduce prompt for translation — merging would rewrite the translation.
     assert not any("Merge them" in p for p in calls)
@@ -248,7 +248,7 @@ def test_cancelling_mid_chunk_stops_and_saves_what_was_produced(monkeypatch, ana
         return f"part-{calls['n']}", False
 
     monkeypatch.setattr(analysis, "run_completion", fake)
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     status, result = _stored(analysis_id)
     assert status == "error"
@@ -263,7 +263,7 @@ def test_llm_failure_marks_the_analysis_as_error(monkeypatch, analysis_job):
 
     monkeypatch.setattr(analysis, "run_completion", boom)
     job_id, analysis_id = analysis_job("short text")
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     assert _stored(analysis_id)[0] == "error"
     assert state.jobs[job_id]["status"] == "error"
@@ -330,7 +330,7 @@ def test_a_cloud_provider_refuses_to_run_without_consent(monkeypatch, analysis_j
     job_id, analysis_id = analysis_job("short text")
     state.jobs[job_id]["options"]["llm_provider"] = "openrouter"
     state.jobs[job_id]["options"]["llm_allow_cloud"] = False
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     assert fake.prompts == []
     assert _stored(analysis_id)[0] == "error"
@@ -345,7 +345,7 @@ def test_a_cloud_provider_runs_once_allowed(monkeypatch, analysis_job):
     job_id, analysis_id = analysis_job("short text")
     state.jobs[job_id]["options"]["llm_provider"] = "openrouter"
     state.jobs[job_id]["options"]["llm_allow_cloud"] = True
-    analysis._process_analysis_job(job_id)
+    analysis.process_analysis_job(job_id)
 
     assert len(fake.prompts) == 1
     assert fake.targets[0].provider_id == "openrouter"

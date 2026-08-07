@@ -437,10 +437,20 @@ function uploadWithProgress(fd, onProgress) {
   });
 }
 
-function makeUrlFormData(urlValue) {
+// /api/transcribe and /api/transcribe/url take the same options; only the
+// source differs. This is the one place that names them — there were three
+// copies of this list, and the next option added to the API would have had to
+// find all of them.
+//
+// Pass either { file } for an upload or { url } for an online source.
+function buildTranscriptionFormData({ file, url }) {
   const fd = new FormData();
-  fd.append('source_url', urlValue);
-  fd.append('allow_playlist', 'true');
+  if (file) {
+    fd.append('file', file);
+  } else {
+    fd.append('source_url', url);
+    fd.append('allow_playlist', 'true');
+  }
   fd.append('model', state.selectedModel);
   fd.append('language', state.selectedLanguage);
   fd.append('diarize', state.diarize ? 'true' : 'false');
@@ -471,7 +481,10 @@ async function startUrlTranscription(urlArg = '') {
   clientLog(`Queueing online source: ${urlValue}`);
 
   try {
-    const res = await fetch('/api/transcribe/url', { method: 'POST', body: makeUrlFormData(urlValue) });
+    const res = await fetch('/api/transcribe/url', {
+      method: 'POST',
+      body: buildTranscriptionFormData({ url: urlValue }),
+    });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(payload.detail || `HTTP ${res.status}`);
@@ -514,16 +527,7 @@ export async function startTranscription() {
   clientLog(`Uploading ${file.name} → ${dest} [model=${state.selectedModel}, lang=${state.selectedLanguage || 'auto'}, diarize=${state.diarize}]`);
   hideError();
 
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('model', state.selectedModel);
-  fd.append('language', state.selectedLanguage);
-  fd.append('diarize', state.diarize ? 'true' : 'false');
-  if (state.cloudPower) fd.append('colab_url', state.colabUrl);
-  fd.append('hf_token', state.hfToken);
-  fd.append('num_speakers', state.numSpeakers);
-  fd.append('min_speakers', state.minSpeakers);
-  fd.append('max_speakers', state.maxSpeakers);
+  const fd = buildTranscriptionFormData({ file });
 
   setProcessing(true);
   document.getElementById('proc-filename').textContent = file.name;
@@ -555,20 +559,6 @@ export async function startTranscription() {
   }
 }
 
-function makeBatchFormData(file) {
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('model', state.selectedModel);
-  fd.append('language', state.selectedLanguage);
-  fd.append('diarize', state.diarize ? 'true' : 'false');
-  if (state.cloudPower) fd.append('colab_url', state.colabUrl);
-  fd.append('hf_token', state.hfToken);
-  fd.append('num_speakers', state.numSpeakers);
-  fd.append('min_speakers', state.minSpeakers);
-  fd.append('max_speakers', state.maxSpeakers);
-  return fd;
-}
-
 async function startBatchTranscription() {
   const pending = state.batchQueue.filter(i => i.status === 'pending');
   if (pending.length === 0) return;
@@ -588,7 +578,7 @@ async function submitBatchItem(item) {
   renderBatchList();
   clientLog(`Uploading ${item.file.name}…`);
   try {
-    const data = await uploadWithProgress(makeBatchFormData(item.file), pct => {
+    const data = await uploadWithProgress(buildTranscriptionFormData({ file: item.file }), pct => {
       item.progress = pct * 0.05; // upload counts as first 5% of total progress
       item.message = `Uploading… ${Math.round(pct * 100)}%`;
       renderBatchList();

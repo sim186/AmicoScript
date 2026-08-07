@@ -44,7 +44,7 @@ def _status(recording_id: str):
 @pytest.mark.parametrize("status", ["queued", "transcribing", "diarizing", "loading_model"])
 def test_interrupted_job_with_audio_is_requeued(status, tmp_path, monkeypatch):
     """A restart used to destroy 90%-finished work with no explanation."""
-    import main
+    from core import job_lifecycle
 
     audio = tmp_path / "meeting.mp3"
     audio.write_bytes(b"audio")
@@ -53,7 +53,7 @@ def test_interrupted_job_with_audio_is_requeued(status, tmp_path, monkeypatch):
     async def _run():
         state._init_queue()
         state.jobs.clear()
-        main._recover_interrupted_jobs()
+        job_lifecycle.recover_interrupted_jobs()
 
     asyncio.run(_run())
 
@@ -72,14 +72,14 @@ def test_interrupted_job_with_audio_is_requeued(status, tmp_path, monkeypatch):
 
 @pytest.mark.usefixtures("api_app")
 def test_interrupted_job_without_audio_is_marked_not_errored(tmp_path):
-    import main
+    from core import job_lifecycle
 
     recording_id = _make_interrupted("downloading", str(tmp_path / "never-saved.mp3"))
 
     async def _run():
         state._init_queue()
         state.jobs.clear()
-        main._recover_interrupted_jobs()
+        job_lifecycle.recover_interrupted_jobs()
 
     asyncio.run(_run())
 
@@ -91,7 +91,7 @@ def test_interrupted_job_without_audio_is_marked_not_errored(tmp_path):
 
 @pytest.mark.usefixtures("api_app")
 def test_resume_can_be_disabled(tmp_path, monkeypatch):
-    import main
+    from core import job_lifecycle
 
     audio = tmp_path / "meeting.mp3"
     audio.write_bytes(b"audio")
@@ -101,7 +101,7 @@ def test_resume_can_be_disabled(tmp_path, monkeypatch):
     async def _run():
         state._init_queue()
         state.jobs.clear()
-        main._recover_interrupted_jobs()
+        job_lifecycle.recover_interrupted_jobs()
 
     asyncio.run(_run())
 
@@ -111,7 +111,7 @@ def test_resume_can_be_disabled(tmp_path, monkeypatch):
 
 @pytest.mark.usefixtures("api_app")
 def test_finished_recordings_are_left_alone(tmp_path):
-    import main
+    from core import job_lifecycle
 
     audio = tmp_path / "done.mp3"
     audio.write_bytes(b"audio")
@@ -120,7 +120,7 @@ def test_finished_recordings_are_left_alone(tmp_path):
     async def _run():
         state._init_queue()
         state.jobs.clear()
-        main._recover_interrupted_jobs()
+        job_lifecycle.recover_interrupted_jobs()
 
     asyncio.run(_run())
 
@@ -131,7 +131,7 @@ def test_finished_recordings_are_left_alone(tmp_path):
 
 
 def test_expiring_a_job_keeps_a_tombstone():
-    import main
+    from core import job_lifecycle
 
     state.jobs["j1"] = {
         "id": "j1",
@@ -147,7 +147,7 @@ def test_expiring_a_job_keeps_a_tombstone():
         "temp_files": [],
     }
     try:
-        main._expire_job("j1")
+        job_lifecycle.expire_job("j1")
         tombstone = state.jobs["j1"]
         assert tombstone["expired"] is True
         assert tombstone["recording_id"] == "rec-9"
@@ -158,19 +158,6 @@ def test_expiring_a_job_keeps_a_tombstone():
 
 
 # --- download prefetch ------------------------------------------------------
-
-
-def test_download_concurrency_is_read_from_the_environment(monkeypatch):
-    from core import transcription
-
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "5")
-    assert transcription._download_concurrency() == 5
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "0")
-    assert transcription._download_concurrency() == 1
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "99")
-    assert transcription._download_concurrency() == 8
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "nonsense")
-    assert transcription._download_concurrency() == 2
 
 
 def test_downloads_of_separate_jobs_overlap(monkeypatch):
@@ -316,3 +303,100 @@ def test_prefetch_is_skipped_for_non_download_jobs():
 
 async def _noop_prefetch(transcription, job_id):
     transcription.start_download_prefetch(job_id)
+
+
+# --- the sweep, now that it is not welded to an hour-long loop ---------------
+
+
+def test_the_sweep_expires_only_what_is_finished_and_old():
+    """The loop used to hold this logic, so it could only be read, not run."""
+    import time
+
+    from core import job_lifecycle
+    from core.job_status import JobStatus
+
+    old = time.time() - 7200
+    state.jobs.clear()
+    state.jobs["finished"] = {"id": "finished", "status": JobStatus.DONE, "created_at": old,
+                              "temp_files": [], "logs": []}
+    state.jobs["downloading"] = {"id": "downloading", "status": JobStatus.DOWNLOADING,
+                                 "created_at": old, "temp_files": [], "logs": []}
+    state.jobs["recent"] = {"id": "recent", "status": JobStatus.DONE,
+                            "created_at": time.time(), "temp_files": [], "logs": []}
+    try:
+        assert job_lifecycle.sweep_expired_jobs(time.time() - 3600) == 1
+        assert state.jobs["finished"]["expired"] is True
+        assert "expired" not in state.jobs["downloading"]
+        assert "expired" not in state.jobs["recent"]
+    finally:
+        state.jobs.clear()
+
+
+def test_a_sweep_deletes_temp_files_but_not_managed_audio(tmp_path, monkeypatch):
+    import time
+
+    from core import job_lifecycle
+    from core.job_status import JobStatus
+
+    managed = tmp_path / "library" / "original.mp3"
+    managed.parent.mkdir()
+    managed.write_bytes(b"audio")
+    scratch = tmp_path / "scratch.wav"
+    scratch.write_bytes(b"wav")
+    monkeypatch.setattr("config.STORAGE_ROOT", tmp_path / "library")
+
+    state.jobs.clear()
+    state.jobs["j"] = {
+        "id": "j", "status": JobStatus.DONE, "created_at": 0.0,
+        "file_path": str(managed), "temp_files": [str(scratch)], "logs": [],
+    }
+    try:
+        job_lifecycle.sweep_expired_jobs(time.time())
+        assert managed.exists(), "the library's copy is not the job's to delete"
+        assert not scratch.exists()
+    finally:
+        state.jobs.clear()
+
+
+# --- classifying what a restart left behind ---------------------------------
+
+
+def test_a_recording_whose_audio_survived_is_requeued(tmp_path):
+    from core.job_lifecycle import classify_interrupted
+    from core.job_status import JobStatus
+    from models import Recording
+
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"x")
+    rec = Recording(filename="a.mp3", file_path=str(audio), status="transcribing")
+
+    status, detail = classify_interrupted(rec, resume=True)
+    assert status == JobStatus.QUEUED
+    assert "restart" in detail
+
+
+def test_a_recording_whose_audio_is_gone_says_to_import_it_again():
+    from core.job_lifecycle import classify_interrupted
+    from core.job_status import JobStatus
+    from models import Recording
+
+    rec = Recording(filename="a.mp3", file_path="/gone/a.mp3", status="transcribing")
+
+    status, detail = classify_interrupted(rec, resume=True)
+    assert status == JobStatus.INTERRUPTED
+    assert "import it again" in detail
+
+
+def test_resume_disabled_still_explains_itself(tmp_path):
+    """Opting out of recovery must not go back to a bare 'error'."""
+    from core.job_lifecycle import classify_interrupted
+    from core.job_status import JobStatus
+    from models import Recording
+
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"x")
+    rec = Recording(filename="a.mp3", file_path=str(audio), status="transcribing")
+
+    status, detail = classify_interrupted(rec, resume=False)
+    assert status == JobStatus.INTERRUPTED
+    assert detail

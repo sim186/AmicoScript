@@ -15,6 +15,7 @@ Design rules:
   TABLE`` in ``except Exception: pass``, so a broken database looked healthy
   until a query failed much later with a confusing error.
 """
+import time
 from collections.abc import Callable
 
 from sqlalchemy import text
@@ -233,7 +234,6 @@ def run_migrations(engine) -> int:
     Raises MigrationError if a step fails — callers should surface this rather
     than continue against a database in an unknown shape.
     """
-    import time
 
     with engine.begin() as conn:
         current = get_current_version(conn)

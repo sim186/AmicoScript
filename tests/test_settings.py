@@ -14,8 +14,8 @@ def _patch_settings_file(monkeypatch, tmp_path):
 
 def test_llm_settings_persistence(tmp_path, monkeypatch):
     _patch_settings_file(monkeypatch, tmp_path)
-    settings._save_llm_settings("http://example:11434", "test-model", "secret-key")
-    cfg = settings._get_llm_settings()
+    settings.save_llm_settings("http://example:11434", "test-model", "secret-key")
+    cfg = settings.get_llm_settings()
     assert cfg["llm_base_url"] == "http://example:11434"
     assert cfg["llm_model_name"] == "test-model"
     assert cfg["llm_api_key"] == "secret-key"
@@ -24,15 +24,15 @@ def test_llm_settings_persistence(tmp_path, monkeypatch):
 def test_get_saved_hf_token_from_env(monkeypatch, tmp_path):
     _patch_settings_file(monkeypatch, tmp_path)
     monkeypatch.setenv("HF_TOKEN", "env-token")
-    assert settings._get_saved_hf_token() == "env-token"
-    settings._save_settings({"hf_token": "file-token"})
-    assert settings._get_saved_hf_token() == "file-token"
+    assert settings.get_saved_hf_token() == "env-token"
+    settings.save_settings({"hf_token": "file-token"})
+    assert settings.get_saved_hf_token() == "file-token"
 
 
 def test_save_settings_atomic(tmp_path, monkeypatch):
     """Write should be atomic: no partial file if process dies mid-write."""
     sf = _patch_settings_file(monkeypatch, tmp_path)
-    settings._save_settings({"hf_token": "abc"})
+    settings.save_settings({"hf_token": "abc"})
     assert sf.exists()
     # No .tmp file left behind
     assert not any(tmp_path.glob("*.tmp"))
@@ -42,7 +42,7 @@ def test_save_settings_atomic(tmp_path, monkeypatch):
 def test_save_settings_atomic_no_corruption_on_error(tmp_path, monkeypatch):
     """If write fails, original file should be untouched (or not created)."""
     sf = _patch_settings_file(monkeypatch, tmp_path)
-    settings._save_settings({"hf_token": "original"})
+    settings.save_settings({"hf_token": "original"})
 
     import builtins
     real_replace = os.replace
@@ -52,7 +52,7 @@ def test_save_settings_atomic_no_corruption_on_error(tmp_path, monkeypatch):
 
     monkeypatch.setattr(os, "replace", fail_replace)
     with pytest.raises(OSError):
-        settings._save_settings({"hf_token": "corrupted"})
+        settings.save_settings({"hf_token": "corrupted"})
 
     # Original file should be unchanged
     assert json.loads(sf.read_text())["hf_token"] == "original"
@@ -77,24 +77,24 @@ def test_settings_standard_mode(tmp_path, monkeypatch):
 
 def test_meeting_capture_enabled_defaults_off(tmp_path, monkeypatch):
     _patch_settings_file(monkeypatch, tmp_path)
-    assert settings._get_meeting_capture_enabled() is False
+    assert settings.get_meeting_capture_enabled() is False
 
 
 def test_meeting_capture_enabled_persistence(tmp_path, monkeypatch):
     sf = _patch_settings_file(monkeypatch, tmp_path)
-    settings._set_meeting_capture_enabled(True)
-    assert settings._get_meeting_capture_enabled() is True
+    settings.set_meeting_capture_enabled(True)
+    assert settings.get_meeting_capture_enabled() is True
     assert json.loads(sf.read_text())["meeting_capture_enabled"] is True
     # Round-trip back to False; other keys must be preserved.
-    settings._set_meeting_capture_enabled(False)
-    assert settings._get_meeting_capture_enabled() is False
+    settings.set_meeting_capture_enabled(False)
+    assert settings.get_meeting_capture_enabled() is False
     assert "meeting_capture_enabled" in json.loads(sf.read_text())
 
 
 def test_meeting_capture_enabled_preserves_other_keys(tmp_path, monkeypatch):
     sf = _patch_settings_file(monkeypatch, tmp_path)
-    settings._save_settings({"hf_token": "keep-me", "meeting_capture_enabled": True})
-    settings._set_meeting_capture_enabled(False)
+    settings.save_settings({"hf_token": "keep-me", "meeting_capture_enabled": True})
+    settings.set_meeting_capture_enabled(False)
     data = json.loads(sf.read_text())
     assert data["hf_token"] == "keep-me"
     assert data["meeting_capture_enabled"] is False

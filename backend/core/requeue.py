@@ -7,21 +7,16 @@ disk — so the job-building lives here rather than being written twice.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import threading
-import time
-import uuid
 
 import state
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import JobStatus
+from core.jobs import create_job
 from db import new_session
 from models import Recording
-from settings import _get_saved_hf_token
-
-# A recording in one of these states is finished with, one way or another, so
-# re-running it is meaningful. Anything else is already in flight.
-RETRYABLE_STATUSES = {"error", "interrupted", "cancelled", "done"}
+from settings import get_saved_hf_token
 
 
 class RequeueError(RuntimeError):
@@ -29,36 +24,24 @@ class RequeueError(RuntimeError):
 
 
 def build_job(recording_id: str, filename: str, file_path: str, opts: dict,
-              *, resumed: bool = False) -> str:
+              *, resumed: bool = False, hf_token: str | None = None) -> str:
     """Create the in-memory job for *recording_id* and return its id.
 
     Does not enqueue — the caller decides, because the worker thread and the
-    event loop submit differently.
+    event loop submit differently. ``hf_token`` defaults to the saved one; pass
+    it to build a job without reading the settings file.
     """
-    job_id = str(uuid.uuid4())
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "transcribe",
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Requeued",
-        "file_path": file_path,
-        "original_filename": filename,
-        "options": {**opts, "hf_token": opts.get("hf_token") or _get_saved_hf_token()},
-        "source_url": "",
-        "source_platform": "",
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": state.event_loop,
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-        "resumed": resumed,
-    }
-    return job_id
+    if hf_token is None:
+        hf_token = opts.get("hf_token") or get_saved_hf_token()
+    return create_job(
+        job_type="transcribe",
+        recording_id=recording_id,
+        original_filename=filename,
+        file_path=file_path,
+        options={**opts, "hf_token": hf_token},
+        message="Requeued",
+        resumed=resumed,
+    )
 
 
 def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
@@ -74,10 +57,7 @@ def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
             raise RequeueError("Recording not found")
 
         for job in state.jobs.values():
-            if job.get("recording_id") == recording_id and job.get("status") in (
-                "queued", "downloading", "preparing", "loading_model",
-                "transcribing", "diarizing", "translating",
-            ):
+            if job.get("recording_id") == recording_id and job.get("status") in ACTIVE_STATUSES:
                 raise RequeueError("This recording is already being processed.")
 
         if not rec.file_path or not os.path.exists(rec.file_path):
@@ -92,7 +72,7 @@ def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
             stored = {}
         opts = {**stored, **(options or {})}
 
-        rec.status = "queued"
+        rec.status = JobStatus.QUEUED
         rec.status_detail = "Queued again at your request"
         rec.transcription_options = json.dumps(opts)
         session.add(rec)
@@ -103,14 +83,3 @@ def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
     return build_job(recording_id, filename, file_path, opts)
 
 
-def enqueue_from_loop(job_id: str) -> None:
-    state.JOB_QUEUE.put_nowait(job_id)
-
-
-def enqueue_from_thread(job_id: str) -> bool:
-    """Submit from a non-loop thread (startup recovery, the worker)."""
-    loop = state.event_loop
-    if loop is None or not loop.is_running():
-        return False
-    loop.call_soon_threadsafe(state.JOB_QUEUE.put_nowait, job_id)
-    return True

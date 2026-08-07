@@ -27,6 +27,8 @@ from textual.screen import ModalScreen
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
+from . import actions
+from .actions import ANALYSIS_TYPES
 from .commands import COMMANDS, list_commands, run_command
 from .fuzzy import score_match
 from .widgets.command_input import CommandInput
@@ -567,30 +569,14 @@ class Palette(ModalScreen):
             rec_id = entry.key.split(":", 1)[1]
             app: "AmicoTUI" = self.app  # type: ignore[assignment]
             self.app.pop_screen()
-            from .widgets.confirm import ConfirmDialog
-            confirmed = await app.push_screen_wait(
-                ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
-            )
-            if not confirmed:
-                return
-            app.push_busy()
-            try:
-                await app.api.delete_recording(rec_id)
-                app.notify(f"deleted {rec_id[:8]}")
-                screen = app.screen
-                if hasattr(screen, "refresh_library"):
-                    screen.refresh_library()
-            except Exception as e:
-                app.notify(f"delete failed: {e}", severity="error")
-            finally:
-                app.pop_busy()
+            await actions.delete_recording(app, rec_id)
             return
 
         # In analyze mode, picking a recording opens the type chooser.
         if self._mode == "analyze" and entry.kind == "recording":
             rec_id = entry.key.split(":", 1)[1]
             self.app.pop_screen()
-            _open_analysis_type_picker(self.app, rec_id)
+            open_analysis_type_picker(self.app, rec_id)
             return
         # Transcribe mode: file browser or library recording re-transcribe.
         if self._mode == "transcribe":
@@ -726,15 +712,7 @@ def _set_llm_model(name: str):
     return go
 
 
-ANALYSIS_TYPES = [
-    ("summary", "Summarise the transcript"),
-    ("action_items", "Extract action items"),
-    ("translate", "Translate transcript"),
-    ("custom", "Run a custom prompt"),
-]
-
-
-def _open_analysis_type_picker(app: "AmicoTUI", rec_id: str) -> None:
+def open_analysis_type_picker(app: "AmicoTUI", rec_id: str) -> None:
     entries = [
         Entry(
             kind="analysis_type",
@@ -748,12 +726,7 @@ def _open_analysis_type_picker(app: "AmicoTUI", rec_id: str) -> None:
     ]
 
     async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
-        atype = entry.key.split(":", 1)[1]
-        try:
-            await app.api.create_analysis(rec_id, atype)
-            app.notify(f"{atype} analysis queued for {rec_id[:8]}")
-        except Exception as e:
-            app.notify(f"analysis failed: {e}", severity="error")
+        await actions.create_analysis(app, rec_id, entry.key.split(":", 1)[1])
 
     app.push_screen(Palette(entries=entries, on_pick=on_pick, title="choose analysis type"))
 

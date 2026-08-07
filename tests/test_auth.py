@@ -125,12 +125,12 @@ def test_remote_request_is_refused_when_no_password_is_set(remote_client, monkey
 
 
 def test_remote_request_cannot_read_the_stored_tokens(remote_client, monkeypatch):
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
     monkeypatch.setenv("AMICOSCRIPT_AUTH", "auto")
-    settings = _load_settings()
+    settings = load_settings()
     settings["hf_token"] = "hf_do_not_leak"
-    _save_settings(settings)
+    save_settings(settings)
 
     resp = remote_client.get("/api/settings")
     assert resp.status_code == 503

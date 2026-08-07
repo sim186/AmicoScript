@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import re
 
-from core.analysis import LLMTarget, run_completion
+from core.analysis import _CHARS_PER_TOKEN, LLMTarget, estimate_tokens, run_completion
 
 # More than this and the chip row stops being a decision and starts being a
 # second library to curate.
@@ -57,7 +57,6 @@ def sample_transcript(text: str, max_tokens: int) -> str:
     small talk. Taking evenly spaced windows costs nothing and keeps the
     topics from the second half in view.
     """
-    from core.analysis import _CHARS_PER_TOKEN, estimate_tokens
 
     if max_tokens <= 0 or estimate_tokens(text) <= max_tokens:
         return text

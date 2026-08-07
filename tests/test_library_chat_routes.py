@@ -26,7 +26,7 @@ HIRING = [
 def llm(monkeypatch):
     """A configured local LLM with a stubbed transport. Returns a recorder."""
     from core import library_chat
-    from settings import _load_settings, _save_llm_settings, _save_settings
+    from settings import load_settings, save_llm_settings, save_settings
 
     calls = {"prompts": [], "reply": "You agreed on forty a seat [2]."}
 
@@ -35,15 +35,15 @@ def llm(monkeypatch):
         return calls["reply"], False
 
     monkeypatch.setattr(library_chat, "run_completion", _fake_completion)
-    _save_llm_settings("http://llm.test", "test-model", "")
+    save_llm_settings("http://llm.test", "test-model", "")
     yield calls
-    settings = _load_settings()
+    settings = load_settings()
     for key in (
         "llm_base_url", "llm_model_name", "llm_api_key",
         "llm_provider", "llm_allow_cloud", "llm_embedding_model",
     ):
         settings.pop(key, None)
-    _save_settings(settings)
+    save_settings(settings)
 
 
 def _ask(client, question):
@@ -222,13 +222,13 @@ def test_chat_refuses_when_no_model_is_configured(client, make_recording, sample
 def test_chat_refuses_a_hosted_provider_without_consent(
     client, make_recording, llm
 ):
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
     _indexed(client, make_recording, PRICING, filename="pricing.mp3")
-    settings = _load_settings()
+    settings = load_settings()
     settings["llm_provider"] = "openrouter"
     settings["llm_allow_cloud"] = False
-    _save_settings(settings)
+    save_settings(settings)
 
     resp = _ask(client, "What about pricing?")
 
@@ -249,12 +249,12 @@ def test_embedding_stores_vectors_and_reports_what_is_left(
 ):
     from core import embeddings
     from api.routes import library_chat as routes
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
     _indexed(client, make_recording, PRICING, filename="pricing.mp3")
-    settings = _load_settings()
+    settings = load_settings()
     settings["llm_embedding_model"] = "test-embed"
-    _save_settings(settings)
+    save_settings(settings)
 
     monkeypatch.setattr(
         routes, "embed_texts", lambda texts, cfg: [embeddings.pack([1.0, 0.0, 0.0])] * len(texts)

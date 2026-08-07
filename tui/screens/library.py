@@ -11,6 +11,7 @@ from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import DataTable
 
+from .. import actions
 from ..clipboard import copy_to_clipboard
 from ..widgets.chrome import CommandBar, ContextHint, TitleBar
 
@@ -43,7 +44,8 @@ SOURCE_MARK = {
 }
 
 # Statuses whose work is over, so re-running them is meaningful.
-RETRYABLE = {"error", "interrupted", "cancelled", "done"}
+# Re-exported: the rule lives with the action that applies it.
+RETRYABLE = actions.RETRYABLE
 
 
 def _fmt_duration(seconds):
@@ -202,43 +204,16 @@ class LibraryPanel(Widget):
         self.run_worker(self._retry_selected(rec_id), exclusive=False)
 
     async def _retry_selected(self, rec_id: str) -> None:
-        """Transcribe the highlighted recording again."""
-        from ..errors import explain
+        """Transcribe the highlighted recording again.
 
+        The row is already loaded, so pass it: that is what lets the refusal
+        for a still-running recording be explained without a round trip.
+        """
         record = next((r for r in self._items if str(r["id"]) == rec_id), None)
-        status = (record or {}).get("status", "")
-        if status and status not in RETRYABLE:
-            self.app.notify(f"{status} — wait for it to finish first", severity="warning")
-            return
-        detail = (record or {}).get("status_detail")
-        if detail:
-            self.app.notify(detail)
-
-        try:
-            await self.app.api.retry_recording(rec_id)
-        except Exception as exc:
-            self.app.notify(explain(exc, "retry failed"), severity="error")
-            return
-        self.app.notify(f"queued again: {rec_id[:8]}…")
-        self.refresh_library()
+        await actions.retry_recording(self.app, rec_id, record=record)
 
     async def _delete_selected(self, rec_id: str) -> None:
-        from ..widgets.confirm import ConfirmDialog
-        confirmed = await self.app.push_screen_wait(
-            ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
-        )
-        if not confirmed:
-            return
-        app: "AmicoTUI" = self.app  # type: ignore[assignment]
-        app.push_busy()
-        try:
-            await app.api.delete_recording(rec_id)
-            app.notify(f"deleted {rec_id[:8]}")
-            self.refresh_library()
-        except Exception as e:
-            app.notify(f"delete failed: {e}", severity="error")
-        finally:
-            app.pop_busy()
+        await actions.delete_recording(self.app, rec_id)
 
     def action_rename_row(self) -> None:
         rec_id = self._selected_id()
@@ -343,25 +318,8 @@ class LibraryPanel(Widget):
         self.refresh_library()
 
     async def _bulk_delete(self) -> None:
-        from ..widgets.confirm import ConfirmDialog
-        ids = list(self.selected_ids)
-        confirmed = await self.app.push_screen_wait(
-            ConfirmDialog(f"Delete {len(ids)} recordings…? This cannot be undone.")
-        )
-        if not confirmed:
-            return
-        app: "AmicoTUI" = self.app  # type: ignore[assignment]
-        app.push_busy()
-        errors = 0
-        for rec_id in ids:
-            try:
-                await app.api.delete_recording(rec_id)
-            except Exception:
-                errors += 1
-        app.pop_busy()
-        ok = len(ids) - errors
-        app.notify(f"deleted {ok}/{len(ids)}" + (f" ({errors} failed)" if errors else ""))
-        self._after_bulk()
+        if await actions.delete_recordings(self.app, list(self.selected_ids)):
+            self._after_bulk()
 
     async def _bulk_export(self) -> None:
         from pathlib import Path

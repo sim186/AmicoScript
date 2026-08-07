@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Callable
 
+from . import actions
 from .api import UNCHANGED
 from .errors import explain
 
@@ -190,18 +191,7 @@ async def _delete(app, args):
         app.push_screen(pal)
         pal.call_after_refresh(seed_palette, pal, "/delete ")
         return
-    rec_id = args[0]
-    from .widgets.confirm import ConfirmDialog
-    confirmed = await app.push_screen_wait(
-        ConfirmDialog(f"Delete recording {rec_id[:8]}…? This cannot be undone.")
-    )
-    if not confirmed:
-        return
-    await app.api.delete_recording(rec_id)
-    app.notify(f"deleted {rec_id}")
-    screen = app.screen
-    if hasattr(screen, "refresh_library"):
-        screen.refresh_library()
+    await actions.delete_recording(app, args[0])
 
 
 @command("rename", "rename recording <id> <new name>")
@@ -428,28 +418,7 @@ async def _retry(app, args):
         app.push_screen(pal)
         pal.call_after_refresh(seed_palette, pal, "/retry ")
         return
-    rec_id = args[0]
-    try:
-        result = await app.api.retry_recording(rec_id)
-    except Exception as exc:
-        app.notify(explain(exc, "retry failed"), severity="error")
-        return
-    app.notify(f"queued again: {rec_id[:8]}…")
-    job_id = result.get("job_id")
-    if job_id:
-        await _follow_job(app, job_id)
-    screen = app.screen
-    if hasattr(screen, "refresh_library"):
-        screen.refresh_library()
-
-
-async def _follow_job(app, job_id: str) -> None:
-    """Open the job detail screen if the app knows how to."""
-    try:
-        from .screens.job_detail import JobDetailScreen
-        app.push_screen(JobDetailScreen(job_id))
-    except Exception:
-        pass
+    await actions.retry_recording(app, args[0])
 
 
 @command("backup", "backup export [path] | backup import <path> [overwrite]")
@@ -633,7 +602,7 @@ async def _analyze(app, args):
     * ``/analyze <rec_id>`` — skip the recording picker, choose type
     * ``/analyze <rec_id> <type> [extra]`` — fire immediately
     """
-    from .palette import Palette, _open_analysis_type_picker, seed_palette
+    from .palette import Palette, open_analysis_type_picker, seed_palette
     if not args:
         pal = Palette()
         app.push_screen(pal)
@@ -641,19 +610,10 @@ async def _analyze(app, args):
         return
     rec_id = args[0]
     if len(args) == 1:
-        _open_analysis_type_picker(app, rec_id)
+        open_analysis_type_picker(app, rec_id)
         return
-    atype = args[1]
-    extra: dict = {}
-    if atype == "translate" and len(args) >= 3:
-        extra["target_language"] = args[2]
-    elif atype == "custom" and len(args) >= 3:
-        extra["custom_prompt"] = " ".join(args[2:])
-    try:
-        await app.api.create_analysis(rec_id, atype, **extra)
-        app.notify(f"{atype} analysis queued for {rec_id[:8]}")
-    except Exception as e:
-        app.notify(f"analysis failed: {e}", severity="error")
+    analysis_type, extra = actions.parse_analysis_args(args[1:])
+    await actions.create_analysis(app, rec_id, analysis_type, **extra)
 
 
 @command("models", "pick a Whisper transcription model")

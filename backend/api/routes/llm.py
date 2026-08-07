@@ -21,7 +21,9 @@ from llm_providers import (
     normalize_models,
     provider_catalog,
 )
-from settings import _get_llm_settings, _save_llm_settings
+from concurrent.futures import ThreadPoolExecutor
+
+import settings
 
 router = APIRouter()
 
@@ -43,7 +45,7 @@ def list_providers() -> dict:
 @router.get("/api/llm/settings")
 def get_llm_settings() -> dict:
     """LLM config for the UI. The API key is reported as set/unset, never echoed."""
-    cfg = _get_llm_settings()
+    cfg = settings.get_llm_settings()
     api_key = cfg.pop("llm_api_key", "")
     cfg["llm_api_key_set"] = bool(api_key)
     provider = get_provider(cfg.get("llm_provider", ""))
@@ -80,7 +82,7 @@ async def save_llm_settings(
             return None
         return parsed if parsed > 0 else None
 
-    current = _get_llm_settings()
+    current = settings.get_llm_settings()
     provider = get_provider(llm_provider or current.get("llm_provider", ""))
     switching = bool(llm_provider) and provider.id != current.get("llm_provider")
 
@@ -103,7 +105,7 @@ async def save_llm_settings(
         else llm_allow_cloud.strip().lower() in {"1", "true", "yes", "on"}
     )
 
-    _save_llm_settings(
+    settings.save_llm_settings(
         base_url,
         llm_model_name,
         api_key,
@@ -128,7 +130,7 @@ async def save_llm_settings(
 @router.post("/api/llm/test-connection")
 async def test_llm_connection() -> dict:
     """Try a real completion and report something the user can act on."""
-    cfg = _get_llm_settings()
+    cfg = settings.get_llm_settings()
     provider_id = cfg.get("llm_provider", DEFAULT_PROVIDER)
     provider = get_provider(provider_id)
     base_url = cfg["llm_base_url"]
@@ -231,7 +233,6 @@ async def detect_llm_servers() -> dict:
 
 
 def _probe_all(targets: list[str]) -> list[dict]:
-    from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=min(8, max(1, len(targets)))) as pool:
         results = list(pool.map(_probe_one, targets))
@@ -283,7 +284,7 @@ async def list_llm_models(base_url: str = "", provider: str = "") -> list:
 
     Passing base_url lets the setup UI preview a server before saving it.
     """
-    cfg = _get_llm_settings()
+    cfg = settings.get_llm_settings()
     provider_id = provider or cfg.get("llm_provider", DEFAULT_PROVIDER)
     target = base_url or cfg["llm_base_url"]
     if not target:
@@ -310,7 +311,7 @@ async def pull_llm_model(body: dict) -> dict:
     if not model_name:
         raise HTTPException(400, "model_name required")
 
-    cfg = _get_llm_settings()
+    cfg = settings.get_llm_settings()
     provider = get_provider(cfg.get("llm_provider", DEFAULT_PROVIDER))
     if not provider.supports_pull:
         raise HTTPException(

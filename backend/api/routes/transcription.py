@@ -4,17 +4,23 @@ import asyncio
 import datetime
 import json
 import os
-import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 
 import aiofiles
+import shutil
+
+import config
 import state
-from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
+from core.job_helpers import append_job_log, push_event, sync_job_to_db
+from core.translation import translate_audio_chunk
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import JobStatus
+from core.jobs import create_job, submit
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
@@ -23,7 +29,7 @@ from exports import render_export
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from models import Recording, RecordingTag, Tag, Transcript
-from settings import _get_saved_hf_token, _get_whisper_settings
+from settings import get_saved_hf_token, get_whisper_settings
 from sqlmodel import Session, select
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
@@ -75,8 +81,7 @@ def _get_live_job(job_id: str) -> dict:
 
 
 def _upload_dir() -> Path:
-    from config import STORAGE_ROOT
-    upload_dir = STORAGE_ROOT / "uploads"
+    upload_dir = config.STORAGE_ROOT / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     return upload_dir
 
@@ -90,53 +95,95 @@ def _to_bool(value: str, default: bool = False) -> bool:
     return default
 
 
-def _build_transcription_options(
-    model: str,
-    language: str,
-    diarize: str,
-    colab_url: str,
-    num_speakers: str,
-    min_speakers: str,
-    max_speakers: str,
-    compute_type: str,
-    device: str,
-    device_index: str,
-    vad_filter: str,
-    word_timestamps: str,
-    beam_size: str,
-    best_of: str,
-    force_normalize_audio: str,
-) -> dict[str, Any]:
-    def _parse_positive_int(value: str, default: int | None) -> int | None:
-        try:
-            v = int(value)
-            return v if v > 0 else default
-        except (ValueError, TypeError):
-            return default
+def _positive_int(value: str, default: int | None) -> int | None:
+    try:
+        parsed = int(value)
+    except (ValueError, TypeError):
+        return default
+    return parsed if parsed > 0 else default
 
-    # The saved Whisper settings are the fallback when a client does not name a
-    # device or precision — which is every client today. Without this the
-    # stored values were write-only: the settings page offered them, the TUI
-    # could set them, and no job ever read them.
-    saved = _get_whisper_settings()
 
-    return TranscriptionConfig(
-        model=model,
-        language=language,
-        diarize=_to_bool(diarize),
-        colab_url=colab_url,
-        num_speakers=_parse_positive_int(num_speakers, None),
-        min_speakers=_parse_positive_int(min_speakers, None),
-        max_speakers=_parse_positive_int(max_speakers, None),
-        compute_type=(compute_type or saved["whisper_compute"] or "auto"),
-        device=(device or saved["whisper_device"] or "auto"),
-        device_index=_parse_positive_int(device_index, 0) or 0,
-        vad_filter=_to_bool(vad_filter, default=True),
-        word_timestamps=_to_bool(word_timestamps),
-        beam_size=_parse_positive_int(beam_size, 5) or 5,
-        best_of=_parse_positive_int(best_of, 5) or 5,
-        force_normalize_audio=_to_bool(force_normalize_audio),
-    ).model_dump()
+class TranscriptionForm:
+    """The transcription options a client may send, declared once.
+
+    /api/transcribe and /api/transcribe/url accept exactly the same set, and
+    used to spell all sixteen out separately — so adding an option meant
+    editing four lists in the right order, with nothing but the uniform `str`
+    typing to catch a mis-ordered argument.
+
+    Every field arrives as a string because these are multipart form fields;
+    ``to_options`` does the coercion and merges in the saved defaults.
+
+    The Form markers live in the annotations rather than in the defaults, so
+    the defaults stay ordinary strings and the class can be constructed
+    directly — in a test, or anywhere else that is not handling a request.
+    """
+
+    def __init__(
+        self,
+        model: Annotated[str, Form()] = "small",
+        language: Annotated[str, Form()] = "",
+        diarize: Annotated[str, Form()] = "false",
+        colab_url: Annotated[str, Form()] = "",
+        hf_token: Annotated[str, Form()] = "",
+        num_speakers: Annotated[str, Form()] = "",
+        min_speakers: Annotated[str, Form()] = "",
+        max_speakers: Annotated[str, Form()] = "",
+        # Empty, not "int8"/"auto": an explicit default here would shadow the
+        # saved Whisper settings, which is how they became write-only.
+        compute_type: Annotated[str, Form()] = "",
+        device: Annotated[str, Form()] = "",
+        device_index: Annotated[str, Form()] = "0",
+        vad_filter: Annotated[str, Form()] = "true",
+        word_timestamps: Annotated[str, Form()] = "false",
+        beam_size: Annotated[str, Form()] = "5",
+        best_of: Annotated[str, Form()] = "5",
+        force_normalize_audio: Annotated[str, Form()] = "false",
+        folder_id: Annotated[str, Form()] = "",
+    ) -> None:
+        self.model = model
+        self.language = language
+        self.diarize = diarize
+        self.colab_url = colab_url
+        self.hf_token = hf_token
+        self.num_speakers = num_speakers
+        self.min_speakers = min_speakers
+        self.max_speakers = max_speakers
+        self.compute_type = compute_type
+        self.device = device
+        self.device_index = device_index
+        self.vad_filter = vad_filter
+        self.word_timestamps = word_timestamps
+        self.beam_size = beam_size
+        self.best_of = best_of
+        self.force_normalize_audio = force_normalize_audio
+        self.folder_id = folder_id
+
+    def to_options(self) -> dict[str, Any]:
+        """Coerce the submitted strings into the options a job runs with."""
+        # The saved Whisper settings are the fallback when a client does not
+        # name a device or precision — which is every client today. Without
+        # this the stored values were write-only: the settings page offered
+        # them, the TUI could set them, and no job ever read them.
+        saved = get_whisper_settings()
+
+        return TranscriptionConfig(
+            model=self.model,
+            language=self.language,
+            diarize=_to_bool(self.diarize),
+            colab_url=self.colab_url,
+            num_speakers=_positive_int(self.num_speakers, None),
+            min_speakers=_positive_int(self.min_speakers, None),
+            max_speakers=_positive_int(self.max_speakers, None),
+            compute_type=(self.compute_type or saved["whisper_compute"] or "auto"),
+            device=(self.device or saved["whisper_device"] or "auto"),
+            device_index=_positive_int(self.device_index, 0) or 0,
+            vad_filter=_to_bool(self.vad_filter, default=True),
+            word_timestamps=_to_bool(self.word_timestamps),
+            beam_size=_positive_int(self.beam_size, 5) or 5,
+            best_of=_positive_int(self.best_of, 5) or 5,
+            force_normalize_audio=_to_bool(self.force_normalize_audio),
+        ).model_dump()
 
 
 def _create_recording_row(
@@ -147,21 +194,31 @@ def _create_recording_row(
     opts_dict: dict[str, Any],
     source: str = "upload",
 ) -> None:
-    try:
-        with new_session() as session:
-            recording = Recording(
-                id=recording_id,
-                filename=filename or "audio",
-                file_path=file_path,
-                folder_id=folder_id or None,
-                status="queued",
-                source=source if source in _VALID_SOURCES else "upload",
-                transcription_options=json.dumps(opts_dict),
-            )
-            session.add(recording)
-            session.commit()
-    except Exception:
-        pass
+    """Insert the Recording row a job will later write its transcript against.
+
+    Not best-effort. This row is the job's destination: without it the worker
+    transcribes the whole file and sync_job_to_db finds nothing to attach the
+    transcript to and returns quietly, so the user waits out a full run and
+    ends up with nothing and no error. Better to refuse the upload.
+    """
+    with new_session() as session:
+        recording = Recording(
+            id=recording_id,
+            filename=filename or "audio",
+            file_path=file_path,
+            folder_id=folder_id or None,
+            status=JobStatus.QUEUED,
+            source=source if source in _VALID_SOURCES else "upload",
+            transcription_options=json.dumps(opts_dict),
+        )
+        session.add(recording)
+        session.commit()
+
+
+def _discard_ingested_audio(recording_id: str) -> None:
+    """Remove audio that was ingested for a recording that never came to exist."""
+
+    shutil.rmtree(config.RECORDINGS_DIR / recording_id, ignore_errors=True)
 
 
 def _create_job(
@@ -176,29 +233,18 @@ def _create_job(
     source_url: str = "",
     source_platform: str = "",
 ) -> None:
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": job_type,
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": file_path,
-        "original_filename": original_filename,
-        "options": {**opts_dict, "hf_token": hf_token or _get_saved_hf_token()},
-        "source_url": source_url,
-        "source_platform": source_platform,
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-    }
-    _append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
-    state.JOB_QUEUE.put_nowait(job_id)
+    create_job(
+        job_id=job_id,
+        job_type=job_type,
+        recording_id=recording_id,
+        original_filename=original_filename,
+        file_path=file_path,
+        options={**opts_dict, "hf_token": hf_token or get_saved_hf_token()},
+        source_url=source_url,
+        source_platform=source_platform,
+    )
+    append_job_log(job_id, "INFO", f"Job created for source '{original_filename}'")
+    submit(job_id)
     # URL imports start fetching immediately instead of waiting for the model
     # stage to reach them; see core/transcription.start_download_prefetch.
     start_download_prefetch(job_id)
@@ -236,26 +282,8 @@ def _ensure_recording_platform_tag(recording_id: str, platform: str) -> None:
 @router.post("/api/transcribe")
 async def transcribe(
     file: UploadFile = File(...),
-    model: str = Form("small"),
-    language: str = Form(""),
-    diarize: str = Form("false"),
-    colab_url: str = Form(""),
-    hf_token: str = Form(""),
-    num_speakers: str = Form(""),
-    min_speakers: str = Form(""),
-    max_speakers: str = Form(""),
-    # Empty, not "int8"/"auto": an explicit default here would shadow the
-    # saved Whisper settings, which is how they became write-only.
-    compute_type: str = Form(""),
-    device: str = Form(""),
-    device_index: str = Form("0"),
-    vad_filter: str = Form("true"),
-    word_timestamps: str = Form("false"),
-    beam_size: str = Form("5"),
-    best_of: str = Form("5"),
-    force_normalize_audio: str = Form("false"),
-    folder_id: str = Form(""),
     source: str = Form("upload"),
+    form: TranscriptionForm = Depends(),
 ) -> dict:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -270,41 +298,33 @@ async def transcribe(
 
     recording_id = str(uuid.uuid4())
     permanent_path = ingest_file(staging, recording_id)
+    opts_dict = form.to_options()
+    filename = file.filename or "audio"
 
-    opts_dict = _build_transcription_options(
-        model=model,
-        language=language,
-        diarize=diarize,
-        colab_url=colab_url,
-        num_speakers=num_speakers,
-        min_speakers=min_speakers,
-        max_speakers=max_speakers,
-        compute_type=compute_type,
-        device=device,
-        device_index=device_index,
-        vad_filter=vad_filter,
-        word_timestamps=word_timestamps,
-        beam_size=beam_size,
-        best_of=best_of,
-        force_normalize_audio=force_normalize_audio,
-    )
-
-    _create_recording_row(
-        recording_id=recording_id,
-        filename=file.filename or "audio",
-        file_path=str(permanent_path),
-        folder_id=folder_id,
-        opts_dict=opts_dict,
-        source=source,
-    )
+    try:
+        _create_recording_row(
+            recording_id=recording_id,
+            filename=filename,
+            file_path=str(permanent_path),
+            folder_id=form.folder_id,
+            opts_dict=opts_dict,
+            source=source,
+        )
+    except Exception as exc:
+        # The audio is already in managed storage but nothing will ever point
+        # at it, so take it back out rather than leave an orphan directory.
+        _discard_ingested_audio(recording_id)
+        raise HTTPException(
+            500, f"Could not save this recording to the library: {exc}"
+        ) from exc
 
     _create_job(
         job_id=job_id,
         recording_id=recording_id,
-        original_filename=file.filename or "audio",
+        original_filename=filename,
         file_path=str(permanent_path),
         opts_dict=opts_dict,
-        hf_token=hf_token,
+        hf_token=form.hf_token,
     )
     return {"job_id": job_id, "recording_id": recording_id}
 
@@ -313,25 +333,7 @@ async def transcribe(
 async def transcribe_from_url(
     source_url: str = Form(...),
     allow_playlist: str = Form("true"),
-    model: str = Form("small"),
-    language: str = Form(""),
-    diarize: str = Form("false"),
-    colab_url: str = Form(""),
-    hf_token: str = Form(""),
-    num_speakers: str = Form(""),
-    min_speakers: str = Form(""),
-    max_speakers: str = Form(""),
-    # Empty, not "int8"/"auto": an explicit default here would shadow the
-    # saved Whisper settings, which is how they became write-only.
-    compute_type: str = Form(""),
-    device: str = Form(""),
-    device_index: str = Form("0"),
-    vad_filter: str = Form("true"),
-    word_timestamps: str = Form("false"),
-    beam_size: str = Form("5"),
-    best_of: str = Form("5"),
-    force_normalize_audio: str = Form("false"),
-    folder_id: str = Form(""),
+    form: TranscriptionForm = Depends(),
 ) -> dict:
     normalized_url = (source_url or "").strip()
     if not normalized_url:
@@ -351,23 +353,7 @@ async def transcribe_from_url(
     if not candidates:
         raise HTTPException(400, "No downloadable entries found for this URL")
 
-    opts_dict = _build_transcription_options(
-        model=model,
-        language=language,
-        diarize=diarize,
-        colab_url=colab_url,
-        num_speakers=num_speakers,
-        min_speakers=min_speakers,
-        max_speakers=max_speakers,
-        compute_type=compute_type,
-        device=device,
-        device_index=device_index,
-        vad_filter=vad_filter,
-        word_timestamps=word_timestamps,
-        beam_size=beam_size,
-        best_of=best_of,
-        force_normalize_audio=force_normalize_audio,
-    )
+    opts_dict = form.to_options()
 
     jobs: list[dict[str, str]] = []
     for candidate in candidates:
@@ -379,7 +365,7 @@ async def transcribe_from_url(
             recording_id=recording_id,
             filename=display_name,
             file_path="",
-            folder_id=folder_id,
+            folder_id=form.folder_id,
             opts_dict=opts_dict,
             source="url",
         )
@@ -391,7 +377,7 @@ async def transcribe_from_url(
             original_filename=display_name,
             file_path="",
             opts_dict=opts_dict,
-            hf_token=hf_token,
+            hf_token=form.hf_token,
             job_type="download_transcribe",
             source_url=candidate.url,
             source_platform=candidate.platform,
@@ -435,14 +421,10 @@ async def stream_job(job_id: str):
 @router.get("/api/jobs")
 def list_jobs() -> dict:
     """Return all non-terminal jobs with queue position for the UI queue strip."""
-    active_statuses = {
-        "queued", "downloading", "postprocessing",
-        "preparing", "transcribing", "diarizing", "warning",
-    }
     rows: list[dict] = []
     for jid, j in state.jobs.items():
         st = j.get("status")
-        if st not in active_statuses:
+        if st not in ACTIVE_STATUSES:
             continue
         cf = j.get("cancel_flag")
         if cf and cf.is_set():
@@ -473,20 +455,19 @@ def cancel_job(job_id: str) -> dict:
     # its next cancel check. The worker may still spend a bit of CPU until
     # the current blocking call (e.g. model load, pyannote step) returns,
     # but its further phases will see cancel_flag and bail.
-    _push_event(job_id, "cancelled", 0.0, "Job cancelled")
-    _sync_job_to_db(job_id)
+    push_event(job_id, "cancelled", 0.0, "Job cancelled")
+    sync_job_to_db(job_id)
     return {"ok": True}
 
 
 @router.get("/api/audio/{job_id}")
 def get_audio(job_id: str):
-    from config import STORAGE_ROOT
     job = _get_live_job(job_id)
     fp = job.get("file_path", "")
     if not fp or not os.path.exists(fp):
         raise HTTPException(404, "Audio file not found (may have expired)")
     try:
-        if not Path(fp).resolve().is_relative_to(STORAGE_ROOT.resolve()):
+        if not Path(fp).resolve().is_relative_to(config.STORAGE_ROOT.resolve()):
             raise HTTPException(403, "Access denied")
     except ValueError:
         raise HTTPException(403, "Access denied")
@@ -507,9 +488,8 @@ def get_result(job_id: str) -> dict:
 def get_job_logs(job_id: str, limit: int = 300) -> dict:
     job = _get_live_job(job_id)
     safe_limit = max(1, min(limit, 1000))
-    logs = job.get("logs", [])
-    if not isinstance(logs, list):
-        logs = list(logs)
+    # A deque, so it has to be materialised before it can be sliced.
+    logs = list(job["logs"])
     return {
         "status": job.get("status"),
         "progress": job.get("progress"),
@@ -520,7 +500,6 @@ def get_job_logs(job_id: str, limit: int = 300) -> dict:
 
 @router.post("/api/jobs/{job_id}/rename-speaker")
 async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str = Form(...)) -> dict:
-    from core.job_helpers import _sync_job_to_db
     job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
@@ -537,7 +516,7 @@ async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str =
         if seg.get("speaker") == old_name:
             seg["speaker"] = new_name
 
-    _sync_job_to_db(job_id)
+    sync_job_to_db(job_id)
     return {"ok": True, "new_name": new_name}
 
 
@@ -570,14 +549,12 @@ def export_job(job_id: str, fmt: str, wikilinks: bool = False):
     return StreamingResponse(
         iter([content]),
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.{ext}")},
     )
 
 
 @router.post("/api/recordings/{recording_id}/transcript/segments/{segment_index}/translate")
 async def translate_segment_api(recording_id: str, segment_index: int, session: Session = Depends(get_session)) -> dict:
-    from core.translation import _translate_audio_chunk
-
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")
@@ -595,7 +572,7 @@ async def translate_segment_api(recording_id: str, segment_index: int, session: 
     opts = json.loads(rec.transcription_options or "{}")
     model_name = opts.get("model", "small")
 
-    translated_text = await run_in_threadpool(_translate_audio_chunk, rec.file_path, seg["start"], seg["end"], model_name)
+    translated_text = await run_in_threadpool(translate_audio_chunk, rec.file_path, seg["start"], seg["end"], model_name)
 
     seg["translation"] = translated_text
     data["segments"] = segments
@@ -613,28 +590,14 @@ async def translate_all_api(recording_id: str, session: Session = Depends(get_se
         raise HTTPException(404, "Recording not found")
 
     opts = json.loads(rec.transcription_options or "{}")
-    model_name = opts.get("model", "small")
-    job_id = str(uuid.uuid4())
 
-    state.jobs[job_id] = {
-        "id": job_id,
-        "type": "translate",
-        "recording_id": recording_id,
-        "status": "queued",
-        "progress": 0.0,
-        "message": "Queued",
-        "file_path": rec.file_path,
-        "original_filename": rec.filename,
-        "options": {"model": model_name},
-        "result": None,
-        "error": None,
-        "created_at": time.time(),
-        "sse_queue": asyncio.Queue(),
-        "event_loop": asyncio.get_running_loop(),
-        "cancel_flag": threading.Event(),
-        "logs": [],
-        "temp_files": [],
-    }
-    _append_job_log(job_id, "INFO", f"Bulk translation job created for recording '{rec.filename}'")
-    state.JOB_QUEUE.put_nowait(job_id)
+    job_id = create_job(
+        job_type="translate",
+        recording_id=recording_id,
+        original_filename=rec.filename,
+        file_path=rec.file_path,
+        options={"model": opts.get("model", "small")},
+    )
+    append_job_log(job_id, "INFO", f"Bulk translation job created for recording '{rec.filename}'")
+    submit(job_id)
     return {"ok": True, "job_id": job_id}

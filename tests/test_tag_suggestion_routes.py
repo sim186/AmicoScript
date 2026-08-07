@@ -13,7 +13,7 @@ pytestmark = pytest.mark.usefixtures("no_auth")
 def llm(monkeypatch):
     """Configure a local LLM and stub the transport. Returns a recorder."""
     from core import tagging
-    from settings import _load_settings, _save_llm_settings, _save_settings
+    from settings import load_settings, save_llm_settings, save_settings
 
     calls = {"prompts": [], "reply": '["hiring", "q3 planning"]'}
 
@@ -22,9 +22,9 @@ def llm(monkeypatch):
         return calls["reply"], False
 
     monkeypatch.setattr(tagging, "run_completion", _fake_completion)
-    _save_llm_settings("http://llm.test", "test-model", "")
+    save_llm_settings("http://llm.test", "test-model", "")
     yield calls
-    settings = _load_settings()
+    settings = load_settings()
     # llm_provider and llm_allow_cloud too: the hosted-provider test sets them,
     # and leaving them behind makes every later test in the file refuse.
     for key in (
@@ -32,7 +32,7 @@ def llm(monkeypatch):
         "llm_provider", "llm_allow_cloud",
     ):
         settings.pop(key, None)
-    _save_settings(settings)
+    save_settings(settings)
 
 
 def _suggest(client, rec_id):
@@ -123,12 +123,12 @@ def test_it_refuses_a_hosted_provider_without_consent(
 ):
     """A hosted model would receive the transcript — the one thing this app
     promises not to do unless asked."""
-    from settings import _load_settings, _save_settings
+    from settings import load_settings, save_settings
 
-    settings = _load_settings()
+    settings = load_settings()
     settings["llm_provider"] = "openrouter"
     settings["llm_allow_cloud"] = False
-    _save_settings(settings)
+    save_settings(settings)
 
     resp = _suggest(client, make_recording(segments=sample_segments))
 

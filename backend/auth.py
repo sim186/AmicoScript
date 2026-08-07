@@ -41,7 +41,7 @@ import secrets
 import time
 from dataclasses import dataclass
 
-from settings import _load_settings, _save_settings
+from settings import load_settings, save_settings
 
 # --- tunables ---------------------------------------------------------------
 
@@ -94,7 +94,7 @@ def is_enabled() -> bool:
 def password_is_set() -> bool:
     if os.environ.get("AMICOSCRIPT_PASSWORD", ""):
         return True
-    s = _load_settings()
+    s = load_settings()
     return bool(s.get("auth_password_hash") and s.get("auth_password_salt"))
 
 
@@ -103,7 +103,7 @@ def check_password(password: str) -> bool:
     env_password = os.environ.get("AMICOSCRIPT_PASSWORD", "")
     if env_password:
         return hmac.compare_digest(password, env_password)
-    s = _load_settings()
+    s = load_settings()
     return verify_password(
         password, s.get("auth_password_hash", ""), s.get("auth_password_salt", "")
     )
@@ -118,29 +118,29 @@ def set_password(password: str) -> str:
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters long")
     digest, salt = hash_password(password)
-    s = _load_settings()
+    s = load_settings()
     s["auth_password_hash"] = digest
     s["auth_password_salt"] = salt
     s["auth_secret"] = secrets.token_hex(32)
     s.setdefault("auth_api_token", secrets.token_urlsafe(32))
-    _save_settings(s)
+    save_settings(s)
     return s["auth_api_token"]
 
 
 def clear_password() -> None:
-    s = _load_settings()
+    s = load_settings()
     for key in ("auth_password_hash", "auth_password_salt", "auth_secret", "auth_api_token"):
         s.pop(key, None)
-    _save_settings(s)
+    save_settings(s)
 
 
 def _signing_secret() -> str:
-    s = _load_settings()
+    s = load_settings()
     secret = s.get("auth_secret", "")
     if not secret:
         secret = secrets.token_hex(32)
         s["auth_secret"] = secret
-        _save_settings(s)
+        save_settings(s)
     return secret
 
 
@@ -149,12 +149,12 @@ def api_token() -> str:
     env_token = os.environ.get("AMICOSCRIPT_API_TOKEN", "")
     if env_token:
         return env_token
-    s = _load_settings()
+    s = load_settings()
     token = s.get("auth_api_token", "")
     if not token:
         token = secrets.token_urlsafe(32)
         s["auth_api_token"] = token
-        _save_settings(s)
+        save_settings(s)
     return token
 
 

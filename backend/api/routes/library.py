@@ -5,11 +5,17 @@ import json
 import time
 from pathlib import Path
 
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 
+import state
+from core.job_status import RETRYABLE as RETRYABLE_STATUSES
+from core.jobs import submit
+from core.library_index import index_recording
+from core.requeue import RequeueError, requeue_recording
 from db import get_session, new_session
+from storage import get_recording_audio_path
 
-from exports import _format_md_bulk, render_export
+from exports import format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
@@ -37,8 +43,6 @@ def _reindex_for_chat(recording_id: str, session: Session) -> None:
     stale chunk would keep the old wording findable — and quotable in an
     answer. Never fatal: the edit itself has already been saved.
     """
-    from core.library_index import index_recording
-
     try:
         index_recording(recording_id, session)
     except Exception:
@@ -168,13 +172,12 @@ async def update_recording(
 
 @router.delete("/api/recordings/{recording_id}")
 def delete_recording(recording_id: str, session: Session = Depends(get_session)) -> dict:
-    import state as _state
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")
 
     # Refuse if an active job is processing this recording
-    for job in _state.jobs.values():
+    for job in state.jobs.values():
         if job.get("recording_id") == recording_id and job.get("status") in (
             "queued", "transcribing", "diarizing", "loading_model", "translating"
         ):
@@ -220,7 +223,6 @@ def retry_recording(recording_id: str) -> dict:
     re-import the file. This reuses the stored options, so a retry runs with the
     same model, language and diarization settings as the original attempt.
     """
-    from core.requeue import RETRYABLE_STATUSES, RequeueError, enqueue_from_loop, requeue_recording
 
     with new_session() as session:
         rec = session.get(Recording, recording_id)
@@ -236,13 +238,12 @@ def retry_recording(recording_id: str) -> dict:
     except RequeueError as exc:
         raise HTTPException(409, str(exc)) from exc
 
-    enqueue_from_loop(job_id)
+    submit(job_id)
     return {"ok": True, "job_id": job_id, "recording_id": recording_id}
 
 
 @router.get("/api/recordings/{recording_id}/audio")
 def get_recording_audio(recording_id: str, session: Session = Depends(get_session)):
-    from storage import get_recording_audio_path
 
     rec = session.get(Recording, recording_id)
     if not rec:
@@ -309,7 +310,7 @@ def export_recording(
     return StreamingResponse(
         iter([content]),
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.{ext}")},
     )
 
 
@@ -342,12 +343,12 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
         })
     if not recordings:
         raise HTTPException(404, "No valid transcripts found for provided IDs")
-    content = _format_md_bulk(recordings, wikilinks=body.wikilinks)
+    content = format_md_bulk(recordings, wikilinks=body.wikilinks)
     filename = "transcripts" if len(recordings) > 1 else recordings[0]["title"]
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type="text/markdown",
-        headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.md")},
     )
 
 
