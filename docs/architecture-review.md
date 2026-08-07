@@ -5,13 +5,13 @@ Scope: the whole repository as of `2fd637e` — `backend/` (10.5k LOC Python),
 (7.7k LOC). Read against clean-architecture layering and clean-code rules on
 duplication, naming, function size and error handling.
 
-**Status: findings 1, 2, 3, 5, 6 and 7 have been fixed** — see the per-section
-notes below and the commits following this document. The rest stand as written.
+**Status: all eleven findings have been fixed** — see the per-section notes
+below and the commits following this document.
 
 The findings were originally derived by reading the code. They have since been
 verified against a running suite: the two defects in §2 were reproduced as
 failing tests before the fix, and every change below is covered by tests that
-fail without it (678 passing, 2 skipped).
+fail without it (749 passing, 2 skipped, from 649 at the start).
 
 ---
 
@@ -38,14 +38,14 @@ from four angles.
 | 1 | The job record is built in 4 places with 4 different shapes | High | M | **fixed** |
 | 2 | Five divergent definitions of "job still in flight" — two are bugs | High | S | **fixed** |
 | 3 | Silent `except Exception: pass` hides a data-loss path | Medium‑High | S | **fixed** |
-| 4 | `_`-prefixed names are the cross-module public API (27 imports) | Medium | S | open |
+| 4 | `_`-prefixed names are the cross-module public API (27 imports) | Medium | S | **fixed** |
 | 5 | 16-field form signature duplicated across two routes | Medium | S | **fixed** |
 | 6 | `backend/pipeline.py` is dead code | Medium | XS | **fixed** |
 | 7 | Frontend: three copies of the same FormData builder in one file | Medium | S | **fixed** |
-| 8 | TUI: each action written 2–3 times, with drift | Medium | M | open |
-| 9 | `main.py` owns six unrelated concerns | Medium | M | open |
-| 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M | open |
-| 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | open |
+| 8 | TUI: each action written 2–3 times, with drift | Medium | M | **fixed** |
+| 9 | `main.py` owns six unrelated concerns | Medium | M | **fixed** |
+| 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M | **fixed** |
+| 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | **fixed** |
 
 ---
 
@@ -240,10 +240,13 @@ convention has been inverted so thoroughly that the leading underscore now
 carries no information at all — a reader cannot tell which functions are safe
 to change.
 
-**Fix.** Mechanical rename: drop the underscore from anything imported across
-module boundaries, keep it strictly for module-locals. Zero behaviour change,
-and it restores a signal the codebase currently cannot express. Do it as its
-own commit so it never has to be reviewed alongside logic changes.
+**Fixed.** 38 names renamed across 50 files, as one commit with no behaviour
+change. Three collisions had to be resolved first, all the same shape: a route
+handler named after the operation it exposes (`get_llm_settings`,
+`save_llm_settings`, `save_settings`) in the same module as the store function
+it calls. Those two route modules reach the store through `import settings`,
+which reads better anyway — it is obvious which side is the endpoint. Two local
+variables named `settings` were shadowing that module.
 
 ---
 
@@ -335,15 +338,16 @@ would have refused, and from the screen you lose the progress follow.
 blocks with the same two message strings, but only the command form supports
 `target_language` and `custom_prompt`.
 
-**Fix.** A `tui/actions.py` holding one function per user-facing operation
-(precondition check, API call, notification, refresh). Commands, palette and
-screens become thin dispatchers. This is the largest single duplication cluster
-in the repo and the one most likely to keep drifting.
+**Fixed.** `tui/actions.py` holds one function per operation. Callers keep
+only what is genuinely theirs: the library screen passes the row it already
+has, so a refusal can still be explained without a round trip, and asks not to
+be navigated away from. The palette's type picker can now pass the per-type
+arguments only the slash command could. A failed delete no longer leaves the
+busy spinner up. `RETRYABLE` moved next to the action that applies it.
 
-Related: `tui/palette.py` is 1028 lines mixing the modal widget, entry
-construction for six different data types, and six picker-opening flows. The
-`entries_from_*` / `_*_entries` builders (lines 765-1007) are a coherent unit
-that belongs in its own module.
+Still open, and separate: `tui/palette.py` mixes the modal widget, entry
+construction for six data types, and six picker flows. The `entries_from_*`
+builders are a coherent unit that belongs in its own module.
 
 ---
 
@@ -361,6 +365,13 @@ other job code in `core/`, where they would naturally have picked up the
 shared status sets from §2 instead of inventing their own. The watcher
 lifecycle (~100 lines, platform-specific, two strategies) is a module of its
 own.
+
+**Fixed.** 456 lines down to 186. `core/job_lifecycle.py` takes recovery and
+expiry, with `classify_interrupted` and `sweep_expired_jobs` split out so
+neither can only be read; `meeting_watcher_host.py` takes the watcher, with
+`wants_embedded` exposing the on/off/auto matrix without booting the app on
+Windows; `releases.py` takes the poller, next to the functions it already
+called. Both also stop printing to stdout and use the backend's loggers.
 
 Smaller items in the same file:
 
@@ -391,10 +402,17 @@ accidental ones:
   `db.py:21` and `storage.py:15` import from the same module at top level.
   `config` has no heavy dependencies and no cycle — these can all move up.
 
-**Fix.** Hoist every local import that is not deferring a heavy dependency or
-breaking a cycle, and add a one-line comment (`# deferred: pulls in torch`) to
-the ones that stay. The comment is the whole point — it tells the next reader
-which ones they may not touch.
+**Fixed.** 92 down to 44. 31 of those defer a heavy or optional dependency,
+and the handful that break a cycle now say so on the line above. The config
+paths became `import config` + `config.STORAGE_ROOT`, which hoists the import
+while keeping the value read at call time — the reason it was local.
+
+That last change exposed a real fragility. `test_config_lazy_mkdir` deleted
+`config` from `sys.modules` to re-import it and never put the original back,
+leaving two config modules in the session: the one every already-imported
+module holds, and the one a later monkeypatch writes to. Nothing noticed while
+the read happened inside an import statement. The test now restores what it
+swaps out.
 
 ---
 
@@ -416,9 +434,20 @@ explained, but it is compensating for a missing seam.
 
 This is the lowest-priority item in the document and the one where the cost of
 "correct" clean architecture is least obviously worth paying for an app of this
-size. A pragmatic middle: pass an `LLMTarget`-style config object into `core`
-functions (the pattern `core/analysis.py:LLMTarget` already establishes and
-documents well) rather than having them call `_get_llm_settings()` themselves.
+size.
+
+**Fixed, as the seam rather than the layer.** `core/runtime_config.py` names
+all five environment knobs, documents what each does and what a nonsense value
+gets you, and makes them agree on what counts as "off" — one site had accepted
+`0/false/no/off` while another compared to the string `"1"`.
+`create_analysis_job`, `maybe_queue_auto_summary` and `build_job` take their
+configuration as an optional argument, defaulting to the store. Every caller in
+the app is unchanged; what is new is that the decision `maybe_queue_auto_summary`
+makes about a hosted provider can be tested by handing it a config rather than
+by writing `settings.json` and hoping.
+
+A full port/adapter split is still not worth it here, and is not what was
+done.
 
 ---
 
@@ -449,42 +478,58 @@ not disturb:
 
 ---
 
-## Done, and what is left
+## What it cost
 
-Done, in this order — §2 (one `JobStatus` enum, two live bugs), §3 (the
+All eleven, in this order: §2 (one `JobStatus` enum, two live bugs), §3 (the
 data-loss swallow), §6 (delete `pipeline.py`), §1 (the single job factory),
-then §5 and §7 (the duplicated form builders on both sides of the API).
+§5 and §7 (the duplicated form builders on both sides of the API), §4 (the
+underscore rename), §9 (splitting `main.py`), §10 (the local imports), §11 (the
+config seam), §8 (`tui/actions.py`). One commit each.
 
-Existing files lost 114 lines net. Two new modules — `core/job_status.py` and
-`core/jobs.py` — added 229, most of it the docstrings explaining what each one
-is for, so production code is **+115 overall**. Deduplication paid for itself
-inside the files it touched; it did not shrink the tree, and was not meant to.
-Tests grew by 327 lines across three new files, and the suite stabilised at 678
-passing once a pre-existing flake was tracked down — see below.
+Production code is **+381 lines net**. Seven new modules account for +935 of
+that — `core/job_status.py`, `core/jobs.py`, `core/job_lifecycle.py`,
+`core/runtime_config.py`, `meeting_watcher_host.py`, `tui/actions.py` — and a
+large share of each is the docstring explaining what it is for and what its
+absence cost. Everything they replaced shrank: `main.py` 456 → 186,
+`api/routes/transcription.py` and `tui/commands.py` down by a third each.
 
-Remaining, in the order worth doing them:
+Deduplication paid for itself inside the files it touched. It did not shrink
+the tree, and was not meant to: the point is that each concept now has one
+place to be changed, not fewer characters.
 
-1. **§4** — the underscore rename. Do it as one isolated commit, so it never
-   has to be reviewed alongside logic. It gets more expensive with every module
-   added.
-2. **§8** — `tui/actions.py`. The largest remaining duplication cluster, and
-   the one already producing user-visible drift.
-3. **§9, §10** — split `main.py`, hoist the accidental local imports. Both are
-   easier now that the job subsystem has an owner: `_recover_interrupted_jobs`
-   and `_should_expire` are the natural first tenants of a `core/` lifecycle
-   module.
-4. **§11** — only if the app grows another consumer of `core`.
+Tests grew by 915 lines across seven new files. The suite went from 649 to 749
+passing, and stopped being flaky — see below.
 
-### One thing found along the way
+### Two things found along the way
 
-The suite carried a flaky test, failing about one full run in eight:
-`test_a_failed_recording_can_be_transcribed_again`. It is not a product bug.
-The worker loop is live under the test client, so a retry test that asserts the
+**A flaky test, failing about one full run in eight.**
+`test_a_failed_recording_can_be_transcribed_again` is not a product bug. The
+worker loop is live under the test client, so a retry test that asserts the
 recording is *queued* races the worker that legitimately picks it up — and
 under the load of a full run the worker gets there first, fails the job (there
 is no Whisper model in the test environment) and the row already reads `error`.
-
 The `idle_worker` fixture holds the worker off for tests that are about
-queueing rather than processing. Worth knowing about when adding tests here:
-anything that puts a job on the queue and then inspects state is racing a real
-background thread.
+queueing rather than processing. Worth knowing when adding tests here: anything
+that queues a job and then inspects state is racing a real background thread.
+
+**A module split in two.** `test_config_lazy_mkdir` deleted `config` from
+`sys.modules` to re-import it and never restored the original, so from then on
+the session held two config modules — the one every already-imported module
+references, and the one a later monkeypatch writes to. It was invisible while
+every read happened inside a function-local `from config import …`, and
+surfaced the moment those were hoisted in §10. The test now puts back what it
+swaps out.
+
+## Still worth doing
+
+Nothing from the original eleven. Two smaller things surfaced while working
+through them:
+
+- `tui/palette.py` is still 1000 lines mixing the modal widget, entry
+  construction for six data types, and six picker flows. The `entries_from_*`
+  builders are a coherent unit that belongs in its own module.
+- Eight transcription options (`compute_type`, `device`, `vad_filter`,
+  `beam_size`, …) are carried through the form layer for clients that do not
+  exist — no caller sends them, and the backend falls back to saved settings.
+  Either a client should start sending them or the API should stop offering
+  them.
