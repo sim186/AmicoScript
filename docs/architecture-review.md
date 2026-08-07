@@ -5,9 +5,13 @@ Scope: the whole repository as of `2fd637e` — `backend/` (10.5k LOC Python),
 (7.7k LOC). Read against clean-architecture layering and clean-code rules on
 duplication, naming, function size and error handling.
 
-The test suite could not be executed in the review environment (`pytest` and
-the runtime dependencies are not installed there), so every finding below comes
-from reading the code, not from a failing test.
+**Status: findings 1, 2, 3, 5, 6 and 7 have been fixed** — see the per-section
+notes below and the commits following this document. The rest stand as written.
+
+The findings were originally derived by reading the code. They have since been
+verified against a running suite: the two defects in §2 were reproduced as
+failing tests before the fix, and every change below is covered by tests that
+fail without it (678 passing, 2 skipped).
 
 ---
 
@@ -29,19 +33,19 @@ The single highest-value structural change is to give the job subsystem one
 owner. Findings §1, §2, §5 and §11 are all the same missing abstraction seen
 from four angles.
 
-| # | Finding | Severity | Effort |
-|---|---------|----------|--------|
-| 1 | The job record is built in 4 places with 4 different shapes | High | M |
-| 2 | Five divergent definitions of "job still in flight" — two are bugs | High | S |
-| 3 | Silent `except Exception: pass` hides a data-loss path | Medium‑High | S |
-| 4 | `_`-prefixed names are the cross-module public API (27 imports) | Medium | S |
-| 5 | 16-field form signature duplicated across two routes | Medium | S |
-| 6 | `backend/pipeline.py` is dead code | Medium | XS |
-| 7 | Frontend: three copies of the same FormData builder in one file | Medium | S |
-| 8 | TUI: each action written 2–3 times, with drift | Medium | M |
-| 9 | `main.py` owns six unrelated concerns | Medium | M |
-| 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M |
-| 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L |
+| # | Finding | Severity | Effort | Status |
+|---|---------|----------|--------|--------|
+| 1 | The job record is built in 4 places with 4 different shapes | High | M | **fixed** |
+| 2 | Five divergent definitions of "job still in flight" — two are bugs | High | S | **fixed** |
+| 3 | Silent `except Exception: pass` hides a data-loss path | Medium‑High | S | **fixed** |
+| 4 | `_`-prefixed names are the cross-module public API (27 imports) | Medium | S | open |
+| 5 | 16-field form signature duplicated across two routes | Medium | S | **fixed** |
+| 6 | `backend/pipeline.py` is dead code | Medium | XS | **fixed** |
+| 7 | Frontend: three copies of the same FormData builder in one file | Medium | S | **fixed** |
+| 8 | TUI: each action written 2–3 times, with drift | Medium | M | open |
+| 9 | `main.py` owns six unrelated concerns | Medium | M | open |
+| 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M | open |
+| 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | open |
 
 ---
 
@@ -84,15 +88,14 @@ was correct at construction would delete this code, the `"logs" not in job`
 guard, and the `isinstance` check in `get_job_logs`
 (`routes/transcription.py:510-511`) that exists for the same reason.
 
-**Fix.** One `core/jobs.py` owning a `Job` dataclass (or `TypedDict`) plus a
-single `create_job(...)` factory and `submit(job)` / `submit_threadsafe(job)`.
-The four call sites become one line each. `TranscriptionConfig`
-(`core/transcription_config.py`) already shows the pattern works here — it is
-just not applied to the record that wraps it.
-
-Related duplication to fold in at the same time: `core/requeue.py:118`
-`enqueue_from_thread()` and `core/analysis_jobs.py:95`
-`_enqueue_from_worker_thread()` are the same five lines, written twice.
+**Fixed.** `core/jobs.py` owns `create_job()` plus `submit()` /
+`submit_threadsafe()`. Every job now carries every key, so unused fields are
+present and empty instead of missing, and the SSE loop is resolved from the
+calling context rather than guessed by each factory. The `logs` ring is bounded
+at construction, which let both the repair in `_append_job_log` and the
+`isinstance` guard in `get_job_logs` go. The two identical thread-safe enqueue
+helpers collapsed into `submit_threadsafe`. Shape is pinned by
+`tests/test_jobs_factory.py`.
 
 ---
 
@@ -110,9 +113,11 @@ The set of non-terminal statuses is written out as a literal in five places:
 
 The statuses actually pushed by `_push_event` are: `queued`, `downloading`,
 `loading_model`, `transcribing`, `diarizing`, `translating`, `running`,
-`streaming`, `warning`, `done`, `error`, `cancelled`. Note that `preparing` and
-`postprocessing` appear in the lists above but are **never set by anything** —
-they are leftovers from an earlier state machine.
+`streaming`, `warning`, `done`, `error`, `cancelled`. Neither `preparing` nor
+`postprocessing` is ever a job status: `preparing` is a leftover from an
+earlier state machine (old database rows still carry it), and `postprocessing`
+is a phase name internal to the downloader, mapped to `downloading` before it
+reaches a job. Both are filtered on regardless.
 
 Two consequences are live defects:
 
@@ -151,10 +156,18 @@ Both preconditions are ordinary, not exotic: a long playlist import
 two-hour meeting against a local LLM (`running`/`streaming`) both routinely
 exceed one hour.
 
-**Fix.** `core/job_status.py` with a single `StrEnum` and derived frozensets —
-`ACTIVE`, `RESUMABLE`, `RETRYABLE`, `TERMINAL` — imported everywhere. This is
-the smallest change in this document with the largest correctness return, and
-it makes the next divergence impossible rather than merely unlikely.
+**Fixed.** `core/job_status.py` holds one `StrEnum` and the frozensets derived
+from it — `ACTIVE`, `RESUMABLE`, `RETRYABLE`, `TERMINAL` — and all five call
+sites import them. Both defects were reproduced as failing tests first;
+`tests/test_job_status.py` also asserts that every member of the enum is
+classified, so the next status added cannot silently repeat this.
+
+The expiry decision moved into `main._should_expire` so it can be tested
+without driving an hour-long loop. `RESUMABLE` stays narrower than `ACTIVE` on
+purpose: recovery rebuilds a *transcription* job, so admitting the analysis
+states would re-transcribe a finished recording. The benchmark guard widened to
+`ACTIVE` — refusing to benchmark while a local LLM saturates the same GPU is
+the point of the guard.
 
 ---
 
@@ -197,9 +210,16 @@ Two lesser cases worth tightening:
   including `llm_allow_cloud`. Failing closed is the right call for that flag,
   but the user should be told it happened.
 
-**Rule to adopt:** a swallowed exception needs a one-line comment saying why
-losing it is acceptable. Where that sentence cannot be written honestly, the
-exception should propagate or at minimum be logged.
+**Fixed.** `_create_recording_row` now propagates; the route turns the failure
+into a 500 that says what went wrong, and removes the already-ingested audio
+first so no orphan directory is left behind. The `create_task` handler that
+could not fire is gone, and `_load_settings` says so when it falls back to
+defaults. Covered by `tests/test_upload_recording_row.py`.
+
+The remaining swallows are the defensible ones. **Rule to keep:** a swallowed
+exception needs a one-line comment saying why losing it is acceptable. Where
+that sentence cannot be written honestly, the exception should propagate or at
+minimum be logged.
 
 ---
 
@@ -241,11 +261,12 @@ way: adding a transcription option means editing four separate lists in the
 right order, and the *only* thing preventing a mis-ordered keyword argument is
 that they are all typed `str`.
 
-**Fix.** A single `TranscriptionForm(BaseModel)` injected as
-`Annotated[TranscriptionForm, Depends()]` on both routes, feeding the existing
-`TranscriptionConfig`. Both routes lose 16 lines of signature, and
-`_build_transcription_options` collapses to the coercion helpers plus the
-saved-settings merge.
+**Fixed.** One `TranscriptionForm` dependency serves both routes, with the
+`Form()` markers in `Annotated` rather than in the defaults — so the defaults
+stay ordinary strings and the class is constructible outside FastAPI, which is
+how the option tests now build it. The published contract is unchanged: same
+fields, same content types, same required set, nothing moved to a query
+parameter (verified against the generated OpenAPI schema).
 
 ---
 
@@ -255,10 +276,13 @@ saved-settings merge.
 describing it as a compatibility layer. **Nothing in the repository imports it**
 — not `backend/`, not `tests/`, not `tui/`, not `scripts/`.
 
-It is actively misleading: `backend/shims.py:15` refers the reader to
+It was also actively misleading: `backend/shims.py:15` referred the reader to
 "pipeline.py always normalises the diarization input", which is no longer where
-that happens. Delete the file and correct the `shims.py` docstring to point at
-`core/audio_utils._convert_audio_for_diarization`.
+that happens, and `state.py` named it as one of the two modules its globals
+exist to keep apart.
+
+**Fixed.** File deleted, both docstrings now name the module that does the
+work.
 
 ---
 
@@ -283,7 +307,11 @@ client today"*) and works around it by falling back to saved settings — the
 right call, but it means eight form parameters are dead weight on the public
 API surface.
 
-**Fix.** One `buildTranscriptionFormData({ file, url })` in `upload.js`.
+**Fixed.** One `buildTranscriptionFormData({ file, url })`, taking either a
+file or a URL.
+
+The contract gap is unchanged and still worth a decision: the eight unsent
+options remain on the API for clients that do not exist.
 
 ---
 
@@ -421,18 +449,42 @@ not disturb:
 
 ---
 
-## Suggested order of work
+## Done, and what is left
 
-1. **§2** — one `JobStatus` enum + derived sets. Small, fixes two live bugs.
-2. **§3** — make `_create_recording_row` fail loudly; audit the other 14.
-3. **§6** — delete `pipeline.py`, fix the `shims.py` docstring. Minutes.
-4. **§1** — the `Job` dataclass + single factory. The structural centrepiece;
-   §2 and §11's job-recovery move land naturally on top of it.
-5. **§5, §7** — collapse the duplicated form builders on both sides of the API.
-6. **§4** — the underscore rename, as one isolated commit.
-7. **§8** — `tui/actions.py`.
-8. **§9, §10** — split `main.py`, hoist the accidental local imports.
-9. **§11** — only if the app grows another consumer of `core`.
+Done, in this order — §2 (one `JobStatus` enum, two live bugs), §3 (the
+data-loss swallow), §6 (delete `pipeline.py`), §1 (the single job factory),
+then §5 and §7 (the duplicated form builders on both sides of the API).
 
-Items 1–3 are worth doing before the next feature. Item 4 gets more expensive
-with every module added. The rest can be absorbed into ordinary work.
+Existing files lost 114 lines net. Two new modules — `core/job_status.py` and
+`core/jobs.py` — added 229, most of it the docstrings explaining what each one
+is for, so production code is **+115 overall**. Deduplication paid for itself
+inside the files it touched; it did not shrink the tree, and was not meant to.
+Tests grew by 327 lines across three new files, and the suite stabilised at 678
+passing once a pre-existing flake was tracked down — see below.
+
+Remaining, in the order worth doing them:
+
+1. **§4** — the underscore rename. Do it as one isolated commit, so it never
+   has to be reviewed alongside logic. It gets more expensive with every module
+   added.
+2. **§8** — `tui/actions.py`. The largest remaining duplication cluster, and
+   the one already producing user-visible drift.
+3. **§9, §10** — split `main.py`, hoist the accidental local imports. Both are
+   easier now that the job subsystem has an owner: `_recover_interrupted_jobs`
+   and `_should_expire` are the natural first tenants of a `core/` lifecycle
+   module.
+4. **§11** — only if the app grows another consumer of `core`.
+
+### One thing found along the way
+
+The suite carried a flaky test, failing about one full run in eight:
+`test_a_failed_recording_can_be_transcribed_again`. It is not a product bug.
+The worker loop is live under the test client, so a retry test that asserts the
+recording is *queued* races the worker that legitimately picks it up — and
+under the load of a full run the worker gets there first, fails the job (there
+is no Whisper model in the test environment) and the row already reads `error`.
+
+The `idle_worker` fixture holds the worker off for tests that are about
+queueing rather than processing. Worth knowing about when adding tests here:
+anything that puts a job on the queue and then inspects state is racing a real
+background thread.
