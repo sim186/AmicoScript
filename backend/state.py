@@ -1,8 +1,8 @@
 """Shared mutable state for the AmicoScript backend.
 
-Centralising all globals here prevents circular imports between pipeline.py
-and main.py while keeping the worker thread and the FastAPI event loop
-decoupled.
+Centralising all globals here prevents circular imports between the core/
+worker modules and main.py while keeping the worker thread and the FastAPI
+event loop decoupled.
 """
 import asyncio
 import threading
