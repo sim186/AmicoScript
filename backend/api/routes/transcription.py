@@ -12,8 +12,12 @@ from typing import Annotated, Any
 from http_utils import content_disposition_attachment
 
 import aiofiles
+import shutil
+
+import config
 import state
 from core.job_helpers import append_job_log, push_event, sync_job_to_db
+from core.translation import translate_audio_chunk
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import JobStatus
 from core.jobs import create_job, submit
@@ -77,8 +81,7 @@ def _get_live_job(job_id: str) -> dict:
 
 
 def _upload_dir() -> Path:
-    from config import STORAGE_ROOT
-    upload_dir = STORAGE_ROOT / "uploads"
+    upload_dir = config.STORAGE_ROOT / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     return upload_dir
 
@@ -214,11 +217,8 @@ def _create_recording_row(
 
 def _discard_ingested_audio(recording_id: str) -> None:
     """Remove audio that was ingested for a recording that never came to exist."""
-    import shutil
 
-    from config import RECORDINGS_DIR
-
-    shutil.rmtree(RECORDINGS_DIR / recording_id, ignore_errors=True)
+    shutil.rmtree(config.RECORDINGS_DIR / recording_id, ignore_errors=True)
 
 
 def _create_job(
@@ -462,13 +462,12 @@ def cancel_job(job_id: str) -> dict:
 
 @router.get("/api/audio/{job_id}")
 def get_audio(job_id: str):
-    from config import STORAGE_ROOT
     job = _get_live_job(job_id)
     fp = job.get("file_path", "")
     if not fp or not os.path.exists(fp):
         raise HTTPException(404, "Audio file not found (may have expired)")
     try:
-        if not Path(fp).resolve().is_relative_to(STORAGE_ROOT.resolve()):
+        if not Path(fp).resolve().is_relative_to(config.STORAGE_ROOT.resolve()):
             raise HTTPException(403, "Access denied")
     except ValueError:
         raise HTTPException(403, "Access denied")
@@ -501,7 +500,6 @@ def get_job_logs(job_id: str, limit: int = 300) -> dict:
 
 @router.post("/api/jobs/{job_id}/rename-speaker")
 async def rename_speaker(job_id: str, old_name: str = Form(...), new_name: str = Form(...)) -> dict:
-    from core.job_helpers import sync_job_to_db
     job = _get_live_job(job_id)
     if job["status"] != "done":
         raise HTTPException(409, "Job not complete")
@@ -557,8 +555,6 @@ def export_job(job_id: str, fmt: str, wikilinks: bool = False):
 
 @router.post("/api/recordings/{recording_id}/transcript/segments/{segment_index}/translate")
 async def translate_segment_api(recording_id: str, segment_index: int, session: Session = Depends(get_session)) -> dict:
-    from core.translation import translate_audio_chunk
-
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")

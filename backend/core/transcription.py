@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import ffmpeg_helper
+import config
 import state
 from core.audio_utils import convert_audio_for_transcription
 from core.colab_proxy import handle_colab_job
@@ -32,7 +33,9 @@ from core.messages import (
     TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
     TRANSCRIPTION_WAITING_FIRST_SEGMENT,
 )
-from core.source_downloader import download_source_audio
+from core.analysis import process_analysis_job
+from core.analysis_jobs import maybe_queue_auto_summary
+from core.source_downloader import DownloadCancelled, download_source_audio
 from db import new_session
 from exports import format_timestamp
 from models import Recording
@@ -376,7 +379,6 @@ def finalize_transcription_result(
 
     recording_id = job.get("recording_id")
     if recording_id:
-        from core.analysis_jobs import maybe_queue_auto_summary
         # Only fires for meeting captures, and only when the user turned it on.
         summary_job = maybe_queue_auto_summary(recording_id)
         if summary_job:
@@ -397,9 +399,8 @@ def _run_download_phase(job_id: str) -> bool:
 
     push_event(job_id, "downloading", 0.01, DOWNLOAD_STARTING)
 
-    from config import STORAGE_ROOT
 
-    download_dir = STORAGE_ROOT / "downloads" / job_id
+    download_dir = config.STORAGE_ROOT / "downloads" / job_id
 
     def _progress(status: str, progress: float, message: str) -> None:
         if status == "downloading":
@@ -418,7 +419,6 @@ def _run_download_phase(job_id: str) -> bool:
             source_url, download_dir, on_progress=_progress, should_cancel=_should_cancel,
         )
     except Exception as exc:
-        from core.source_downloader import DownloadCancelled
         if isinstance(exc, DownloadCancelled) or _should_cancel():
             push_event(job_id, "cancelled", 0.0, "Job cancelled during download")
             sync_job_to_db(job_id)
@@ -468,12 +468,12 @@ def process_job(job_id: str) -> None:
         job_type = job.get("type", "transcribe")
 
         if job_type == "translate":
+            # Deferred: translation calls get_whisper_model from this module.
             from core.translation import process_translation_job
             process_translation_job(job_id)
             return
 
         if job_type == "analysis":
-            from core.analysis import process_analysis_job
             process_analysis_job(job_id)
             return
 

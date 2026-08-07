@@ -136,6 +136,7 @@ def sync_job_to_db(job_id: str, retries: int = 3) -> None:
                 # just written. Never fatal: losing the index costs a search,
                 # losing this call would cost the transcription.
                 if result:
+                    # Deferred: library_index writes through this module's session.
                     from core.library_index import index_recording_quietly
 
                     index_recording_quietly(recording_id)

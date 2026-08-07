@@ -42,6 +42,7 @@ def is_version_newer(local: str, remote_tag: str) -> bool:
 
 def local_version() -> str:
     """The version this build reports, or "" if it cannot say."""
+    # Deferred: the route module imports this one.
     from api.routes.releases import get_version
 
     try:

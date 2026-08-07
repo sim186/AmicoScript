@@ -29,7 +29,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
+import config
+from api.routes.releases import get_version
 from db import get_session
+from storage import get_recording_audio_path
 from http_utils import content_disposition_attachment
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
 
@@ -102,7 +105,6 @@ def export_library(
     ``ids`` — optional comma-separated recording ids, to export a subset.
     ``include_audio`` — set false for a metadata-only bundle (much smaller).
     """
-    from storage import get_recording_audio_path
 
     id_list = [part.strip() for part in ids.split(",") if part.strip()] or None
     data = _collect_library(session, id_list)
@@ -117,7 +119,6 @@ def export_library(
         "counts": {key: len(value) for key, value in data.items()},
     }
     try:
-        from api.routes.releases import get_version
         manifest["app_version"] = get_version().get("version", "")
     except Exception:
         manifest["app_version"] = ""
@@ -214,7 +215,6 @@ async def import_library(
     replaces them. Rows are matched by primary key, so re-importing the same
     bundle twice is a no-op rather than a duplicate library.
     """
-    from config import RECORDINGS_DIR
 
     if mode not in {"skip", "overwrite"}:
         raise HTTPException(400, "mode must be 'skip' or 'overwrite'")
@@ -243,7 +243,7 @@ async def import_library(
 
             data = _read_bundle_json(bundle, "data.json", MAX_DATA_BYTES)
             counts = _import_rows(session, data, mode)
-            counts["audio"] = _restore_audio(bundle, session, RECORDINGS_DIR, mode)
+            counts["audio"] = _restore_audio(bundle, session, config.RECORDINGS_DIR, mode)
 
         session.commit()
         return {"ok": True, "imported": counts, "mode": mode}

@@ -21,6 +21,8 @@ from llm_providers import (
     normalize_models,
     provider_catalog,
 )
+from concurrent.futures import ThreadPoolExecutor
+
 import settings
 
 router = APIRouter()
@@ -231,7 +233,6 @@ async def detect_llm_servers() -> dict:
 
 
 def _probe_all(targets: list[str]) -> list[dict]:
-    from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=min(8, max(1, len(targets)))) as pool:
         results = list(pool.map(_probe_one, targets))

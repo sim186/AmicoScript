@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import datetime
 import gc
+import os
 import platform
+import subprocess
 import time
 import urllib.request
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+
+import state
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.transcription import get_whisper_model
 
 router = APIRouter()
 
@@ -21,7 +28,6 @@ _REFERENCE_FILENAME = "jfk.flac"
 
 
 def _cache_dir() -> Path:
-    import os
     root = Path(os.environ.get("AMICO_CACHE_DIR") or Path.home() / ".cache" / "amicoscript")
     return root / "benchmark"
 
@@ -35,7 +41,6 @@ def _ensure_reference_audio() -> Path:
 
 
 def _get_cpu_name() -> str:
-    import subprocess
     system = platform.system()
     try:
         if system == "Darwin":
@@ -63,7 +68,6 @@ def _get_cpu_name() -> str:
 
 
 def _get_ram_gb() -> float | None:
-    import subprocess
     system = platform.system()
     try:
         import psutil
@@ -90,7 +94,6 @@ def _os_display() -> str:
 
 
 def _collect_system_info() -> dict:
-    import os
     info: dict = {
         "cpu": _get_cpu_name(),
         "os": _os_display(),
@@ -137,7 +140,6 @@ def _collect_system_info() -> dict:
 
 
 def _evict_model_cache() -> None:
-    import state
     with state._model_lock:
         if state._cached_model is not None:
             del state._cached_model
@@ -153,8 +155,6 @@ def _evict_model_cache() -> None:
 
 
 def _benchmark_model(model_name: str, audio_path: Path) -> dict:
-    from core.transcription import get_whisper_model
-
     _evict_model_cache()
 
     t0 = time.perf_counter()
@@ -186,14 +186,9 @@ def _benchmark_model(model_name: str, audio_path: Path) -> dict:
 
 @router.post("/api/benchmark/run")
 def run_benchmark() -> dict:
-    import datetime
-    import state
-
     # Refuse while any job is still working. Not just the Whisper ones: a
     # benchmark measured against a local LLM hammering the same GPU is worse
     # than no benchmark at all.
-    from core.job_status import ACTIVE as ACTIVE_STATUSES
-
     active = [j for j in state.jobs.values() if j.get("status") in ACTIVE_STATUSES]
     if active:
         raise HTTPException(

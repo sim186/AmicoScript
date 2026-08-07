@@ -13,8 +13,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 
+import config
 import state
 from core.job_helpers import cleanup_job_temp_files
 from core.job_status import ACTIVE, RESUMABLE, JobStatus
@@ -167,7 +169,6 @@ def sweep_expired_jobs(cutoff: float) -> int:
     Returns how many were expired. Separate from the loop so a test does not
     have to wait out an hour of `asyncio.sleep` to exercise it.
     """
-    from config import STORAGE_ROOT
 
     expired = 0
     for job_id in list(state.jobs.keys()):
@@ -178,7 +179,7 @@ def sweep_expired_jobs(cutoff: float) -> int:
         if file_path and os.path.exists(file_path):
             try:
                 # Managed storage belongs to the library, not to the job.
-                if not Path(file_path).is_relative_to(STORAGE_ROOT):
+                if not Path(file_path).is_relative_to(config.STORAGE_ROOT):
                     os.remove(file_path)
             except OSError:
                 pass
@@ -190,7 +191,6 @@ def sweep_expired_jobs(cutoff: float) -> int:
 
 async def cleanup_loop() -> None:
     """Sweep expired jobs once an hour, for as long as the app runs."""
-    import time
 
     while True:
         await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)

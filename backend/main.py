@@ -6,6 +6,7 @@ and includes API routers from backend/api/routes.
 
 import asyncio
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -39,6 +40,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import auth
+import config
 import meeting_watcher_host
 import releases
 import state
@@ -136,9 +138,7 @@ app.include_router(backup_router)
 
 @app.on_event("startup")
 async def _startup() -> None:
-    import secrets
-    from config import ensure_storage_dirs
-    ensure_storage_dirs()
+    config.ensure_storage_dirs()
     state._init_queue()
     state.exit_token = secrets.token_hex(32)
     state.event_loop = asyncio.get_running_loop()

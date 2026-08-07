@@ -21,6 +21,7 @@ import sys
 import threading
 from pathlib import Path
 
+import config
 from utils.logging_utils import get_logger
 
 logger = get_logger("amicoscript.watcher")
@@ -37,8 +38,7 @@ _module = None
 def output_dir() -> Path:
     """User-writable folder for meeting captures (never Program Files)."""
     try:
-        from config import STORAGE_ROOT
-        return Path(STORAGE_ROOT) / "meetings"
+        return Path(config.STORAGE_ROOT) / "meetings"
     except Exception:
         return Path.home() / "AmicoScript" / "meetings"
 

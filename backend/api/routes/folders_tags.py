@@ -5,11 +5,17 @@ import threading
 import time
 from pathlib import Path
 
+import state
+from core.analysis import LLMError
+from core.tagging import suggest_tags
 from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from llm_providers import refusal_reason
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
-from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
+from search_query import build_fts_match
+from settings import get_llm_settings
+from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -262,10 +268,6 @@ def suggest_recording_tags(recording_id: str, session: Session = Depends(get_ses
     handful of words, and a suggestion the user has to come back for later is
     one they will not use.
     """
-    from core.analysis import LLMError
-    from core.tagging import suggest_tags
-    from llm_providers import refusal_reason
-    from settings import get_llm_settings
 
     if not session.get(Recording, recording_id):
         raise HTTPException(404, "Recording not found")
@@ -318,10 +320,7 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
     if not q.strip():
         return []
 
-    from sqlalchemy import text as _text
-    from sqlalchemy.exc import OperationalError
 
-    from search_query import build_fts_match
 
     safe_limit = max(1, min(limit, 100))
 
@@ -335,7 +334,7 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
         fts_rows = []
         if fts_expr:
             fts_rows = session.exec(
-                _text(
+                text(
                     """
                     SELECT t.recording_id,
                            snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
@@ -350,7 +349,7 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
             ).all()
 
         meta_rows = session.exec(
-            _text(
+            text(
                 """
                 SELECT DISTINCT r.id as recording_id,
                        CASE
@@ -380,7 +379,7 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
         rows = ordered[:safe_limit]
     except OperationalError:
         rows = session.exec(
-            _text(
+            text(
                 """
                 SELECT DISTINCT r.id AS recording_id,
                        CASE
@@ -422,7 +421,6 @@ def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Sessi
 
 @router.post("/api/exit")
 async def api_exit(request: Request, token: str = ""):
-    import state as _state
     try:
         client_host = request.client.host if request.client else ""
     except Exception:
@@ -432,7 +430,7 @@ async def api_exit(request: Request, token: str = ""):
         return {"status": "ignored"}
 
     # Require the per-session CSRF token generated at startup
-    if not _state.exit_token or token != _state.exit_token:
+    if not state.exit_token or token != state.exit_token:
         return {"status": "ignored"}
 
     def _delayed_exit() -> None:

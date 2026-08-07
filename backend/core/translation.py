@@ -1,10 +1,10 @@
 """Transcript translation job helpers."""
+import json
 import os
 import shutil
 import subprocess
 import tempfile
 import time
-from pathlib import Path
 
 import state
 from core.job_helpers import append_job_log, handle_job_error, push_event
@@ -21,6 +21,7 @@ def translate_audio_chunk(
     job_id: str = "internal",
 ) -> str:
     """Extract a time range and translate it to English via Whisper."""
+    # Deferred: transcription imports this module to dispatch translate jobs.
     from core.transcription import get_whisper_model
 
     ffmpeg_bin = shutil.which("ffmpeg")
@@ -67,7 +68,8 @@ def translate_audio_chunk(
 
 def process_translation_job(job_id: str) -> None:
     """Translate all transcript segments for a recording."""
-    import json as _json
+    # Deferred: transcription imports this module to dispatch translate jobs.
+    from core.transcription import get_whisper_model
 
     job = state.jobs[job_id]
     recording_id = job["recording_id"]
@@ -83,7 +85,7 @@ def process_translation_job(job_id: str) -> None:
             if not rec or not tr:
                 raise ValueError("Recording or Transcript not found")
 
-            data = _json.loads(tr.json_data)
+            data = json.loads(tr.json_data)
             segments = data.get("segments", [])
             total = len(segments)
             if total == 0:
@@ -92,7 +94,6 @@ def process_translation_job(job_id: str) -> None:
 
             push_event(job_id, "translating", 0.1, f"Found {total} segments. Starting bulk translation...")
 
-            from core.transcription import get_whisper_model
             get_whisper_model(model_name)
 
             translated_count = 0
@@ -115,7 +116,7 @@ def process_translation_job(job_id: str) -> None:
                 prog = 0.1 + 0.8 * ((idx + 1) / total)
                 push_event(job_id, "translating", prog, f"Translated {idx + 1}/{total} segments...")
 
-            tr.json_data = _json.dumps(data)
+            tr.json_data = json.dumps(data)
             tr.updated_at = time.time()
             session.add(tr)
             session.commit()

@@ -1,6 +1,7 @@
 """Settings endpoints."""
 
 import asyncio
+import os
 import platform
 import re
 import shutil
@@ -10,6 +11,8 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException
+
+import state
 
 # Reached through the module, not imported by name: several route handlers here
 # are named after the operation they expose (save_settings, get_settings) and
@@ -57,7 +60,6 @@ def _to_bool(value: str) -> bool:
 
 
 def _require_session_token(token: str) -> None:
-    import state
     if not getattr(state, "exit_token", "") or token != state.exit_token:
         raise HTTPException(403, "Invalid session token")
 
@@ -76,7 +78,6 @@ def _mask_secret(value: str) -> str:
 
 @router.get("/api/settings")
 def get_settings() -> dict:
-    import state
     stored = settings.load_settings()
     defaults = settings.get_transcription_defaults()
     ws = settings.get_whisper_settings()
@@ -165,7 +166,6 @@ async def set_watcher_status(
     memory — see WATCHER_STATUS_TTL for the staleness rule.
     """
     _require_session_token(token)
-    import state
     is_recording = _to_bool(recording)
     prev = getattr(state, "watcher_status", None) or {}
     was_recording = bool(prev.get("recording")) and (time.time() - prev.get("ts", 0)) < WATCHER_STATUS_TTL
@@ -184,7 +184,6 @@ async def set_watcher_status(
 def get_watcher_status() -> dict:
     """Current watcher state for the web UI: whether it's installed/running
     (``alive``) and whether it's recording right now (``recording``)."""
-    import state
     st = getattr(state, "watcher_status", None) or {}
     ts = st.get("ts", 0)
     age = time.time() - ts
@@ -214,7 +213,6 @@ def _install_watcher_sync() -> dict:
     if not _WATCHER_SRC_DIR.exists():
         return {"ok": False, "error": "bundled watcher files not found"}
 
-    import os
     dest = Path(os.environ.get("LOCALAPPDATA", "")) / "AmicoScript" / "watcher"
     try:
         shutil.copytree(
