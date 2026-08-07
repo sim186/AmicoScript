@@ -5,15 +5,15 @@ Scope: the whole repository as of `2fd637e` — `backend/` (10.5k LOC Python),
 (7.7k LOC). Read against clean-architecture layering and clean-code rules on
 duplication, naming, function size and error handling.
 
-**Status: all eleven original findings have been fixed** — see the per-section
-notes below and the commits following this document. Two further findings, §12
-and §13, were turned up by that work and are documented but **not** fixed; §12
-is a user-visible defect and is the next thing worth doing.
+**Status: all thirteen findings have been fixed**, along with the palette split
+that §8 left open — see the per-section notes below and the commits following
+this document. One item remains open, and it is a product decision rather than
+a defect: see [Still worth doing](#still-worth-doing).
 
 The findings were originally derived by reading the code. They have since been
-verified against a running suite: the two defects in §2 were reproduced as
-failing tests before the fix, and every change below is covered by tests that
-fail without it (749 passing, 2 skipped, from 649 at the start).
+verified against a running suite: the two defects in §2 and the one in §12 were
+reproduced as failing tests before the fix, and every change below is covered
+by tests that fail without it (838 passing, from 649 at the start).
 
 ---
 
@@ -48,8 +48,13 @@ from four angles.
 | 9 | `main.py` owns six unrelated concerns | Medium | M | **fixed** |
 | 10 | 92 function-local imports, load-bearing and accidental mixed | Low‑Med | M | **fixed** |
 | 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | **fixed** |
-| 12 | A failed analysis marks the *recording* as failed | Medium | S | **open** |
-| 13 | Dead-code leftovers (10 unused imports, 1 unused local) | Low | XS | **open** |
+| 12 | A failed analysis marks the *recording* as failed | Medium | S | **fixed** |
+| 13 | Dead-code leftovers (10 unused imports, 1 unused local) | Low | XS | **fixed** |
+
+Three more defects were found while closing those two. All are fixed, and each
+is described in the section it came out of: an analysis key that raised
+`ImportError` and a bulk-tag picker that opened two modals (§8), and a
+malformed `# noqa` that silenced nothing (§13).
 
 ---
 
@@ -317,8 +322,8 @@ API surface.
 **Fixed.** One `buildTranscriptionFormData({ file, url })`, taking either a
 file or a URL.
 
-The contract gap is unchanged and still worth a decision: the eight unsent
-options remain on the API for clients that do not exist.
+The contract gap is unchanged and is the one open item left in this document
+— see [Still worth doing](#still-worth-doing).
 
 ---
 
@@ -349,9 +354,35 @@ be navigated away from. The palette's type picker can now pass the per-type
 arguments only the slash command could. A failed delete no longer leaves the
 busy spinner up. `RETRYABLE` moved next to the action that applies it.
 
-Still open, and separate: `tui/palette.py` mixes the modal widget, entry
-construction for six data types, and six picker flows. The `entries_from_*`
-builders are a coherent unit that belongs in its own module.
+**The follow-up is now done too.** `tui/entries.py` takes the middle layer:
+`Entry`, the six `entries_from_*` builders, the two picker variants, and the
+`on_select` adapters an entry carries. Nothing in that file awaits, touches
+`app.api` or pushes a screen, which is what makes the six payload shapes the
+backend returns testable without a running app. `palette.py` keeps the widget
+and the flows, and drops from 1000 lines to 800.
+
+The builders and tab-completion had been spelling the row glyphs separately —
+completion turns a picked entry back into a slash command by stripping `"♪ "`
+or `"▣ "` off the display text, so the two had to agree by hand. One constant
+each now. The three picker entrypoints that `commands.py` and the library
+screen import also lost their leading underscore: §4's rule, which had only
+ever been applied to the backend.
+
+Two defects came out of that move, both of them things the split makes
+harder to reintroduce:
+
+- **The analysis key on a transcript raised `ImportError`.** The §8 rename
+  dropped the underscore from `_open_analysis_type_picker` and updated
+  `commands.py` but not `screens/transcript.py`. It survived because the
+  import is deferred into the method body — which the TUI does deliberately
+  and often, since the screens import the palette and the palette pushes the
+  screens, so one direction can only happen at call time. Nothing checks a
+  deferred import until the key is pressed. `tests/test_tui_deferred_imports.py`
+  now resolves every one of them by reading the source; it fails on exactly
+  this bug when the fix is reverted. A linter cannot catch this class of
+  error — the name is only wrong relative to another module.
+- **`open_bulk_tag_picker` started its worker twice**, fetching the tag list
+  twice and stacking two identical modals.
 
 ---
 
@@ -459,8 +490,7 @@ done.
 
 ## 12. A failed analysis marks the *recording* as failed
 
-Found while working through §1, set aside as out of scope at the time, and
-reproducible today. Not fixed.
+Found while working through §1 and set aside as out of scope at the time.
 
 `sync_job_to_db` (`core/job_helpers.py:105`) writes the job's status onto the
 Recording row:
@@ -487,12 +517,19 @@ The consequences are visible: the library lists the recording as failed, and
 because `error` is in `RETRYABLE` the UI offers to transcribe it again —
 re-running a two-hour transcription to recover from a failed summary.
 
-**Fix.** `sync_job_to_db` should write `rec.status` only for jobs that own the
-recording's state, and an analysis failure belongs on the `Analysis` row, which
-already has its own `status` column and is already set to `error` by
-`_process_analysis_job`. The job-type check is one line; the reason it is not
-already there is that the four job factories (§1) never made the distinction
-explicit.
+**Fixed.** `core/jobs.py` gained `JobType` — the four kinds, which were bare
+strings in nine places — and `OWNS_RECORDING_STATUS`, the two that may write
+the row. `sync_job_to_db` consults it; an analysis reports its own outcome on
+the `Analysis` row, which already has a `status` column and is already set to
+`error` by `process_analysis_job`.
+
+The check itself is one line. Naming the distinction was the actual work, and
+is why the fix is worth more than the line: the reason it was not already there
+is that the four job factories (§1) never made it explicit, so there was
+nowhere for it to be written down. `tests/test_job_recording_status.py`
+reproduces the defect for both non-owning job types, pins the transcription
+behaviour that had to survive, and asserts every `JobType` member is accounted
+for — so the next job type added cannot inherit the wrong answer by default.
 
 ---
 
@@ -511,6 +548,28 @@ Small, and listed here so they are not rediscovered as findings:
 
 `python -m pyflakes backend/ tui/` reports exactly these and nothing else, so
 adding it to CI would keep the list at zero rather than letting it grow back.
+
+**Fixed**, and the list above was wrong in both directions.
+
+`COLAB_UPLOADING` is *not* dead — `core/colab_proxy.py` pushes it as a job
+event. Only `transcription.py`'s import of it was unused; the constant stays.
+Missed in the other direction: `tui/screens/import_.py` carries the
+`TYPE_CHECKING` import of `AmicoTUI` that its six sibling screens use and it
+never does, and the sweep had only looked at `backend/` and `tui/` — `tests/`
+and `package_interactive.py` held nine more between them.
+
+The CI check therefore runs over the whole tree, since the parts this section
+did not look at are exactly the parts that had rotted. It is **ruff's `F`
+rules, not pyflakes**: the same checks, but the repo already carries
+`# noqa: F401` on the two imports that exist for their side effects — `db.py`
+populating `SQLModel.metadata` before `create_all`, and the Windows-only
+watcher dependencies — and pyflakes does not honour `noqa`, so it would have
+failed on both. Only `F` is selected; nothing here is formatted for a style
+ruleset, and turning one on would bury the signal this is for.
+
+One of those two `noqa`s turned out to be malformed —
+`meeting_watcher_host.py` wrote its reason where the code list goes, so it had
+been silencing nothing.
 
 ## What is working well — keep doing it
 
@@ -561,6 +620,27 @@ place to be changed, not fewer characters.
 Tests grew by 915 lines across seven new files. The suite went from 649 to 749
 passing, and stopped being flaky — see below.
 
+### Closing §12, §13 and the §8 follow-up
+
+Three more commits, in that order, +301 lines net across 29 files. Two new
+modules: `tui/entries.py` (the palette's middle layer) and, in tests,
+`test_job_recording_status.py` and `test_tui_deferred_imports.py`.
+`tui/palette.py` went 1000 → 800.
+
+The suite went 751 → 838. Most of that growth is one parametrised test:
+`test_tui_deferred_imports` generates a case per deferred import in the TUI,
+which is 77 of them today. It is cheap — it resolves names, it does not press
+keys — and it is the only thing in the tree that checks that layer at all.
+
+Worth noting what the three cost relative to what they were billed at. §12 was
+estimated at "one line, plus a test" and the line was indeed one line; naming
+`JobType` and `OWNS_RECORDING_STATUS` so the line had somewhere to live was the
+rest of it. §13 was billed XS and turned up two errors in its own list plus
+nine files it had not looked at. The §8 follow-up was billed as a tidy-up and
+turned up two live defects, one of which had been shipping a broken keybinding.
+
+Estimates written while reading code stay estimates about the code you read.
+
 ### Two things found along the way
 
 **A flaky test, failing about one full run in eight.**
@@ -583,19 +663,26 @@ swaps out.
 
 ## Still worth doing
 
-Nothing from the original eleven. Four things surfaced while working through
-them, in the order they are worth attention:
+One thing, and it is not a defect — it is a decision nobody has made:
 
-1. **§12 — a failed analysis marks the recording as failed.** The only one of
-   these a user can see, and it costs them a re-transcription. One line, plus
-   a test.
-2. **§13 — the dead-code leftovers**, and `pyflakes` in CI so the list stays
-   empty.
-3. `tui/palette.py` is still 1000 lines mixing the modal widget, entry
-   construction for six data types, and six picker flows. The `entries_from_*`
-   builders are a coherent unit that belongs in its own module.
-4. Eight transcription options (`compute_type`, `device`, `vad_filter`,
-   `beam_size`, …) are carried through the form layer for clients that do not
-   exist — no caller sends them, and the backend falls back to saved settings.
-   Either a client should start sending them or the API should stop offering
-   them.
+**Eight transcription options are offered to clients that do not exist.**
+`compute_type`, `device`, `device_index`, `vad_filter`, `word_timestamps`,
+`beam_size`, `best_of` and `force_normalize_audio` are declared on
+`TranscriptionForm` and carried through `TranscriptionConfig`, and neither the
+web frontend (`buildTranscriptionFormData`, which sends eight of the seventeen
+fields) nor the TUI sends any of them. `to_options` falls back to the saved
+Whisper settings, which is the right behaviour and is why nothing is broken.
+
+Two coherent answers, and this document should not pick between them because
+the choice is about who the API is for, not about the code:
+
+- **Drop them.** The published surface shrinks to what is actually used, and
+  the saved settings become the only way to set a device or a precision.
+  Cheap, and it forecloses per-job overrides.
+- **Keep them, and say so.** They are a real affordance for a scripted client
+  — the one case where you want a precision for *this* job without changing a
+  global setting. That is a legitimate reason for an unused parameter, but it
+  needs to be written down, or the next reader files this finding again.
+
+What should *not* happen is a third pass that leaves them undocumented and
+unsent. Everything else in this document is closed.
