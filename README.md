@@ -195,6 +195,42 @@ UI's Help modal also has a one-click "Copy command" for this.
 pytest -q
 ```
 
+## 📦 Install
+
+One command, identical on macOS, Windows and Linux:
+
+```bash
+uv tool install amicoscript
+amicoscript
+```
+
+`uv` fetches a suitable Python itself, so nothing needs to be installed first.
+([Don't have uv?](https://docs.astral.sh/uv/getting-started/installation/) —
+`pipx install amicoscript` works the same way.) To run it once without
+installing: `uvx amicoscript`.
+
+This is the recommended route, and not only for convenience: nothing here is a
+downloaded application, so neither Gatekeeper nor SmartScreen is involved. The
+zips below are unsigned and both will object to them.
+
+Speaker diarization is an optional extra, since transcription never needs
+torch:
+
+```bash
+uv tool install "amicoscript[diarization]"
+```
+
+On **Linux**, that pulls PyPI's default torch, which is the CUDA build and
+several GB of `nvidia-*` packages with it. For a CPU-only machine, name the CPU
+index — torch comes from there, everything else still comes from PyPI:
+
+```bash
+uv tool install "amicoscript[diarization]" \
+  --index https://download.pytorch.org/whl/cpu
+```
+
+Upgrade with `uv tool upgrade amicoscript`.
+
 ## 🏃🏼 Running from the installer
 In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
 
@@ -207,6 +243,10 @@ on a CPU-only machine downloads nothing. See
 work offline.
 
 ### macOS: Running unsigned apps (Not disabling Gatekeeper)
+
+This applies to the downloaded `.app` only. `uv tool install amicoscript`
+(above) skips all of it — Gatekeeper gates downloaded applications, and a wheel
+installed into your own environment is not one.
 
 1. Download the latest release from the Releases page.
 2. Because the app is not signed by Apple, macOS will initially block it. Open System Settings → Privacy & Security and enable "App Store and identified developers" (allow apps downloaded from App Store and identified developers).

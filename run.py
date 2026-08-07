@@ -208,7 +208,9 @@ def run_windowed(url: str, host: str, port: int) -> int:
     return 0
 
 
-if __name__ == "__main__":
+def main() -> int:
+    """Start the app. Shared by `python run.py`, the PyInstaller bundle, and the
+    `amicoscript` console script the wheel installs (see pyproject.toml)."""
     # Ensure frontend and uploads dirs are found
     os.chdir(BASE_DIR)
 
@@ -233,10 +235,15 @@ if __name__ == "__main__":
             ui_mode = "browser"
 
     if ui_mode == "window":
-        sys.exit(run_windowed(url, host, port))
+        return run_windowed(url, host, port)
 
     if ui_mode == "browser":
         threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
     server = make_server(host, port)
     server.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
