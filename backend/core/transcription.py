@@ -24,7 +24,6 @@ from core.job_helpers import (
 from core.jobs import JobType
 from core.runtime_config import download_concurrency, word_timestamps_default
 from core.messages import (
-    COLAB_UPLOADING,
     DOWNLOAD_PREPARING,
     DOWNLOAD_STARTING,
     TRANSCRIPTION_CANCELLED,

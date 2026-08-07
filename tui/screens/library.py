@@ -377,7 +377,6 @@ class LibraryPanel(Widget):
         total_dur = 0.0
         for r in self._items:
             rec_id = str(r["id"])
-            name = r.get("alias") or r.get("filename") or f"#{rec_id}"
             options = r.get("transcription_options") or {}
             model = (
                 r.get("model_size")

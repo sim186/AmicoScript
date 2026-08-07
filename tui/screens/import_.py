@@ -7,7 +7,7 @@ box lets you recursively fuzzy-find files under the current directory.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -18,9 +18,6 @@ from textual.widgets.option_list import Option
 from ..app import AUDIO_EXTS, shquote
 from ..widgets.chrome import CommandBar, ContextHint, TitleBar
 from ..widgets.status_bar import StatusBar
-
-if TYPE_CHECKING:
-    from ..app import AmicoTUI
 
 
 class FilteredDirectoryTree(DirectoryTree):

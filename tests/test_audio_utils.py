@@ -1,6 +1,3 @@
-from types import SimpleNamespace
-
-import state
 from core import audio_utils
 
 

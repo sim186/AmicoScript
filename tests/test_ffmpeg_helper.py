@@ -1,7 +1,6 @@
 """Tests for ffmpeg_helper — zip slip protection and error raising."""
 import io
 import zipfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,8 +16,6 @@ def _make_zip(members: dict[str, bytes]) -> bytes:
 
 def test_zip_slip_detected(tmp_path, monkeypatch):
     """A zip entry with path traversal must raise RuntimeError."""
-    import ffmpeg_helper
-
     evil_zip = _make_zip({"../../evil/ffmpeg": b"evil"})
     zip_path = tmp_path / "ffmpeg.zip"
     zip_path.write_bytes(evil_zip)

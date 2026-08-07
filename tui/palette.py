@@ -29,7 +29,7 @@ from textual.widgets.option_list import Option
 
 from . import actions
 from .actions import ANALYSIS_TYPES
-from .commands import COMMANDS, list_commands, run_command
+from .commands import list_commands, run_command
 from .fuzzy import score_match
 from .widgets.command_input import CommandInput
 
