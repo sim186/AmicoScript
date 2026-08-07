@@ -125,28 +125,28 @@ def test_a_working_job_is_never_expired_however_old(status):
     the worker went on pushing events into a record nobody was listening to and
     every /api/jobs/{id}/… route started answering 410.
     """
-    import main
+    from core import job_lifecycle
 
     job = {"status": status, "created_at": 0.0}
-    assert main._should_expire(job, cutoff=time.time()) is False
+    assert job_lifecycle.should_expire(job, cutoff=time.time()) is False
 
 
 def test_a_finished_job_past_the_cutoff_is_expired():
-    import main
+    from core import job_lifecycle
 
     job = {"status": JobStatus.DONE, "created_at": 0.0}
-    assert main._should_expire(job, cutoff=time.time()) is True
+    assert job_lifecycle.should_expire(job, cutoff=time.time()) is True
 
 
 def test_a_finished_job_inside_the_cutoff_is_kept():
-    import main
+    from core import job_lifecycle
 
     job = {"status": JobStatus.DONE, "created_at": time.time()}
-    assert main._should_expire(job, cutoff=time.time() - 3600) is False
+    assert job_lifecycle.should_expire(job, cutoff=time.time() - 3600) is False
 
 
 def test_an_already_expired_job_is_not_expired_twice():
-    import main
+    from core import job_lifecycle
 
     job = {"status": JobStatus.DONE, "created_at": 0.0, "expired": True}
-    assert main._should_expire(job, cutoff=time.time()) is False
+    assert job_lifecycle.should_expire(job, cutoff=time.time()) is False
