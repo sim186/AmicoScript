@@ -1,7 +1,9 @@
 """The saved device/precision settings must actually reach a job.
 
 They were write-only: the settings page offered them, the TUI could set them,
-and every transcription used the route's own Form defaults instead.
+and every transcription used the route's own Form defaults instead. They are
+now the only source — the per-request form fields that used to be able to
+override them are gone, since no client ever sent one.
 """
 import sys
 import types
@@ -43,15 +45,21 @@ def test_a_saved_device_is_used_when_the_client_names_none():
 
 
 @pytest.mark.usefixtures("clean_settings")
-def test_an_explicit_request_still_beats_the_saved_setting():
+def test_a_request_cannot_override_the_saved_setting():
+    """The per-request escape hatch is gone: these are settings, not arguments.
+
+    Both fields were on the transcription form and neither the web UI nor the
+    TUI ever sent them, so the override path had no callers and the saved
+    values were reaching every job anyway.
+    """
     from settings import save_whisper_settings
 
     save_whisper_settings("small", "cuda", "float16")
 
-    opts = _options(device="cpu", compute_type="int8")
+    with pytest.raises(TypeError):
+        _options(device="cpu", compute_type="int8")
 
-    assert opts["device"] == "cpu"
-    assert opts["compute_type"] == "int8"
+    assert _options()["device"] == "cuda"
 
 
 @pytest.mark.usefixtures("clean_settings")

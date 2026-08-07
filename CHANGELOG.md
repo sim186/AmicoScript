@@ -75,11 +75,23 @@ the bulk menu opened two identical pickers stacked on each other, because the
 loader was started twice. Deferred imports across the TUI are now checked by a
 test rather than by pressing every key.
 
-**Nothing about how the app is used changed.** No API contract, no setting, no
-file on disk. The test suite went from 649 to 838 passing and stopped being
-intermittently red — one test had been racing the live background worker about
-one run in eight. CI also fails now on an unused import or an unused local,
-which is what let the two broken TUI paths above go unnoticed.
+**The transcription endpoints stopped advertising eight options nothing sent.**
+`compute_type`, `device`, `device_index`, `vad_filter`, `word_timestamps`,
+`beam_size`, `best_of` and `force_normalize_audio` were accepted as form fields
+on `/api/transcribe` and `/api/transcribe/url`, and no client — not the web UI,
+not the TUI — ever sent one; every job already ran on the saved Whisper
+settings. Device and precision are now set only where they were already being
+set, in Settings. Jobs run exactly as before. If you have a script posting to
+these endpoints, any of the eight it sends is now ignored rather than rejected;
+set the device and precision in Settings instead. `AMICO_WORD_TIMESTAMPS` also
+works now — the form had been overwriting it on every job, so it had never had
+any effect.
+
+**Nothing else about how the app is used changed.** No other API contract, no
+setting, no file on disk. The test suite went from 649 to 857 passing and
+stopped being intermittently red — one test had been racing the live background
+worker about one run in eight. CI also fails now on an unused import or an
+unused local, which is what let the two broken TUI paths above go unnoticed.
 
 ### 📦 One download per platform, not four
 

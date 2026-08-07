@@ -5,15 +5,14 @@ Scope: the whole repository as of `2fd637e` — `backend/` (10.5k LOC Python),
 (7.7k LOC). Read against clean-architecture layering and clean-code rules on
 duplication, naming, function size and error handling.
 
-**Status: all thirteen findings have been fixed**, along with the palette split
-that §8 left open — see the per-section notes below and the commits following
-this document. One item remains open, and it is a product decision rather than
-a defect: see [Still worth doing](#still-worth-doing).
+**Status: closed.** All thirteen findings are fixed, along with the palette
+split §8 left open and the API contract gap §7 raised — see the per-section
+notes below and the commits following this document.
 
 The findings were originally derived by reading the code. They have since been
 verified against a running suite: the two defects in §2 and the one in §12 were
 reproduced as failing tests before the fix, and every change below is covered
-by tests that fail without it (838 passing, from 649 at the start).
+by tests that fail without it (857 passing, from 649 at the start).
 
 ---
 
@@ -50,11 +49,13 @@ from four angles.
 | 11 | `core/` has no port/adapter seam (settings, HTTP, filesystem) | Low‑Med | L | **fixed** |
 | 12 | A failed analysis marks the *recording* as failed | Medium | S | **fixed** |
 | 13 | Dead-code leftovers (10 unused imports, 1 unused local) | Low | XS | **fixed** |
+| 14 | Eight form options no client sends | Low | S | **fixed** |
 
-Three more defects were found while closing those two. All are fixed, and each
-is described in the section it came out of: an analysis key that raised
-`ImportError` and a bulk-tag picker that opened two modals (§8), and a
-malformed `# noqa` that silenced nothing (§13).
+Three more defects were found while closing those. All are fixed, and each is
+described in the section it came out of: an analysis key that raised
+`ImportError` and a bulk-tag picker that opened two modals (§8), a malformed
+`# noqa` that silenced nothing (§13), and an environment knob that could never
+take effect (§14).
 
 ---
 
@@ -322,8 +323,8 @@ API surface.
 **Fixed.** One `buildTranscriptionFormData({ file, url })`, taking either a
 file or a URL.
 
-The contract gap is unchanged and is the one open item left in this document
-— see [Still worth doing](#still-worth-doing).
+**The contract gap is closed too.** The eight options were dropped from the
+API rather than given a client — see §14.
 
 ---
 
@@ -571,6 +572,41 @@ One of those two `noqa`s turned out to be malformed —
 `meeting_watcher_host.py` wrote its reason where the code list goes, so it had
 been silencing nothing.
 
+## 14. Eight form options that no client sends
+
+Raised in §7 as a contract gap and left open through two passes, on the
+grounds that it was a decision rather than a defect. The decision: **drop
+them.**
+
+`compute_type`, `device`, `device_index`, `vad_filter`, `word_timestamps`,
+`beam_size`, `best_of` and `force_normalize_audio` were declared on
+`TranscriptionForm` and published on both transcription endpoints. Neither the
+web frontend nor the TUI ever sent one, and `to_options` fell back to the saved
+Whisper settings — so the override path had no callers and every job was
+already getting the saved values.
+
+**Fixed.** The eight are gone from the form. A job still carries all of them,
+because the worker reads all of them; what changed is where they come from —
+`device` and `compute_type` from the saved settings, the rest from
+`TranscriptionConfig`'s defaults, which are the values every job was getting
+anyway. The options dict a default request produces is byte-identical to
+before, and the OpenAPI diff is exactly these eight removals with no change to
+either endpoint's required set.
+
+Choosing a device or a precision is a setting, not a per-request argument.
+Anything already talking to these endpoints keeps working: the fields were
+optional, and a client that sends one now has it ignored rather than rejected.
+
+**One defect fell out of this.** `word_timestamps` was read by
+`core/transcription.py` as `opts.get("word_timestamps", word_timestamps_default())`
+— but the form always wrote the key, so the default could never be reached and
+`AMICO_WORD_TIMESTAMPS` did nothing at all. It is now sourced from that knob
+directly. This is the same shape as §1: a field that is always present and
+always defaulted is indistinguishable from a field nobody set, and the
+difference only matters when something else wants to decide it.
+
+---
+
 ## What is working well — keep doing it
 
 Worth stating explicitly, because these are the parts a future refactor should
@@ -620,24 +656,25 @@ place to be changed, not fewer characters.
 Tests grew by 915 lines across seven new files. The suite went from 649 to 749
 passing, and stopped being flaky — see below.
 
-### Closing §12, §13 and the §8 follow-up
+### Closing §12, §13, §14 and the §8 follow-up
 
-Three more commits, in that order, +301 lines net across 29 files. Two new
-modules: `tui/entries.py` (the palette's middle layer) and, in tests,
-`test_job_recording_status.py` and `test_tui_deferred_imports.py`.
-`tui/palette.py` went 1000 → 800.
+Four more commits, in that order. Two new modules: `tui/entries.py` (the
+palette's middle layer) and, in tests, `test_job_recording_status.py` and
+`test_tui_deferred_imports.py`. `tui/palette.py` went 1000 → 800, and
+`TranscriptionForm` lost eight of its seventeen fields.
 
-The suite went 751 → 838. Most of that growth is one parametrised test:
+The suite went 751 → 857. Most of that growth is one parametrised test:
 `test_tui_deferred_imports` generates a case per deferred import in the TUI,
 which is 77 of them today. It is cheap — it resolves names, it does not press
 keys — and it is the only thing in the tree that checks that layer at all.
 
-Worth noting what the three cost relative to what they were billed at. §12 was
-estimated at "one line, plus a test" and the line was indeed one line; naming
-`JobType` and `OWNS_RECORDING_STATUS` so the line had somewhere to live was the
-rest of it. §13 was billed XS and turned up two errors in its own list plus
-nine files it had not looked at. The §8 follow-up was billed as a tidy-up and
-turned up two live defects, one of which had been shipping a broken keybinding.
+Worth noting what the four cost relative to what they were billed at. §12 was
+estimated at "one line, plus a test"; the line was indeed one line, and naming
+`JobType` and `OWNS_RECORDING_STATUS` so it had somewhere to live was the rest.
+§13 was billed XS and turned up two errors in its own list plus nine files it
+had not looked at. The §8 follow-up was billed as a tidy-up and turned up two
+live defects, one of which had been shipping a broken keybinding. §14 was eight
+deletions and one more dead knob.
 
 Estimates written while reading code stay estimates about the code you read.
 
@@ -663,26 +700,13 @@ swaps out.
 
 ## Still worth doing
 
-One thing, and it is not a defect — it is a decision nobody has made:
+Nothing. Every finding in this document is closed, including the contract gap
+§7 raised and §14 decided.
 
-**Eight transcription options are offered to clients that do not exist.**
-`compute_type`, `device`, `device_index`, `vad_filter`, `word_timestamps`,
-`beam_size`, `best_of` and `force_normalize_audio` are declared on
-`TranscriptionForm` and carried through `TranscriptionConfig`, and neither the
-web frontend (`buildTranscriptionFormData`, which sends eight of the seventeen
-fields) nor the TUI sends any of them. `to_options` falls back to the saved
-Whisper settings, which is the right behaviour and is why nothing is broken.
-
-Two coherent answers, and this document should not pick between them because
-the choice is about who the API is for, not about the code:
-
-- **Drop them.** The published surface shrinks to what is actually used, and
-  the saved settings become the only way to set a device or a precision.
-  Cheap, and it forecloses per-job overrides.
-- **Keep them, and say so.** They are a real affordance for a scripted client
-  — the one case where you want a precision for *this* job without changing a
-  global setting. That is a legitimate reason for an unused parameter, but it
-  needs to be written down, or the next reader files this finding again.
-
-What should *not* happen is a third pass that leaves them undocumented and
-unsent. Everything else in this document is closed.
+The one thing worth carrying forward is not a finding but a habit: each of the
+last four items cost more than it was billed at, and in every case the excess
+was the same thing — the fix was small, and *naming the rule the fix relied on*
+was the work. §12 needed `OWNS_RECORDING_STATUS` before its one line had
+anywhere to live; §14 needed the decision about who the API is for before eight
+lines could be deleted. Estimates made while reading code price the edit, not
+the definition it turns out to need.

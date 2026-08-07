@@ -240,14 +240,19 @@ device changes, so only the first diarized job pays the model load.
 
 ### Which device a job uses
 
-`device` and `compute_type` come from the request, falling back to the saved
-`whisper_device` / `whisper_compute` settings, falling back to `auto`. `auto`
-picks a GPU when torch reports one and the CPU otherwise; an explicit `cuda` on
-a machine without one falls back rather than failing the job.
+`device` and `compute_type` come from the saved `whisper_device` /
+`whisper_compute` settings, falling back to `auto`. They are settings rather
+than per-request arguments: the transcription endpoints used to accept both as
+form fields, no client sent either, and the request-level override was removed
+along with six other engine knobs nothing used. Change them on the settings
+page, through `POST /api/settings`, or in the TUI.
+
+`auto` picks a GPU when torch reports one and the CPU otherwise; an explicit
+`cuda` on a machine without one falls back rather than failing the job.
 
 `compute_type` defaults to `auto` too, which resolves to `float16` on a GPU and
-`int8` on a CPU — the two are each wrong on the other's hardware. Pin a specific
-precision (`int8`, `float16`, `int8_float16`, `float32`) to override it.
+`int8` on a CPU — the two are each wrong on the other's hardware. Save a
+specific precision (`int8`, `float16`, `int8_float16`, `float32`) to pin it.
 
 Both phases record what they got, in the job log:
 
