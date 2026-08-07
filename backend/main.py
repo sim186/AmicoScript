@@ -53,6 +53,7 @@ from api.routes.library import router as library_router
 from api.routes.library_chat import router as library_chat_router
 from api.routes.llm import router as llm_router
 from api.routes.releases import router as releases_router
+from api.routes.search import router as search_router
 from api.routes.settings import router as settings_router
 from api.routes.transcription import router as transcription_router
 from core.job_lifecycle import cleanup_loop, recover_interrupted_jobs
@@ -132,6 +133,7 @@ app.include_router(transcription_router)
 app.include_router(library_router)
 app.include_router(library_chat_router)
 app.include_router(folders_tags_router)
+app.include_router(search_router)
 app.include_router(benchmark_router)
 app.include_router(backup_router)
 

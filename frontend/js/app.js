@@ -22,7 +22,6 @@ import './prefs.js';
 import { selectFolder } from './folders.js';
 import { clearTagFilter } from './tags.js';
 import { bulkAssignTag, bulkDelete, bulkExport, bulkMoveToFolder, deleteRecordingConfirm, moveRecordingToFolder, retryRecording, saveAlias, toggleCardSelection, togglePopover, toggleRecordingTag, toggleSelectAll } from './library.js';
-import './search.js';
 import './library-init.js';
 import { toggleShortcutsOverlay } from './shortcuts.js';
 import { pullLlmModel, saveLlmSettings, selectLlmModel } from './analysis.js';

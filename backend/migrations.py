@@ -193,6 +193,52 @@ def _m008_transcript_chunks(conn: Connection) -> None:
     conn.execute(text("INSERT INTO chunk_fts(chunk_fts) VALUES ('rebuild')"))
 
 
+def _m009_analysis_fts(conn: Connection) -> None:
+    """FTS5 index over analysis.result_text, so search reaches LLM output.
+
+    Everything the LLM writes about a recording — the summary, the action
+    items, a translation — lands in this one column. Without an index over it
+    the summary of a meeting was the one place the search box could not look,
+    which is backwards: the summary is usually what the user remembers.
+    """
+    if "analysis" not in _tables(conn) or "result_text" not in _columns(conn, "analysis"):
+        logger.warning("Skipping analysis index: analysis.result_text does not exist")
+        return
+
+    conn.execute(text("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS analysis_fts
+        USING fts5(result_text, content='analysis', content_rowid='rowid')
+    """))
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS analysis_ai
+        AFTER INSERT ON analysis BEGIN
+            INSERT INTO analysis_fts(rowid, result_text)
+            VALUES (new.rowid, new.result_text);
+        END
+    """))
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS analysis_ad
+        AFTER DELETE ON analysis BEGIN
+            INSERT INTO analysis_fts(analysis_fts, rowid, result_text)
+            VALUES ('delete', old.rowid, old.result_text);
+        END
+    """))
+    # An analysis row is inserted empty and filled in when the LLM answers, so
+    # the update trigger is the one that indexes almost every summary.
+    conn.execute(text("""
+        CREATE TRIGGER IF NOT EXISTS analysis_au
+        AFTER UPDATE ON analysis BEGIN
+            INSERT INTO analysis_fts(analysis_fts, rowid, result_text)
+            VALUES ('delete', old.rowid, old.result_text);
+            INSERT INTO analysis_fts(rowid, result_text)
+            VALUES (new.rowid, new.result_text);
+        END
+    """))
+    # Every analysis in an existing library predates the triggers; without a
+    # rebuild none of them would be searchable until they were edited.
+    conn.execute(text("INSERT INTO analysis_fts(analysis_fts) VALUES ('rebuild')"))
+
+
 MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "folder.color_code", _m001_folder_color_code),
     (2, "recording.alias", _m002_recording_alias),
@@ -202,6 +248,7 @@ MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (6, "analysis.auto_generated", _m006_analysis_auto_generated),
     (7, "recording.status_detail", _m007_recording_interrupted_reason),
     (8, "transcript_chunks", _m008_transcript_chunks),
+    (9, "analysis_fts", _m009_analysis_fts),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

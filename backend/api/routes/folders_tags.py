@@ -1,4 +1,4 @@
-"""Folder, tag, and search endpoints."""
+"""Folder and tag endpoints."""
 
 import os
 import threading
@@ -12,10 +12,9 @@ from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from llm_providers import refusal_reason
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
-from search_query import build_fts_match
 from settings import get_llm_settings
-from sqlalchemy import func, text
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -313,110 +312,6 @@ def remove_recording_tag(recording_id: str, tag_id: str, session: Session = Depe
         session.delete(link)
         session.commit()
     return {"ok": True}
-
-
-@router.get("/api/search")
-def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Session = Depends(get_session)) -> list:
-    if not q.strip():
-        return []
-
-
-
-    safe_limit = max(1, min(limit, 100))
-
-    # Escape LIKE wildcards so % and _ in the query are treated literally
-    q_like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-
-    # Never hand raw user input to MATCH — see backend/search_query.py.
-    fts_expr = build_fts_match(q)
-
-    try:
-        fts_rows = []
-        if fts_expr:
-            fts_rows = session.exec(
-                text(
-                    """
-                    SELECT t.recording_id,
-                           snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
-                    FROM transcript_fts
-                    JOIN transcript t ON transcript_fts.rowid = t.rowid
-                    WHERE transcript_fts MATCH :q
-                    ORDER BY rank
-                    LIMIT :lim OFFSET :off
-                    """
-                ),
-                params={"q": fts_expr, "lim": safe_limit, "off": offset},
-            ).all()
-
-        meta_rows = session.exec(
-            text(
-                """
-                SELECT DISTINCT r.id as recording_id,
-                       CASE
-                         WHEN f.name LIKE :ql ESCAPE '\\' THEN 'Folder: ' || f.name
-                         WHEN t.name LIKE :ql ESCAPE '\\' THEN 'Tag: ' || t.name
-                         ELSE 'Title: ' || r.filename
-                       END as snippet
-                FROM recording r
-                LEFT JOIN folder f ON r.folder_id = f.id
-                LEFT JOIN recordingtag rt ON r.id = rt.recording_id
-                LEFT JOIN tag t ON rt.tag_id = t.id
-                WHERE r.filename LIKE :ql ESCAPE '\\'
-                   OR f.name LIKE :ql ESCAPE '\\'
-                   OR t.name LIKE :ql ESCAPE '\\'
-                ORDER BY r.filename
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"ql": q_like, "lim": safe_limit, "off": offset},
-        ).all()
-
-        fts_ids = {r.recording_id: r.snippet for r in fts_rows}
-        ordered = list(fts_rows)
-        for r in meta_rows:
-            if r.recording_id not in fts_ids:
-                ordered.append(r)
-        rows = ordered[:safe_limit]
-    except OperationalError:
-        rows = session.exec(
-            text(
-                """
-                SELECT DISTINCT r.id AS recording_id,
-                       CASE
-                         WHEN f.name LIKE :ql ESCAPE '\\' THEN 'Folder: ' || f.name
-                         WHEN t.name LIKE :ql ESCAPE '\\' THEN 'Tag: ' || t.name
-                         WHEN r.filename LIKE :ql ESCAPE '\\' THEN 'Title: ' || r.filename
-                         ELSE COALESCE(substr(tr.full_text, 1, 100), 'Metadata match')
-                       END AS snippet
-                FROM recording r
-                LEFT JOIN transcript tr ON r.id = tr.recording_id
-                LEFT JOIN folder f ON r.folder_id = f.id
-                LEFT JOIN recordingtag rt ON r.id = rt.recording_id
-                LEFT JOIN tag t ON rt.tag_id = t.id
-                WHERE r.filename LIKE :ql ESCAPE '\\'
-                   OR tr.full_text LIKE :ql ESCAPE '\\'
-                   OR f.name LIKE :ql ESCAPE '\\'
-                   OR t.name LIKE :ql ESCAPE '\\'
-                ORDER BY r.filename
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"ql": q_like, "lim": safe_limit, "off": offset},
-        ).all()
-
-    results = []
-    for row in rows:
-        rec = session.get(Recording, row.recording_id)
-        if rec:
-            results.append(
-                {
-                    "recording_id": row.recording_id,
-                    "filename": rec.filename,
-                    "duration": rec.duration,
-                    "snippet": row.snippet,
-                }
-            )
-    return results
 
 
 @router.post("/api/exit")

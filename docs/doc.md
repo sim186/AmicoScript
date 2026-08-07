@@ -143,6 +143,64 @@ top of a file is frontmatter.
 
 ---
 
+### Global search & the command palette
+
+**GET /api/search?q=&limit=20&offset=0**
+
+One query, answered from everything the library knows about a recording:
+
+| `kind`       | where the match was found                                |
+| ------------ | -------------------------------------------------------- |
+| `transcript` | the spoken words — FTS5 over `transcript.full_text`       |
+| `summary`    | LLM output — FTS5 over `analysis.result_text`             |
+| `title`      | the file name, or the alias it was renamed to             |
+| `tag`        | the name of a tag on the recording                        |
+| `folder`     | the name of the folder holding it                         |
+
+```json
+[
+  {
+    "recording_id": "…", "filename": "standup.mp3", "alias": "Monday standup",
+    "duration": 743.0, "status": "done",
+    "kind": "summary", "matched_in": ["transcript", "summary"],
+    "snippet": "The team agreed to postpone the <mark>Helsinki</mark> launch."
+  }
+]
+```
+
+A recording is returned **once** no matter how many places matched; `kind` is
+the strongest of them and supplies the snippet, and `matched_in` lists them
+all. Ranking is by kind in the order of the table above — a match in a better
+place always outranks one in a worse place, and matching in several lifts a
+result only within its own band. The ranking itself lives in
+`backend/core/search.py`.
+
+`snippet` is library text with `<mark>` around the match. It is **not** escaped
+— a transcript can contain anything — so a caller putting it in a page must
+escape it and restore only those two tags, as `frontend/js/command-palette.js`
+does.
+
+The query is never handed to FTS5 raw (see `backend/search_query.py`); a query
+FTS5 cannot express at all, like `:-)`, falls back to a substring scan rather
+than returning nothing.
+
+In the browser this is the **command palette**, opened with `Ctrl`/`⌘` + `K`
+from anywhere, including from inside a text field. It searches as you type and
+also runs any command in the app. A leading character narrows it, the same
+prefixes the terminal UI uses:
+
+| prefix | shows                                      |
+| ------ | ------------------------------------------ |
+| `/`    | commands only                              |
+| `@`    | recordings only                            |
+| `#`    | folders and tags only                      |
+
+Commands, folders and tags are matched in the browser and appear instantly;
+recordings come from `/api/search`, debounced. `Enter` on the last row opens
+every result in the library rather than just the first few.
+
+---
+
 ### Library portability
 
 **GET /api/library/export?include_audio=true&ids=**

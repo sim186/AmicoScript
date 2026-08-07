@@ -5,7 +5,6 @@
 
 import { fetchFolders, selectFolder } from './folders.js';
 import { fetchLibrary, moveRecordingToFolder } from './library.js';
-import { initGlobalSearch } from './search.js';
 import { attachPaletteToInput } from './state.js';
 import { fetchTags, filterByTag } from './tags.js';
 import { renderBatchList } from './upload.js';
@@ -261,8 +260,6 @@ export function initLibrary() {
       filterByTag(tagId, tagName);
     }, true);
   }
-
-  initGlobalSearch();
 }
 
 // Importing a backup replaces what the list is showing, so redraw it.

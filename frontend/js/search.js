@@ -1,100 +1,21 @@
-// Global search across the library.
+// Showing search results in the library.
+//
+// Typing happens in the command palette (command-palette.js), which shows the
+// first few hits inline. This is the other half: taking a query and turning the
+// library list into everything it matches.
 //
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
-import { fetchFolders, selectFolder } from './folders.js';
-import { fetchLibrary, openRecording, renderLibrary } from './library.js';
+import { fetchFolders } from './folders.js';
+import { fetchLibrary, renderLibrary } from './library.js';
 import { hexToRgba, state } from './state.js';
 import { switchTab } from './tabs.js';
 import { fetchTags } from './tags.js';
-import { escHtml, fmtDur } from './transcript.js';
 
-let _globalSearchTimer = null;
+const MAX_RESULTS = 100;
 
-export function initGlobalSearch() {
-  const input = document.getElementById('global-search-input');
-  const dropdown = document.getElementById('global-search-dropdown');
-
-  input.addEventListener('input', () => {
-    clearTimeout(_globalSearchTimer);
-    const q = input.value.trim();
-
-    // reset if blank
-    if (!q) {
-      dropdown.classList.add('hidden');
-      dropdown.innerHTML = '';
-      if (state.activeTab === 'library') {
-        selectFolder(null); // restore default library view and reset labels
-      }
-      return;
-    }
-
-    _globalSearchTimer = setTimeout(() => {
-      // If we're in the library, filter the library list live
-      if (state.activeTab === 'library') {
-        dropdown.classList.add('hidden');
-        doSearchToLibrary(q);
-      } else {
-        // Otherwise, show the global results dropdown
-        runGlobalSearch(q);
-      }
-    }, 250);
-  });
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { dropdown.classList.add('hidden'); input.blur(); }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (q) {
-        doSearchToLibrary(q);
-        dropdown.classList.add('hidden');
-        input.blur();
-      }
-    }
-  });
-
-  document.addEventListener('click', e => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.classList.add('hidden');
-    }
-  });
-}
-
-async function runGlobalSearch(q) {
-  const dropdown = document.getElementById('global-search-dropdown');
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=15`);
-    if (!res.ok) return;
-    const results = await res.json();
-    if (!results.length) {
-      dropdown.innerHTML = '<div class="search-dropdown-item text-xs text-slate-400">No results found</div>';
-      dropdown.classList.remove('hidden');
-      return;
-    }
-    dropdown.innerHTML = '';
-    results.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'search-dropdown-item';
-      const dur = r.duration ? fmtDur(r.duration) : '';
-      item.innerHTML = `
-    <p class="text-xs font-semibold text-slate-700 truncate">${escHtml(r.filename)}</p>
-    <p class="text-xs text-slate-400 mt-0.5">${dur ? dur + ' · ' : ''}${r.snippet}</p>
-  `;
-      item.onclick = () => {
-        dropdown.classList.add('hidden');
-        document.getElementById('global-search-input').value = '';
-        const rec = { id: r.recording_id, filename: r.filename, status: 'done', duration: r.duration, tags: [] };
-        openRecording(rec);
-      };
-      dropdown.appendChild(item);
-    });
-    dropdown.classList.remove('hidden');
-  } catch (_) { }
-}
-
-async function doSearchToLibrary(q) {
+export async function showSearchResultsInLibrary(q) {
   if (!q) {
     state.library.selectedFolderId = null;
     state.library.selectedTagId = null;
@@ -102,11 +23,12 @@ async function doSearchToLibrary(q) {
     return;
   }
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=100`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=${MAX_RESULTS}`);
     if (!res.ok) return;
     const rows = await res.json();
 
-    // If no results, show empty state immediately
+    // Show the empty state immediately rather than after a round of detail
+    // fetches that have nothing to fetch.
     if (rows.length === 0) {
       state.library.recordings = [];
       renderLibrary();

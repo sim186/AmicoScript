@@ -5,6 +5,7 @@
 
 import { initAiAnalysis, saveLlmSettings } from './analysis.js';
 import { fetchAndShowChangelog } from './changelog.js';
+import { initCommandPalette } from './command-palette.js';
 import { initExportButtons } from './exports.js';
 import { cancelJob } from './jobs.js';
 import { initLibraryChat } from './library-chat.js';
@@ -37,6 +38,7 @@ export function init() {
   initTagSuggest();
   initLibraryChat();
   initShortcuts();
+  initCommandPalette();
 
   document.getElementById('language-select').addEventListener('change', e => {
     state.selectedLanguage = e.target.value;

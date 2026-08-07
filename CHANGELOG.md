@@ -6,6 +6,40 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 🔍 One box for finding anything, and doing anything
+
+`Ctrl`/`⌘` + `K` opens a command palette from anywhere in the app — including
+from inside a text field, since half of wanting it is being mid-sentence. It
+replaces the header search box, which searched less and could do nothing.
+
+**Search now sees the half of the library it was blind to.** A recording's
+summary, its action items and its translations are all LLM output living in one
+column that nothing indexed, so the words a user is most likely to remember
+reading were the words search could not find. A new FTS5 index covers them, and
+`/api/search` answers from five places at once — transcripts, LLM output, file
+names and aliases, tags and folders. A recording that matches in several places
+is still one result, labelled with every place it was found in, and ranked by
+the strongest of them.
+
+**The palette is also the app's command list.** Typing `/` filters commands —
+go to a tab, ask your library, pick files, export a backup, open the console,
+clear filters. `@` searches recordings, `#` searches folders and tags, and
+anything else searches all of it at once. Commands, folders and tags are matched
+in the browser and appear as you type; recordings come from the search endpoint,
+debounced. The prefixes are the ones the terminal UI already uses, and the
+matching is the same algorithm, ported.
+
+Smaller things that came with it:
+
+- **A recording renamed with an alias can now be found by that name.** Search
+  looked only at the original file name — the one name the user had chosen was
+  the one it ignored.
+- **A search snippet is escaped before it is displayed.** Snippets carry
+  `<mark>` around the match and are otherwise raw transcript text, which the old
+  dropdown assigned straight to `innerHTML`.
+- **`offset` walks the whole result list.** It used to be applied per source and
+  then merged, so paging skipped and repeated rows.
+
 ### 🧹 A structural pass over the whole codebase
 
 A review of the repository against clean-architecture layering and clean-code
