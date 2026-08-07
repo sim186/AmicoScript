@@ -33,13 +33,18 @@ def create_analysis_job(
     output_language: str = "",
     auto_generated: bool = False,
     enqueue: bool = True,
+    llm_config: dict | None = None,
 ) -> tuple[str, str]:
     """Create the Analysis row + job. Returns (job_id, analysis_id).
 
     ``enqueue=False`` leaves the job on the shelf for the caller to submit —
     used by the worker thread, which cannot touch the loop's queue directly.
+
+    ``llm_config`` is the settings this analysis will run against. It defaults
+    to whatever is saved, which is what every caller in the app wants; passing
+    it is how you exercise this without a settings file on disk.
     """
-    cfg = get_llm_settings()
+    cfg = get_llm_settings() if llm_config is None else llm_config
     analysis_id = str(uuid.uuid4())
 
     with new_session() as session:
@@ -79,18 +84,26 @@ def create_analysis_job(
     return job_id, analysis_id
 
 
-def maybe_queue_auto_summary(recording_id: str) -> str:
+def maybe_queue_auto_summary(
+    recording_id: str,
+    *,
+    enabled: bool | None = None,
+    llm_config: dict | None = None,
+) -> str:
     """Summarise a finished meeting capture, if the user asked for that.
 
     Called from the transcription worker once a transcript exists. Returns the
     job id, or "" when nothing was queued. Never raises: a failure to summarise
     must not fail the transcription that just succeeded.
+
+    Both settings can be supplied rather than read, so the decision this makes
+    can be exercised without a settings file behind it.
     """
     try:
-        if not get_auto_summarize_meetings():
+        if not (get_auto_summarize_meetings() if enabled is None else enabled):
             return ""
 
-        cfg = get_llm_settings()
+        cfg = get_llm_settings() if llm_config is None else llm_config
         refusal = refusal_reason(cfg)
         if refusal:
             logger.info("Auto-summary skipped: %s", refusal)
@@ -125,6 +138,7 @@ def maybe_queue_auto_summary(recording_id: str) -> str:
             file_path=file_path,
             auto_generated=True,
             enqueue=False,
+            llm_config=cfg,
         )
         if not submit_threadsafe(job_id):
             state.jobs.pop(job_id, None)

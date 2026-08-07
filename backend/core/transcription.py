@@ -21,6 +21,7 @@ from core.job_helpers import (
     push_event,
     sync_job_to_db,
 )
+from core.runtime_config import download_concurrency, word_timestamps_default
 from core.messages import (
     COLAB_UPLOADING,
     DOWNLOAD_PREPARING,
@@ -216,7 +217,7 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
             pass
 
     lang = opts.get("language") or None
-    use_word_timestamps = bool(opts.get("word_timestamps", os.environ.get("AMICO_WORD_TIMESTAMPS", "0") == "1"))
+    use_word_timestamps = bool(opts.get("word_timestamps", word_timestamps_default()))
     use_vad_filter = bool(opts.get("vad_filter", True))
 
     whisper_input = convert_audio_for_transcription(
@@ -540,18 +541,10 @@ def worker_loop() -> None:
 _download_semaphore: asyncio.Semaphore | None = None
 
 
-def _download_concurrency() -> int:
-    try:
-        value = int(os.environ.get("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "2"))
-    except ValueError:
-        return 2
-    return max(1, min(value, 8))
-
-
 def _get_download_semaphore() -> asyncio.Semaphore:
     global _download_semaphore
     if _download_semaphore is None:
-        _download_semaphore = asyncio.Semaphore(_download_concurrency())
+        _download_semaphore = asyncio.Semaphore(download_concurrency())
     return _download_semaphore
 
 

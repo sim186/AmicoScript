@@ -24,18 +24,21 @@ class RequeueError(RuntimeError):
 
 
 def build_job(recording_id: str, filename: str, file_path: str, opts: dict,
-              *, resumed: bool = False) -> str:
+              *, resumed: bool = False, hf_token: str | None = None) -> str:
     """Create the in-memory job for *recording_id* and return its id.
 
     Does not enqueue — the caller decides, because the worker thread and the
-    event loop submit differently.
+    event loop submit differently. ``hf_token`` defaults to the saved one; pass
+    it to build a job without reading the settings file.
     """
+    if hf_token is None:
+        hf_token = opts.get("hf_token") or get_saved_hf_token()
     return create_job(
         job_type="transcribe",
         recording_id=recording_id,
         original_filename=filename,
         file_path=file_path,
-        options={**opts, "hf_token": opts.get("hf_token") or get_saved_hf_token()},
+        options={**opts, "hf_token": hf_token},
         message="Requeued",
         resumed=resumed,
     )

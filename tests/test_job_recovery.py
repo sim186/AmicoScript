@@ -160,19 +160,6 @@ def test_expiring_a_job_keeps_a_tombstone():
 # --- download prefetch ------------------------------------------------------
 
 
-def test_download_concurrency_is_read_from_the_environment(monkeypatch):
-    from core import transcription
-
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "5")
-    assert transcription._download_concurrency() == 5
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "0")
-    assert transcription._download_concurrency() == 1
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "99")
-    assert transcription._download_concurrency() == 8
-    monkeypatch.setenv("AMICOSCRIPT_DOWNLOAD_CONCURRENCY", "nonsense")
-    assert transcription._download_concurrency() == 2
-
-
 def test_downloads_of_separate_jobs_overlap(monkeypatch):
     """Two URL imports must not serialize behind each other."""
     import threading

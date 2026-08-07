@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
+
+from core.runtime_config import ytdlp_auto_cookies, ytdlp_cookie_browsers
 
 
 class DownloadCancelled(Exception):
@@ -86,17 +87,6 @@ def _get_yt_dlp_class():
     return YoutubeDL
 
 
-def _should_auto_cookies() -> bool:
-    value = (os.environ.get("AMICO_YTDLP_AUTO_COOKIES", "1") or "1").strip().lower()
-    return value not in {"0", "false", "no", "off"}
-
-
-def _cookie_browsers() -> list[str]:
-    raw = os.environ.get("AMICO_YTDLP_COOKIE_BROWSERS", "chrome,firefox,safari,edge")
-    browsers = [b.strip().lower() for b in raw.split(",") if b.strip()]
-    return browsers or ["chrome", "firefox", "safari", "edge"]
-
-
 def _is_auth_or_rate_limit_error(exc: Exception) -> bool:
     text = str(exc).lower()
     return any(marker in text for marker in AUTH_ERROR_MARKERS)
@@ -123,8 +113,8 @@ def _extract_info_with_retries(source_url: str, base_opts: dict, download: bool)
     platform = detect_source_platform(source_url)
 
     attempts: list[str | None] = [None]
-    if _should_auto_cookies() and platform in AUTH_RETRY_PLATFORMS:
-        attempts.extend(_cookie_browsers())
+    if ytdlp_auto_cookies() and platform in AUTH_RETRY_PLATFORMS:
+        attempts.extend(ytdlp_cookie_browsers())
 
     last_error: Exception | None = None
     for browser in attempts:

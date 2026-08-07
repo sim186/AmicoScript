@@ -21,6 +21,7 @@ import state
 from core.job_helpers import cleanup_job_temp_files
 from core.job_status import ACTIVE, RESUMABLE, JobStatus
 from core.jobs import submit
+from core.runtime_config import resume_interrupted_jobs
 from core.requeue import build_job
 from db import new_session
 from models import Recording
@@ -38,11 +39,6 @@ CLEANUP_INTERVAL_SECONDS = 3600
 # ---------------------------------------------------------------------------
 # Recovery — what a restart interrupted
 # ---------------------------------------------------------------------------
-
-
-def resume_is_enabled() -> bool:
-    """AMICOSCRIPT_RESUME_JOBS=0 restores the old fail-fast behaviour."""
-    return os.environ.get("AMICOSCRIPT_RESUME_JOBS", "1").lower() not in ("0", "false", "no")
 
 
 def classify_interrupted(recording: Recording, *, resume: bool) -> tuple[str, str]:
@@ -72,7 +68,7 @@ def recover_interrupted_jobs() -> None:
     is still on disk goes back into the queue, and anything that is not
     resumable is marked 'interrupted' with a reason the UI can display.
     """
-    resume = resume_is_enabled()
+    resume = resume_interrupted_jobs()
     requeued: list[tuple[str, str, str, dict]] = []
 
     try:
