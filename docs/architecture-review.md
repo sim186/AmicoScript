@@ -12,7 +12,7 @@ notes below and the commits following this document.
 The findings were originally derived by reading the code. They have since been
 verified against a running suite: the two defects in §2 and the one in §12 were
 reproduced as failing tests before the fix, and every change below is covered
-by tests that fail without it (857 passing, from 649 at the start).
+by tests that fail without it (858 passing, from 649 at the start).
 
 ---
 
@@ -51,11 +51,12 @@ from four angles.
 | 13 | Dead-code leftovers (10 unused imports, 1 unused local) | Low | XS | **fixed** |
 | 14 | Eight form options no client sends | Low | S | **fixed** |
 
-Three more defects were found while closing those. All are fixed, and each is
+Four more defects were found while closing those. All are fixed, and each is
 described in the section it came out of: an analysis key that raised
 `ImportError` and a bulk-tag picker that opened two modals (§8), a malformed
-`# noqa` that silenced nothing (§13), and an environment knob that could never
-take effect (§14).
+`# noqa` that silenced nothing (§13), an environment knob that could never
+take effect (§14), and an analysis cancelled before it started that was left
+reading `pending` for good (§12).
 
 ---
 
@@ -532,6 +533,17 @@ reproduces the defect for both non-owning job types, pins the transcription
 behaviour that had to survive, and asserts every `JobType` member is accounted
 for — so the next job type added cannot inherit the wrong answer by default.
 
+**The rule has a second half, found while reviewing the first.** A job may not
+write the *recording's* status, but it must write its *own* — and one path did
+neither. `process_job`'s early-cancel branch returns before dispatching to a
+type handler, so an analysis cancelled while still queued never reached the
+code that closes its `Analysis` row: it stayed `pending` permanently, and
+`/api/recordings/{id}/analyses` published that. Nothing made this visible
+before, because the same cancel also (wrongly) marked the recording, which at
+least left a trace. Removing the wrong signal is what exposed the missing one.
+`mark_analysis_cancelled` now serves both the interrupted-stream path and the
+cancelled-while-queued one.
+
 ---
 
 ## 13. Dead-code leftovers
@@ -663,7 +675,7 @@ palette's middle layer) and, in tests, `test_job_recording_status.py` and
 `test_tui_deferred_imports.py`. `tui/palette.py` went 1000 → 800, and
 `TranscriptionForm` lost eight of its seventeen fields.
 
-The suite went 751 → 857. Most of that growth is one parametrised test:
+The suite went 751 → 858. Most of that growth is one parametrised test:
 `test_tui_deferred_imports` generates a case per deferred import in the TUI,
 which is 77 of them today. It is cheap — it resolves names, it does not press
 keys — and it is the only thing in the tree that checks that layer at all.

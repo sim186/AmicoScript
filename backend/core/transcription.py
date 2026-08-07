@@ -34,7 +34,7 @@ from core.messages import (
     TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
     TRANSCRIPTION_WAITING_FIRST_SEGMENT,
 )
-from core.analysis import process_analysis_job
+from core.analysis import mark_analysis_cancelled, process_analysis_job
 from core.analysis_jobs import maybe_queue_auto_summary
 from core.source_downloader import DownloadCancelled, download_source_audio
 from db import new_session
@@ -462,6 +462,11 @@ def process_job(job_id: str) -> None:
     job = state.jobs[job_id]
     try:
         if job.get("cancel_flag") and job["cancel_flag"].is_set():
+            # A job type that owns a row of its own has to finish it here: the
+            # handler that would normally do it never runs. An analysis
+            # cancelled while still queued was left reading "pending" for good.
+            if job.get("type") == JobType.ANALYSIS and job.get("analysis_id"):
+                mark_analysis_cancelled(job["analysis_id"])
             push_event(job_id, "cancelled", 0.0, "Job cancelled before start")
             sync_job_to_db(job_id)
             return

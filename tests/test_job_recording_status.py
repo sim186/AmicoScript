@@ -1,4 +1,4 @@
-"""Only a job that owns the recording may write the recording's status.
+"""Which row a job owns, and leaving that row in a terminal state.
 
 `sync_job_to_db` used to copy whatever status the job was carrying onto the
 Recording row, for every kind of job. That is right for a transcription — its
@@ -116,3 +116,37 @@ def test_the_default_job_type_owns_the_recording():
     only kind of job that predates it is a transcription.
     """
     assert JobType.TRANSCRIBE in OWNS_RECORDING_STATUS
+
+
+# --- and the row a job does own must be finished ----------------------------
+
+
+def test_an_analysis_cancelled_before_it_starts_still_finishes_its_row(make_recording):
+    """Otherwise it reads "pending" for good, and the API publishes that.
+
+    The worker's early-cancel branch returns before dispatching to the analysis
+    handler, so the handler that would normally close the row never runs. This
+    is the other half of the rule in this file: a job may not write the
+    recording's status, but it must write its own.
+    """
+    from core.analysis_jobs import create_analysis_job
+    from core.transcription import process_job
+    from db import new_session
+    from models import Analysis
+
+    recording_id = make_recording(status="done")
+    job_id, analysis_id = create_analysis_job(
+        recording_id=recording_id,
+        analysis_type="summary",
+        transcript_full_text="hello",
+        enqueue=False,
+        llm_config={"llm_model_name": "m", "llm_base_url": "http://x", "llm_api_key": ""},
+    )
+    state.jobs[job_id]["cancel_flag"].set()
+
+    process_job(job_id)
+
+    with new_session() as session:
+        assert session.get(Analysis, analysis_id).status != "pending"
+    # and the recording is still none of its business
+    assert _status_of(recording_id) == "done"

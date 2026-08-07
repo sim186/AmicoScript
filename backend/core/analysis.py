@@ -409,10 +409,26 @@ def process_analysis_job(job_id: str) -> None:
             append_job_log(job_id, "ERROR", f"Failed to persist analysis error state: {db_exc}")
 
 
+def mark_analysis_cancelled(analysis_id: str, partial: str = "") -> None:
+    """Put a cancelled analysis into a terminal state on its own row.
+
+    Two callers, and the second is why this is not just a line inside
+    ``_finish_cancelled``: the stream can be interrupted mid-generation, or the
+    job can be cancelled while it is still queued — in which case the worker
+    never reaches this module at all and nothing else would ever move the row
+    off "pending". `/api/recordings/{id}/analyses` publishes that status, so
+    the analysis showed as still-about-to-run for good.
+
+    "error" rather than "cancelled" because the Analysis row has no separate
+    cancelled state, and this is its only other terminal value.
+    """
+    _persist(analysis_id, text=partial, status="error")
+
+
 def _finish_cancelled(job_id: str, analysis_id: str, partial: str) -> None:
     push_event(job_id, "cancelled", 0.0, "Cancelled by user.")
     append_job_log(job_id, "INFO", "Analysis job cancelled")
-    _persist(analysis_id, text=partial, status="error")
+    mark_analysis_cancelled(analysis_id, partial)
 
 
 def _single_pass(job_id, analysis_id, opts, target, cancelled) -> None:

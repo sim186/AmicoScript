@@ -31,7 +31,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install -r tui/requirements.txt
-          pip install pytest httpx ruff
+          # ruff is pinned: an unpinned linter turns a release that adds a
+          # rule into a red build on an unrelated pull request.
+          pip install pytest httpx 'ruff>=0.15,<0.16'
 
       # Only the pyflakes rules (F): unused imports and unused locals, which is
       # what this is here to stop coming back — not style, which nothing in the
