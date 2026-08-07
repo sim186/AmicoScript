@@ -72,7 +72,9 @@ AmicoScript keeps everything local.
   OpenRouter and other hosted providers are supported too, behind an explicit opt-in
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
-- 🔍 Global search across transcripts
+- 🔍 Command palette (`Ctrl`/`⌘` + `K`) — one box that searches transcripts,
+  LLM summaries, names, tags and folders at once, and runs any command in the
+  app. A recording appears once, labelled with where it matched
 - 💬 Ask your library — a question answered from every transcript at once, with
   citations that open the recording at the second it was said. Works on keyword
   search out of the box; name an embedding model and it searches by meaning

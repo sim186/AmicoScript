@@ -18,6 +18,9 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 
 ### Shipped
 
+- Unified global search & command palette — `Ctrl`/`⌘` + `K` searches
+  transcripts, LLM summaries, names, tags and folders in one box, and runs any
+  command in the app
 - Chat with your library — one question answered across every transcript, with
   citations that open the recording at the timestamp. Keyword retrieval works
   with no setup; naming an embedding model adds semantic search
