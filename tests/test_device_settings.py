@@ -21,17 +21,10 @@ def _fake_torch(monkeypatch, cuda_available: bool) -> None:
 
 
 def _options(**overrides) -> dict:
-    from api.routes.transcription import _build_transcription_options
+    """The options a job gets when a client submits *overrides* and nothing else."""
+    from api.routes.transcription import TranscriptionForm
 
-    base = dict(
-        model="small", language="", diarize="false", colab_url="",
-        num_speakers="", min_speakers="", max_speakers="",
-        compute_type="", device="", device_index="0",
-        vad_filter="true", word_timestamps="false",
-        beam_size="5", best_of="5", force_normalize_audio="false",
-    )
-    base.update(overrides)
-    return _build_transcription_options(**base)
+    return TranscriptionForm(**overrides).to_options()
 
 
 # --- the saved settings reach a job ------------------------------------------

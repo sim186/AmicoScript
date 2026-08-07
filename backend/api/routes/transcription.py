@@ -7,7 +7,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from http_utils import content_disposition_attachment as _content_disposition
 
@@ -92,53 +92,95 @@ def _to_bool(value: str, default: bool = False) -> bool:
     return default
 
 
-def _build_transcription_options(
-    model: str,
-    language: str,
-    diarize: str,
-    colab_url: str,
-    num_speakers: str,
-    min_speakers: str,
-    max_speakers: str,
-    compute_type: str,
-    device: str,
-    device_index: str,
-    vad_filter: str,
-    word_timestamps: str,
-    beam_size: str,
-    best_of: str,
-    force_normalize_audio: str,
-) -> dict[str, Any]:
-    def _parse_positive_int(value: str, default: int | None) -> int | None:
-        try:
-            v = int(value)
-            return v if v > 0 else default
-        except (ValueError, TypeError):
-            return default
+def _positive_int(value: str, default: int | None) -> int | None:
+    try:
+        parsed = int(value)
+    except (ValueError, TypeError):
+        return default
+    return parsed if parsed > 0 else default
 
-    # The saved Whisper settings are the fallback when a client does not name a
-    # device or precision — which is every client today. Without this the
-    # stored values were write-only: the settings page offered them, the TUI
-    # could set them, and no job ever read them.
-    saved = _get_whisper_settings()
 
-    return TranscriptionConfig(
-        model=model,
-        language=language,
-        diarize=_to_bool(diarize),
-        colab_url=colab_url,
-        num_speakers=_parse_positive_int(num_speakers, None),
-        min_speakers=_parse_positive_int(min_speakers, None),
-        max_speakers=_parse_positive_int(max_speakers, None),
-        compute_type=(compute_type or saved["whisper_compute"] or "auto"),
-        device=(device or saved["whisper_device"] or "auto"),
-        device_index=_parse_positive_int(device_index, 0) or 0,
-        vad_filter=_to_bool(vad_filter, default=True),
-        word_timestamps=_to_bool(word_timestamps),
-        beam_size=_parse_positive_int(beam_size, 5) or 5,
-        best_of=_parse_positive_int(best_of, 5) or 5,
-        force_normalize_audio=_to_bool(force_normalize_audio),
-    ).model_dump()
+class TranscriptionForm:
+    """The transcription options a client may send, declared once.
+
+    /api/transcribe and /api/transcribe/url accept exactly the same set, and
+    used to spell all sixteen out separately — so adding an option meant
+    editing four lists in the right order, with nothing but the uniform `str`
+    typing to catch a mis-ordered argument.
+
+    Every field arrives as a string because these are multipart form fields;
+    ``to_options`` does the coercion and merges in the saved defaults.
+
+    The Form markers live in the annotations rather than in the defaults, so
+    the defaults stay ordinary strings and the class can be constructed
+    directly — in a test, or anywhere else that is not handling a request.
+    """
+
+    def __init__(
+        self,
+        model: Annotated[str, Form()] = "small",
+        language: Annotated[str, Form()] = "",
+        diarize: Annotated[str, Form()] = "false",
+        colab_url: Annotated[str, Form()] = "",
+        hf_token: Annotated[str, Form()] = "",
+        num_speakers: Annotated[str, Form()] = "",
+        min_speakers: Annotated[str, Form()] = "",
+        max_speakers: Annotated[str, Form()] = "",
+        # Empty, not "int8"/"auto": an explicit default here would shadow the
+        # saved Whisper settings, which is how they became write-only.
+        compute_type: Annotated[str, Form()] = "",
+        device: Annotated[str, Form()] = "",
+        device_index: Annotated[str, Form()] = "0",
+        vad_filter: Annotated[str, Form()] = "true",
+        word_timestamps: Annotated[str, Form()] = "false",
+        beam_size: Annotated[str, Form()] = "5",
+        best_of: Annotated[str, Form()] = "5",
+        force_normalize_audio: Annotated[str, Form()] = "false",
+        folder_id: Annotated[str, Form()] = "",
+    ) -> None:
+        self.model = model
+        self.language = language
+        self.diarize = diarize
+        self.colab_url = colab_url
+        self.hf_token = hf_token
+        self.num_speakers = num_speakers
+        self.min_speakers = min_speakers
+        self.max_speakers = max_speakers
+        self.compute_type = compute_type
+        self.device = device
+        self.device_index = device_index
+        self.vad_filter = vad_filter
+        self.word_timestamps = word_timestamps
+        self.beam_size = beam_size
+        self.best_of = best_of
+        self.force_normalize_audio = force_normalize_audio
+        self.folder_id = folder_id
+
+    def to_options(self) -> dict[str, Any]:
+        """Coerce the submitted strings into the options a job runs with."""
+        # The saved Whisper settings are the fallback when a client does not
+        # name a device or precision — which is every client today. Without
+        # this the stored values were write-only: the settings page offered
+        # them, the TUI could set them, and no job ever read them.
+        saved = _get_whisper_settings()
+
+        return TranscriptionConfig(
+            model=self.model,
+            language=self.language,
+            diarize=_to_bool(self.diarize),
+            colab_url=self.colab_url,
+            num_speakers=_positive_int(self.num_speakers, None),
+            min_speakers=_positive_int(self.min_speakers, None),
+            max_speakers=_positive_int(self.max_speakers, None),
+            compute_type=(self.compute_type or saved["whisper_compute"] or "auto"),
+            device=(self.device or saved["whisper_device"] or "auto"),
+            device_index=_positive_int(self.device_index, 0) or 0,
+            vad_filter=_to_bool(self.vad_filter, default=True),
+            word_timestamps=_to_bool(self.word_timestamps),
+            beam_size=_positive_int(self.beam_size, 5) or 5,
+            best_of=_positive_int(self.best_of, 5) or 5,
+            force_normalize_audio=_to_bool(self.force_normalize_audio),
+        ).model_dump()
 
 
 def _create_recording_row(
@@ -240,26 +282,8 @@ def _ensure_recording_platform_tag(recording_id: str, platform: str) -> None:
 @router.post("/api/transcribe")
 async def transcribe(
     file: UploadFile = File(...),
-    model: str = Form("small"),
-    language: str = Form(""),
-    diarize: str = Form("false"),
-    colab_url: str = Form(""),
-    hf_token: str = Form(""),
-    num_speakers: str = Form(""),
-    min_speakers: str = Form(""),
-    max_speakers: str = Form(""),
-    # Empty, not "int8"/"auto": an explicit default here would shadow the
-    # saved Whisper settings, which is how they became write-only.
-    compute_type: str = Form(""),
-    device: str = Form(""),
-    device_index: str = Form("0"),
-    vad_filter: str = Form("true"),
-    word_timestamps: str = Form("false"),
-    beam_size: str = Form("5"),
-    best_of: str = Form("5"),
-    force_normalize_audio: str = Form("false"),
-    folder_id: str = Form(""),
     source: str = Form("upload"),
+    form: TranscriptionForm = Depends(),
 ) -> dict:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -274,31 +298,15 @@ async def transcribe(
 
     recording_id = str(uuid.uuid4())
     permanent_path = ingest_file(staging, recording_id)
-
-    opts_dict = _build_transcription_options(
-        model=model,
-        language=language,
-        diarize=diarize,
-        colab_url=colab_url,
-        num_speakers=num_speakers,
-        min_speakers=min_speakers,
-        max_speakers=max_speakers,
-        compute_type=compute_type,
-        device=device,
-        device_index=device_index,
-        vad_filter=vad_filter,
-        word_timestamps=word_timestamps,
-        beam_size=beam_size,
-        best_of=best_of,
-        force_normalize_audio=force_normalize_audio,
-    )
+    opts_dict = form.to_options()
+    filename = file.filename or "audio"
 
     try:
         _create_recording_row(
             recording_id=recording_id,
-            filename=file.filename or "audio",
+            filename=filename,
             file_path=str(permanent_path),
-            folder_id=folder_id,
+            folder_id=form.folder_id,
             opts_dict=opts_dict,
             source=source,
         )
@@ -313,10 +321,10 @@ async def transcribe(
     _create_job(
         job_id=job_id,
         recording_id=recording_id,
-        original_filename=file.filename or "audio",
+        original_filename=filename,
         file_path=str(permanent_path),
         opts_dict=opts_dict,
-        hf_token=hf_token,
+        hf_token=form.hf_token,
     )
     return {"job_id": job_id, "recording_id": recording_id}
 
@@ -325,25 +333,7 @@ async def transcribe(
 async def transcribe_from_url(
     source_url: str = Form(...),
     allow_playlist: str = Form("true"),
-    model: str = Form("small"),
-    language: str = Form(""),
-    diarize: str = Form("false"),
-    colab_url: str = Form(""),
-    hf_token: str = Form(""),
-    num_speakers: str = Form(""),
-    min_speakers: str = Form(""),
-    max_speakers: str = Form(""),
-    # Empty, not "int8"/"auto": an explicit default here would shadow the
-    # saved Whisper settings, which is how they became write-only.
-    compute_type: str = Form(""),
-    device: str = Form(""),
-    device_index: str = Form("0"),
-    vad_filter: str = Form("true"),
-    word_timestamps: str = Form("false"),
-    beam_size: str = Form("5"),
-    best_of: str = Form("5"),
-    force_normalize_audio: str = Form("false"),
-    folder_id: str = Form(""),
+    form: TranscriptionForm = Depends(),
 ) -> dict:
     normalized_url = (source_url or "").strip()
     if not normalized_url:
@@ -363,23 +353,7 @@ async def transcribe_from_url(
     if not candidates:
         raise HTTPException(400, "No downloadable entries found for this URL")
 
-    opts_dict = _build_transcription_options(
-        model=model,
-        language=language,
-        diarize=diarize,
-        colab_url=colab_url,
-        num_speakers=num_speakers,
-        min_speakers=min_speakers,
-        max_speakers=max_speakers,
-        compute_type=compute_type,
-        device=device,
-        device_index=device_index,
-        vad_filter=vad_filter,
-        word_timestamps=word_timestamps,
-        beam_size=beam_size,
-        best_of=best_of,
-        force_normalize_audio=force_normalize_audio,
-    )
+    opts_dict = form.to_options()
 
     jobs: list[dict[str, str]] = []
     for candidate in candidates:
@@ -391,7 +365,7 @@ async def transcribe_from_url(
             recording_id=recording_id,
             filename=display_name,
             file_path="",
-            folder_id=folder_id,
+            folder_id=form.folder_id,
             opts_dict=opts_dict,
             source="url",
         )
@@ -403,7 +377,7 @@ async def transcribe_from_url(
             original_filename=display_name,
             file_path="",
             opts_dict=opts_dict,
-            hf_token=hf_token,
+            hf_token=form.hf_token,
             job_type="download_transcribe",
             source_url=candidate.url,
             source_platform=candidate.platform,

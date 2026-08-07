@@ -1,22 +1,12 @@
-"""Tests for _build_transcription_options int parsing."""
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-
-import pytest
-from api.routes.transcription import _build_transcription_options
+"""Coercing the submitted form strings into the options a job runs with."""
+from api.routes.transcription import TranscriptionForm
 
 
 def _build(**overrides):
-    defaults = dict(
-        model="small", language="", diarize="false", colab_url="",
-        num_speakers="", min_speakers="", max_speakers="",
-        compute_type="int8", device="auto", device_index="0",
-        vad_filter="true", word_timestamps="false",
-        beam_size="5", best_of="5", force_normalize_audio="false",
-    )
+    """Both transcription routes reach these options through the same form."""
+    defaults = dict(compute_type="int8", device="auto")
     defaults.update(overrides)
-    return _build_transcription_options(**defaults)
+    return TranscriptionForm(**defaults).to_options()
 
 
 def test_valid_positive_ints():
