@@ -20,7 +20,7 @@ import config
 import state
 from core.job_helpers import cleanup_job_temp_files
 from core.job_status import ACTIVE, RESUMABLE, JobStatus
-from core.jobs import submit
+from core.jobs import JobType, submit
 from core.runtime_config import resume_interrupted_jobs
 from core.requeue import build_job
 from db import new_session
@@ -145,7 +145,7 @@ def expire_job(job_id: str) -> None:
         return
     state.jobs[job_id] = {
         "id": job_id,
-        "type": job.get("type", "transcribe"),
+        "type": job.get("type", JobType.TRANSCRIBE),
         "recording_id": job.get("recording_id"),
         "status": job.get("status", JobStatus.DONE),
         "progress": job.get("progress", 1.0),

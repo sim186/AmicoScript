@@ -13,7 +13,7 @@ import os
 import state
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import JobStatus
-from core.jobs import create_job
+from core.jobs import JobType, create_job
 from db import new_session
 from models import Recording
 from settings import get_saved_hf_token
@@ -34,7 +34,7 @@ def build_job(recording_id: str, filename: str, file_path: str, opts: dict,
     if hf_token is None:
         hf_token = opts.get("hf_token") or get_saved_hf_token()
     return create_job(
-        job_type="transcribe",
+        job_type=JobType.TRANSCRIBE,
         recording_id=recording_id,
         original_filename=filename,
         file_path=file_path,

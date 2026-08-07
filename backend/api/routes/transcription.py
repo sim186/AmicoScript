@@ -20,7 +20,7 @@ from core.job_helpers import append_job_log, push_event, sync_job_to_db
 from core.translation import translate_audio_chunk
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import JobStatus
-from core.jobs import create_job, submit
+from core.jobs import JobType, create_job, submit
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
@@ -229,7 +229,7 @@ def _create_job(
     file_path: str,
     opts_dict: dict[str, Any],
     hf_token: str,
-    job_type: str = "transcribe",
+    job_type: str = JobType.TRANSCRIBE,
     source_url: str = "",
     source_platform: str = "",
 ) -> None:
@@ -378,7 +378,7 @@ async def transcribe_from_url(
             file_path="",
             opts_dict=opts_dict,
             hf_token=form.hf_token,
-            job_type="download_transcribe",
+            job_type=JobType.DOWNLOAD_TRANSCRIBE,
             source_url=candidate.url,
             source_platform=candidate.platform,
         )
@@ -431,7 +431,7 @@ def list_jobs() -> dict:
             continue
         rows.append({
             "id": jid,
-            "type": j.get("type", "transcribe"),
+            "type": j.get("type", JobType.TRANSCRIBE),
             "status": st,
             "progress": j.get("progress", 0.0),
             "message": j.get("message", ""),
@@ -592,7 +592,7 @@ async def translate_all_api(recording_id: str, session: Session = Depends(get_se
     opts = json.loads(rec.transcription_options or "{}")
 
     job_id = create_job(
-        job_type="translate",
+        job_type=JobType.TRANSLATE,
         recording_id=recording_id,
         original_filename=rec.filename,
         file_path=rec.file_path,

@@ -23,6 +23,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from enum import StrEnum
 from typing import Any
 
 import state
@@ -32,6 +33,43 @@ from core.job_status import JobStatus
 #: the full history goes to the logger, this ring is only what the logs panel
 #: can ask for.
 JOB_LOG_LIMIT = 1000
+
+
+class JobType(StrEnum):
+    """What a job is for.
+
+    The values are the strings already stored in ``job["type"]`` and published
+    by ``GET /api/jobs``, so a member compares equal to the plain string the
+    worker dispatches on.
+    """
+
+    #: Transcribe a file that is already on disk.
+    TRANSCRIBE = "transcribe"
+    #: Fetch audio from a URL first, then transcribe it.
+    DOWNLOAD_TRANSCRIBE = "download_transcribe"
+    #: Translate an existing transcript's segments, in bulk.
+    TRANSLATE = "translate"
+    #: Run an LLM over an existing transcript. Writes an Analysis row.
+    ANALYSIS = "analysis"
+
+
+#: Job types whose status *is* the recording's status, and which may therefore
+#: write it.
+#:
+#: A transcription defines the recording: while it runs the row reads
+#: `transcribing`, and if it fails the recording really has failed. The other
+#: two only read a recording that is already finished — a translation and an
+#: analysis both need a transcript to exist before they can start — so neither
+#: has anything to say about the row's state. Letting them say it anyway meant
+#: a summary the LLM refused left the recording reading `error` with its
+#: transcript intact, and the UI offering to transcribe it all over again.
+#:
+#: An analysis reports its own outcome on the Analysis row, which has a
+#: `status` column of its own.
+OWNS_RECORDING_STATUS: frozenset[str] = frozenset({
+    JobType.TRANSCRIBE,
+    JobType.DOWNLOAD_TRANSCRIBE,
+})
 
 
 def _sse_target_loop() -> asyncio.AbstractEventLoop | None:
@@ -50,7 +88,7 @@ def _sse_target_loop() -> asyncio.AbstractEventLoop | None:
 
 def create_job(
     *,
-    job_type: str = "transcribe",
+    job_type: str = JobType.TRANSCRIBE,
     recording_id: str = "",
     original_filename: str = "",
     file_path: str = "",
