@@ -13,11 +13,14 @@ Modes (driven by input prefix):
 * **transcript** — ``@<q>``: shortcut to the recording picker.
 
 Recent selections boost rank in subsequent opens.
+
+Turning an API payload into rows lives in ``tui/entries.py``, not here: that
+part is pure and worth testing on its own, and separating it leaves this file
+as the widget and the picker flows that push it.
 """
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Awaitable, Callable
 
@@ -28,8 +31,23 @@ from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from . import actions
-from .actions import ANALYSIS_TYPES
-from .commands import COMMANDS, list_commands, run_command
+from .commands import list_commands, run_command
+from .entries import (
+    FOLDER_PREFIX,
+    RECORDING_PREFIX,
+    TAG_PREFIX,
+    Entry,
+    entries_from_analysis_types,
+    entries_from_commands,
+    entries_from_folders,
+    entries_from_llm_models,
+    entries_from_models,
+    entries_from_recordings,
+    entries_from_tags,
+    folder_choice_entries,
+    noop,
+    tag_choice_entries,
+)
 from .fuzzy import score_match
 from .widgets.command_input import CommandInput
 
@@ -55,16 +73,6 @@ _MODE_BY_COMMAND = {
     "transcribe": "transcribe",
     "delete": "delete",
 }
-
-
-@dataclass
-class Entry:
-    kind: str            # "command" | "recording" | "folder" | "tag"
-    key: str             # stable identifier for MRU
-    display: str         # one-line label
-    subtitle: str        # dim hint
-    search_text: str     # text fuzzy-matched against
-    on_select: Callable[["AmicoTUI"], Awaitable[None]]
 
 
 class Palette(ModalScreen):
@@ -188,17 +196,7 @@ class Palette(ModalScreen):
     # --- data loaders ---------------------------------------------------
 
     def _load_commands(self) -> None:
-        self._commands = [
-            Entry(
-                kind="command",
-                key=f"command:{c.name}",
-                display=f"/{c.name}",
-                subtitle=c.help,
-                search_text=f"/{c.name} {c.help}",
-                on_select=_run_cmd(c.name),
-            )
-            for c in list_commands()
-        ]
+        self._commands = entries_from_commands()
 
     async def _load_recordings(self) -> None:
         app: "AmicoTUI" = self.app  # type: ignore[assignment]
@@ -207,22 +205,10 @@ class Palette(ModalScreen):
             items = data.get("items", []) if isinstance(data, dict) else (data or [])
         except Exception:
             items = []
-        self._recording_data = {}
-        out: list[Entry] = []
-        for r in items:
-            rid = str(r.get("id", ""))
-            name = r.get("alias") or r.get("filename") or f"#{rid}"
-            status = r.get("status", "")
-            self._recording_data[rid] = r
-            out.append(Entry(
-                kind="recording",
-                key=f"recording:{rid}",
-                display=f"♪ {name}",
-                subtitle=f"{status} · {rid[:8]}",
-                search_text=f"{name} {rid}",
-                on_select=_open_recording(rid),
-            ))
-        self._recordings = out
+        # Kept alongside the entries: /transcribe on a picked recording needs
+        # its file_path, which the Entry does not carry.
+        self._recording_data = {str(r.get("id", "")): r for r in items}
+        self._recordings = entries_from_recordings(items)
 
     async def _load_folders(self) -> None:
         if self._folders:
@@ -293,7 +279,7 @@ class Palette(ModalScreen):
                 display="📁 ..",
                 subtitle=str(path.parent),
                 search_text=".. parent",
-                on_select=_noop,
+                on_select=noop,
             ))
         try:
             for p in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
@@ -306,7 +292,7 @@ class Palette(ModalScreen):
                         display=f"📁 {p.name}/",
                         subtitle="",
                         search_text=p.name,
-                        on_select=_noop,
+                        on_select=noop,
                     ))
                 elif p.suffix.lower() in AUDIO_EXTS:
                     entries.append(Entry(
@@ -315,7 +301,7 @@ class Palette(ModalScreen):
                         display=f"♪ {p.name}",
                         subtitle="",
                         search_text=p.name,
-                        on_select=_noop,
+                        on_select=noop,
                     ))
         except (PermissionError, OSError):
             pass
@@ -643,13 +629,13 @@ def _completion_text(entry: Entry) -> str:
         suffix = " " if cmd_name in SUBPICKERS else ""
         return "/" + cmd_name + suffix
     if entry.kind == "recording":
-        name = entry.display.removeprefix("♪ ").strip()
+        name = entry.display.removeprefix(RECORDING_PREFIX).strip()
         return "/library " + name
     if entry.kind == "folder":
-        name = entry.display.removeprefix("▣ ").strip()
+        name = entry.display.removeprefix(FOLDER_PREFIX).strip()
         return "/folder " + name
     if entry.kind == "tag":
-        name = entry.display.removeprefix("# ").strip()
+        name = entry.display.removeprefix(TAG_PREFIX).strip()
         return "/tag " + name
     if entry.kind == "model":
         return "/models " + entry.display.strip()
@@ -662,68 +648,8 @@ def _completion_text(entry: Entry) -> str:
     return ""
 
 
-# --- selection adapters --------------------------------------------------
-
-
-def _run_cmd(name: str):
-    async def go(app: "AmicoTUI") -> None:
-        await run_command(app, name)
-    return go
-
-
-def _open_recording(rec_id: str):
-    async def go(app: "AmicoTUI") -> None:
-        from .screens.transcript import TranscriptScreen
-        app.push_screen(TranscriptScreen(rec_id))
-    return go
-
-
-def _open_library_folder(folder_id: str):
-    async def go(app: "AmicoTUI") -> None:
-        from .screens.library import LibraryScreen
-        app.push_screen(LibraryScreen(folder_id=folder_id, title=f"Folder · {folder_id[:8]}"))
-    return go
-
-
-def _open_library_tag(tag_id: str):
-    async def go(app: "AmicoTUI") -> None:
-        from .screens.library import LibraryScreen
-        app.push_screen(LibraryScreen(tag_id=tag_id, title=f"Tag · {tag_id[:8]}"))
-    return go
-
-
-def _set_whisper_model(name: str):
-    async def go(app: "AmicoTUI") -> None:
-        try:
-            await app.api.save_whisper_model(name)
-            app.notify(f"whisper model set to {name}")
-        except Exception as e:
-            app.notify(f"failed to save: {e}", severity="error")
-    return go
-
-
-def _set_llm_model(name: str):
-    async def go(app: "AmicoTUI") -> None:
-        try:
-            await app.api.save_llm_settings(model_name=name)
-            app.notify(f"LLM model set to {name}")
-        except Exception as e:
-            app.notify(f"failed to save: {e}", severity="error")
-    return go
-
-
 def open_analysis_type_picker(app: "AmicoTUI", rec_id: str) -> None:
-    entries = [
-        Entry(
-            kind="analysis_type",
-            key=f"analysis_type:{name}",
-            display=f"✦ {name}",
-            subtitle=desc,
-            search_text=name,
-            on_select=_noop,
-        )
-        for name, desc in ANALYSIS_TYPES
-    ]
+    entries = entries_from_analysis_types()
 
     async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
         await actions.create_analysis(app, rec_id, entry.key.split(":", 1)[1])
@@ -731,58 +657,14 @@ def open_analysis_type_picker(app: "AmicoTUI", rec_id: str) -> None:
     app.push_screen(Palette(entries=entries, on_pick=on_pick, title="choose analysis type"))
 
 
-async def _noop(app: "AmicoTUI") -> None:
-    return None
-
-
-def _folder_entries(folders: list[dict] | None, include_none: bool = True) -> list[Entry]:
-    entries: list[Entry] = []
-    if include_none:
-        entries.append(Entry(
-            kind="folder",
-            key="folder:",
-            display="▢ (no folder)",
-            subtitle="remove from any folder",
-            search_text="no folder none",
-            on_select=_noop,
-        ))
-    entries += [
-        Entry(
-            kind="folder",
-            key=f"folder:{f.get('id')}",
-            display=f"▣ {f.get('name', '?')}",
-            subtitle=f"folder · id {str(f.get('id'))[:8]}",
-            search_text=str(f.get("name", "")),
-            on_select=_noop,
-        )
-        for f in (folders or []) if f.get("id") is not None
-    ]
-    return entries
-
-
-def _tag_entries(tags: list[dict] | None, applied_ids: set[str] | None = None) -> list[Entry]:
-    applied_ids = applied_ids or set()
-    return [
-        Entry(
-            kind="tag",
-            key=f"tag:{t.get('id')}",
-            display=f"{'●' if str(t.get('id')) in applied_ids else '○'} {t.get('name', '?')}",
-            subtitle="applied — enter removes" if str(t.get("id")) in applied_ids else "enter adds",
-            search_text=str(t.get("name", "")),
-            on_select=_noop,
-        )
-        for t in (tags or []) if t.get("id") is not None
-    ]
-
-
-def _open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
+def open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
     async def build_and_push() -> None:
         try:
             folders = await app.api.folders()
         except Exception as e:
             app.notify(f"folders load failed: {e}", severity="error")
             return
-        entries = _folder_entries(folders)
+        entries = folder_choice_entries(folders)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             folder_id = entry.key.split(":", 1)[1]
@@ -800,7 +682,7 @@ def _open_move_to_folder_picker(app: "AmicoTUI", rec_id: str) -> None:
     app.run_worker(build_and_push(), exclusive=False)
 
 
-def _open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
+def open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
     async def build_and_push() -> None:
         try:
             rec = await app.api.recording(rec_id)
@@ -812,7 +694,7 @@ def _open_tag_toggle_picker(app: "AmicoTUI", rec_id: str) -> None:
             app.notify("no tags yet — create one with /tag new <name>")
             return
         applied_ids = {str(t.get("id")) for t in (rec.get("tags") or [])}
-        entries = _tag_entries(all_tags, applied_ids)
+        entries = tag_choice_entries(all_tags, applied_ids)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             tag_id = entry.key.split(":", 1)[1]
@@ -842,7 +724,7 @@ def open_bulk_move_picker(app: "AmicoTUI", rec_ids: list[str], on_done) -> None:
         except Exception as e:
             app.notify(f"folders load failed: {e}", severity="error")
             return
-        entries = _folder_entries(folders)
+        entries = folder_choice_entries(folders)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             folder_id = entry.key.split(":", 1)[1]
@@ -874,7 +756,7 @@ def open_bulk_tag_picker(app: "AmicoTUI", rec_ids: list[str], on_done) -> None:
         if not all_tags:
             app.notify("no tags yet — create one with /tag new <name>")
             return
-        entries = _tag_entries(all_tags)
+        entries = tag_choice_entries(all_tags)
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
             tag_id = entry.key.split(":", 1)[1]
@@ -893,90 +775,6 @@ def open_bulk_tag_picker(app: "AmicoTUI", rec_ids: list[str], on_done) -> None:
         app.push_screen(Palette(entries=entries, on_pick=on_pick, title=f"tag {len(rec_ids)} recordings…"))
 
     app.run_worker(build_and_push(), exclusive=False)
-
-    app.run_worker(build_and_push(), exclusive=False)
-
-
-def entries_from_folders(folders: list[dict] | None) -> list[Entry]:
-    return [
-        Entry(
-            kind="folder",
-            key=f"folder:{f.get('id')}",
-            display=f"▣ {f.get('name', '?')}",
-            subtitle=f"folder · id {str(f.get('id'))[:8]}",
-            search_text=str(f.get("name", "")),
-            on_select=_open_library_folder(str(f.get("id"))),
-        )
-        for f in (folders or []) if f.get("id") is not None
-    ]
-
-
-def entries_from_tags(tags: list[dict] | None) -> list[Entry]:
-    return [
-        Entry(
-            kind="tag",
-            key=f"tag:{t.get('id')}",
-            display=f"# {t.get('name', '?')}",
-            subtitle=f"tag · id {str(t.get('id'))[:8]}",
-            search_text=str(t.get("name", "")),
-            on_select=_open_library_tag(str(t.get("id"))),
-        )
-        for t in (tags or []) if t.get("id") is not None
-    ]
-
-
-def entries_from_models(data) -> list[Entry]:
-    items = data.get("models") if isinstance(data, dict) else (data or [])
-    entries: list[Entry] = []
-    for it in items or []:
-        if isinstance(it, dict):
-            mid = str(it.get("id", ""))
-            if not mid:
-                continue
-            name = it.get("name", mid)
-            params = it.get("params", "")
-            ram = it.get("ram", "")
-            subtitle = f"Whisper · {params} · {ram} · accuracy {it.get('accuracy', '?')}/5"
-        elif isinstance(it, str):
-            mid = it
-            name = it
-            subtitle = "Whisper model"
-        else:
-            continue
-        entries.append(Entry(
-            kind="model",
-            key=f"model:{mid}",
-            display=f"{name}",
-            subtitle=subtitle,
-            search_text=f"{mid} {name}",
-            on_select=_set_whisper_model(mid),
-        ))
-    return entries
-
-
-def entries_from_llm_models(data) -> list[Entry]:
-    items = data if isinstance(data, list) else (data.get("models") if isinstance(data, dict) else [])
-    entries: list[Entry] = []
-    for it in items or []:
-        if isinstance(it, str):
-            mid = it
-            name = it
-        elif isinstance(it, dict):
-            mid = str(it.get("id") or it.get("name") or it.get("model") or "")
-            name = str(it.get("name") or it.get("id") or mid)
-        else:
-            continue
-        if not mid:
-            continue
-        entries.append(Entry(
-            kind="llm_model",
-            key=f"llm_model:{mid}",
-            display=f"{name}",
-            subtitle="set as default LLM model",
-            search_text=mid,
-            on_select=_set_llm_model(mid),
-        ))
-    return entries
 
 
 def seed_palette(pal: "Palette", text: str) -> None:

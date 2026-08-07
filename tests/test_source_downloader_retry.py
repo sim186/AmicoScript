@@ -1,5 +1,3 @@
-import os
-
 from core import source_downloader
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 import pytest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 
 def test_get_session_commits_on_success(monkeypatch):
@@ -39,7 +39,7 @@ def test_get_session_rolls_back_on_error(monkeypatch):
     monkeypatch.setattr(db, "Session", MagicMock(return_value=mock_cm))
 
     gen = db.get_session()
-    sess = next(gen)
+    next(gen)
     with pytest.raises(RuntimeError):
         gen.throw(RuntimeError("oops"))
     mock_session.rollback.assert_called_once()

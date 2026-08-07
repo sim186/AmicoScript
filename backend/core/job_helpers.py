@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 import state
+from core.jobs import OWNS_RECORDING_STATUS, JobType
 from db import new_session
 from models import Recording, Transcript
 from sqlalchemy.exc import SQLAlchemyError
@@ -102,7 +103,13 @@ def sync_job_to_db(job_id: str, retries: int = 3) -> None:
                 if not rec:
                     return
 
-                rec.status = job.get("status", rec.status)
+                # Only a transcription describes the recording. A failed or
+                # cancelled analysis or translation leaves the transcript
+                # intact, so writing its status here marked a perfectly good
+                # recording as failed — and offered to re-transcribe it.
+                if job.get("type", JobType.TRANSCRIBE) in OWNS_RECORDING_STATUS:
+                    rec.status = job.get("status", rec.status)
+
                 result = job.get("result")
                 if result:
                     rec.duration = result.get("duration")

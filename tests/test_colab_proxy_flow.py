@@ -2,8 +2,6 @@ import json
 import threading
 from pathlib import Path
 
-import pytest
-
 import state
 from core import colab_proxy
 

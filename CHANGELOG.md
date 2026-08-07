@@ -59,10 +59,44 @@ back. Picking "translate" from the palette had no way to say which language,
 though `/analyze` did. A failed delete left the busy spinner spinning. There is
 now one implementation per operation.
 
-**Nothing about how the app is used changed.** No API contract, no setting, no
-file on disk. The test suite went from 649 to 749 passing and stopped being
-intermittently red — one test had been racing the live background worker about
-one run in eight.
+**A failed summary no longer marks the recording as failed.** An analysis that
+the LLM refused — or that you simply cancelled — wrote its own status onto the
+recording, so a perfectly good transcript showed up in the library as `error`
+and the UI offered to transcribe it again. Accepting that offer re-ran the
+whole transcription, which for a long meeting is an hour of work to recover
+from a failed summary. Only a transcription describes the recording now; an
+analysis reports its outcome on its own row, where it always belonged. The
+same applied to bulk translation, and is fixed the same way.
+
+Relatedly: **an analysis cancelled before it started running stayed listed as
+pending forever.** The cancel was recorded against the job but never against
+the analysis itself, so the recording kept showing an analysis that was about
+to run and never would.
+
+**Two things in the terminal UI that were simply broken.** The analysis key on
+a transcript screen had been raising an error instead of opening the type
+picker, since a rename that missed this one caller. And choosing "tag" from
+the bulk menu opened two identical pickers stacked on each other, because the
+loader was started twice. Deferred imports across the TUI are now checked by a
+test rather than by pressing every key.
+
+**The transcription endpoints stopped advertising eight options nothing sent.**
+`compute_type`, `device`, `device_index`, `vad_filter`, `word_timestamps`,
+`beam_size`, `best_of` and `force_normalize_audio` were accepted as form fields
+on `/api/transcribe` and `/api/transcribe/url`, and no client — not the web UI,
+not the TUI — ever sent one; every job already ran on the saved Whisper
+settings. Device and precision are now set only where they were already being
+set, in Settings. Jobs run exactly as before. If you have a script posting to
+these endpoints, any of the eight it sends is now ignored rather than rejected;
+set the device and precision in Settings instead. `AMICO_WORD_TIMESTAMPS` also
+works now — the form had been overwriting it on every job, so it had never had
+any effect.
+
+**Nothing else about how the app is used changed.** No other API contract, no
+setting, no file on disk. The test suite went from 649 to 858 passing and
+stopped being intermittently red — one test had been racing the live background
+worker about one run in eight. CI also fails now on an unused import or an
+unused local, which is what let the two broken TUI paths above go unnoticed.
 
 ### 📦 One download per platform, not four
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import state
-from core.jobs import create_job, submit, submit_threadsafe
+from core.jobs import JobType, create_job, submit, submit_threadsafe
 from db import new_session
 from llm_providers import refusal_reason
 from models import Analysis, Recording, Transcript
@@ -63,7 +63,7 @@ def create_analysis_job(
         session.commit()
 
     job_id = create_job(
-        job_type="analysis",
+        job_type=JobType.ANALYSIS,
         recording_id=recording_id,
         analysis_id=analysis_id,
         original_filename=filename,

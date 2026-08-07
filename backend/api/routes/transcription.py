@@ -20,7 +20,8 @@ from core.job_helpers import append_job_log, push_event, sync_job_to_db
 from core.translation import translate_audio_chunk
 from core.job_status import ACTIVE as ACTIVE_STATUSES
 from core.job_status import JobStatus
-from core.jobs import create_job, submit
+from core.jobs import JobType, create_job, submit
+from core.runtime_config import word_timestamps_default
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
@@ -117,6 +118,16 @@ class TranscriptionForm:
     The Form markers live in the annotations rather than in the defaults, so
     the defaults stay ordinary strings and the class can be constructed
     directly — in a test, or anywhere else that is not handling a request.
+
+    Eight engine-tuning options used to be declared here too — ``compute_type``,
+    ``device``, ``device_index``, ``vad_filter``, ``word_timestamps``,
+    ``beam_size``, ``best_of`` and ``force_normalize_audio``. No client ever
+    sent one: the web UI and the TUI both left them out and the route fell back
+    to the saved Whisper settings, so they were surface with nothing behind it.
+    They are now set from those settings and from the defaults in
+    ``TranscriptionConfig``, which is where a job's engine configuration
+    belongs. Choosing a device or a precision is a setting, not a per-request
+    argument.
     """
 
     def __init__(
@@ -129,16 +140,6 @@ class TranscriptionForm:
         num_speakers: Annotated[str, Form()] = "",
         min_speakers: Annotated[str, Form()] = "",
         max_speakers: Annotated[str, Form()] = "",
-        # Empty, not "int8"/"auto": an explicit default here would shadow the
-        # saved Whisper settings, which is how they became write-only.
-        compute_type: Annotated[str, Form()] = "",
-        device: Annotated[str, Form()] = "",
-        device_index: Annotated[str, Form()] = "0",
-        vad_filter: Annotated[str, Form()] = "true",
-        word_timestamps: Annotated[str, Form()] = "false",
-        beam_size: Annotated[str, Form()] = "5",
-        best_of: Annotated[str, Form()] = "5",
-        force_normalize_audio: Annotated[str, Form()] = "false",
         folder_id: Annotated[str, Form()] = "",
     ) -> None:
         self.model = model
@@ -149,22 +150,15 @@ class TranscriptionForm:
         self.num_speakers = num_speakers
         self.min_speakers = min_speakers
         self.max_speakers = max_speakers
-        self.compute_type = compute_type
-        self.device = device
-        self.device_index = device_index
-        self.vad_filter = vad_filter
-        self.word_timestamps = word_timestamps
-        self.beam_size = beam_size
-        self.best_of = best_of
-        self.force_normalize_audio = force_normalize_audio
         self.folder_id = folder_id
 
     def to_options(self) -> dict[str, Any]:
         """Coerce the submitted strings into the options a job runs with."""
-        # The saved Whisper settings are the fallback when a client does not
-        # name a device or precision — which is every client today. Without
-        # this the stored values were write-only: the settings page offered
-        # them, the TUI could set them, and no job ever read them.
+        # Device and precision come from the saved Whisper settings, which is
+        # the only place they are set. Before, a client could name them per
+        # request and these were merely the fallback — but no client did, and
+        # without the fallback the stored values were write-only: the settings
+        # page offered them, the TUI could set them, and no job ever read them.
         saved = get_whisper_settings()
 
         return TranscriptionConfig(
@@ -175,14 +169,16 @@ class TranscriptionForm:
             num_speakers=_positive_int(self.num_speakers, None),
             min_speakers=_positive_int(self.min_speakers, None),
             max_speakers=_positive_int(self.max_speakers, None),
-            compute_type=(self.compute_type or saved["whisper_compute"] or "auto"),
-            device=(self.device or saved["whisper_device"] or "auto"),
-            device_index=_positive_int(self.device_index, 0) or 0,
-            vad_filter=_to_bool(self.vad_filter, default=True),
-            word_timestamps=_to_bool(self.word_timestamps),
-            beam_size=_positive_int(self.beam_size, 5) or 5,
-            best_of=_positive_int(self.best_of, 5) or 5,
-            force_normalize_audio=_to_bool(self.force_normalize_audio),
+            compute_type=saved["whisper_compute"] or "auto",
+            device=saved["whisper_device"] or "auto",
+            # Per-word timing is an environment knob, not a per-job one. It was
+            # unreachable while the form always wrote this key: the reader's
+            # `opts.get("word_timestamps", word_timestamps_default())` could
+            # never reach its own default, so AMICO_WORD_TIMESTAMPS did nothing.
+            word_timestamps=word_timestamps_default(),
+            # device_index, vad_filter, beam_size, best_of and
+            # force_normalize_audio take TranscriptionConfig's defaults, which
+            # are the values every job was already getting.
         ).model_dump()
 
 
@@ -229,7 +225,7 @@ def _create_job(
     file_path: str,
     opts_dict: dict[str, Any],
     hf_token: str,
-    job_type: str = "transcribe",
+    job_type: str = JobType.TRANSCRIBE,
     source_url: str = "",
     source_platform: str = "",
 ) -> None:
@@ -378,7 +374,7 @@ async def transcribe_from_url(
             file_path="",
             opts_dict=opts_dict,
             hf_token=form.hf_token,
-            job_type="download_transcribe",
+            job_type=JobType.DOWNLOAD_TRANSCRIBE,
             source_url=candidate.url,
             source_platform=candidate.platform,
         )
@@ -431,7 +427,7 @@ def list_jobs() -> dict:
             continue
         rows.append({
             "id": jid,
-            "type": j.get("type", "transcribe"),
+            "type": j.get("type", JobType.TRANSCRIBE),
             "status": st,
             "progress": j.get("progress", 0.0),
             "message": j.get("message", ""),
@@ -592,7 +588,7 @@ async def translate_all_api(recording_id: str, session: Session = Depends(get_se
     opts = json.loads(rec.transcription_options or "{}")
 
     job_id = create_job(
-        job_type="translate",
+        job_type=JobType.TRANSLATE,
         recording_id=recording_id,
         original_filename=rec.filename,
         file_path=rec.file_path,

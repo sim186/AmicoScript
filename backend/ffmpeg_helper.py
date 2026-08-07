@@ -1,9 +1,6 @@
 import os
-import sys
 import platform
-import urllib.request
 import zipfile
-import json
 import shutil
 import threading
 from pathlib import Path

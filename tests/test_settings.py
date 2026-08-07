@@ -44,9 +44,6 @@ def test_save_settings_atomic_no_corruption_on_error(tmp_path, monkeypatch):
     sf = _patch_settings_file(monkeypatch, tmp_path)
     settings.save_settings({"hf_token": "original"})
 
-    import builtins
-    real_replace = os.replace
-
     def fail_replace(src, dst):
         raise OSError("simulated disk full")
 

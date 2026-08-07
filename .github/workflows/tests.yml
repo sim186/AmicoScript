@@ -31,7 +31,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install -r tui/requirements.txt
-          pip install pytest httpx
+          # ruff is pinned: an unpinned linter turns a release that adds a
+          # rule into a red build on an unrelated pull request.
+          pip install pytest httpx 'ruff>=0.15,<0.16'
+
+      # Only the pyflakes rules (F): unused imports and unused locals, which is
+      # what this is here to stop coming back — not style, which nothing in the
+      # tree is currently formatted for. ruff rather than pyflakes itself
+      # because the repo already carries `# noqa: F401` markers on the imports
+      # that exist for their side effects (backend/db.py populating
+      # SQLModel.metadata, the Windows-only watcher deps), and pyflakes does
+      # not honour them.
+      #
+      # Notebooks are excluded: scripts/colab_bridge.ipynb runs in Colab, not
+      # here, and its cells are written to be pasted around.
+      - name: Lint
+        run: |
+          ruff check --select F --exclude '*.ipynb' \
+            backend/ tui/ tests/ scripts/ run.py package.py package_interactive.py
 
       # The whole suite, not a hand-maintained list of files. The old workflow
       # named ten test files explicitly, so anything added since — including

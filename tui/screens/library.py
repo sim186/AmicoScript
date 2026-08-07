@@ -244,15 +244,15 @@ class LibraryPanel(Widget):
         rec_id = self._selected_id()
         if rec_id is None:
             return
-        from ..palette import _open_move_to_folder_picker
-        _open_move_to_folder_picker(self.app, rec_id)  # type: ignore[arg-type]
+        from ..palette import open_move_to_folder_picker
+        open_move_to_folder_picker(self.app, rec_id)  # type: ignore[arg-type]
 
     def action_tag_row(self) -> None:
         rec_id = self._selected_id()
         if rec_id is None:
             return
-        from ..palette import _open_tag_toggle_picker
-        _open_tag_toggle_picker(self.app, rec_id)  # type: ignore[arg-type]
+        from ..palette import open_tag_toggle_picker
+        open_tag_toggle_picker(self.app, rec_id)  # type: ignore[arg-type]
 
     def action_copy_name(self) -> None:
         rec_id = self._selected_id()
@@ -280,19 +280,20 @@ class LibraryPanel(Widget):
             self.app.notify("select rows first (Space), then x for bulk actions")
             return
         n = len(self.selected_ids)
-        from ..palette import Entry, Palette, _noop
+        from ..entries import Entry, noop
+        from ..palette import Palette
 
         entries = [
             Entry(kind="bulk", key="bulk:delete", display=f"🗑  Delete {n} selected",
-                  subtitle="", search_text="delete", on_select=_noop),
+                  subtitle="", search_text="delete", on_select=noop),
             Entry(kind="bulk", key="bulk:export", display=f"⇩  Export {n} selected (combined markdown)",
-                  subtitle="", search_text="export", on_select=_noop),
+                  subtitle="", search_text="export", on_select=noop),
             Entry(kind="bulk", key="bulk:move", display=f"▣  Move {n} selected to folder…",
-                  subtitle="", search_text="move", on_select=_noop),
+                  subtitle="", search_text="move", on_select=noop),
             Entry(kind="bulk", key="bulk:tag", display=f"#  Tag {n} selected…",
-                  subtitle="", search_text="tag", on_select=_noop),
+                  subtitle="", search_text="tag", on_select=noop),
             Entry(kind="bulk", key="bulk:clear", display="Clear selection",
-                  subtitle="", search_text="clear", on_select=_noop),
+                  subtitle="", search_text="clear", on_select=noop),
         ]
 
         async def on_pick(app: "AmicoTUI", entry: Entry) -> None:
@@ -377,7 +378,6 @@ class LibraryPanel(Widget):
         total_dur = 0.0
         for r in self._items:
             rec_id = str(r["id"])
-            name = r.get("alias") or r.get("filename") or f"#{rec_id}"
             options = r.get("transcription_options") or {}
             model = (
                 r.get("model_size")

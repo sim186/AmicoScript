@@ -21,9 +21,9 @@ from core.job_helpers import (
     push_event,
     sync_job_to_db,
 )
+from core.jobs import JobType
 from core.runtime_config import download_concurrency, word_timestamps_default
 from core.messages import (
-    COLAB_UPLOADING,
     DOWNLOAD_PREPARING,
     DOWNLOAD_STARTING,
     TRANSCRIPTION_CANCELLED,
@@ -34,7 +34,7 @@ from core.messages import (
     TRANSCRIPTION_TIMEOUT_FIRST_SEGMENT,
     TRANSCRIPTION_WAITING_FIRST_SEGMENT,
 )
-from core.analysis import process_analysis_job
+from core.analysis import mark_analysis_cancelled, process_analysis_job
 from core.analysis_jobs import maybe_queue_auto_summary
 from core.source_downloader import DownloadCancelled, download_source_audio
 from db import new_session
@@ -462,23 +462,28 @@ def process_job(job_id: str) -> None:
     job = state.jobs[job_id]
     try:
         if job.get("cancel_flag") and job["cancel_flag"].is_set():
+            # A job type that owns a row of its own has to finish it here: the
+            # handler that would normally do it never runs. An analysis
+            # cancelled while still queued was left reading "pending" for good.
+            if job.get("type") == JobType.ANALYSIS and job.get("analysis_id"):
+                mark_analysis_cancelled(job["analysis_id"])
             push_event(job_id, "cancelled", 0.0, "Job cancelled before start")
             sync_job_to_db(job_id)
             return
 
-        job_type = job.get("type", "transcribe")
+        job_type = job.get("type", JobType.TRANSCRIBE)
 
-        if job_type == "translate":
+        if job_type == JobType.TRANSLATE:
             # Deferred: translation calls get_whisper_model from this module.
             from core.translation import process_translation_job
             process_translation_job(job_id)
             return
 
-        if job_type == "analysis":
+        if job_type == JobType.ANALYSIS:
             process_analysis_job(job_id)
             return
 
-        if job_type == "download_transcribe":
+        if job_type == JobType.DOWNLOAD_TRANSCRIBE:
             if _consume_download_phase(job_id):
                 return
             if job.get("cancel_flag") and job["cancel_flag"].is_set():
@@ -554,7 +559,7 @@ def start_download_prefetch(job_id: str) -> None:
     Safe to call from a route handler; does nothing outside a running loop.
     """
     job = state.jobs.get(job_id)
-    if not job or job.get("type") != "download_transcribe":
+    if not job or job.get("type") != JobType.DOWNLOAD_TRANSCRIBE:
         return
     try:
         asyncio.get_running_loop()

@@ -108,7 +108,9 @@ def start(scripts_dir: Path) -> None:
 def _run_embedded(mode: str) -> None:
     global _module
     try:
-        import watcher  # noqa: pulls in pyaudiowpatch/pycaw — Windows-only
+        # F401: imported for its side effects — pulls in pyaudiowpatch/pycaw,
+        # which exist on Windows only.
+        import watcher  # noqa: F401
     except Exception as exc:
         # Audio deps not bundled, or not a host that supports them.
         logger.warning(
