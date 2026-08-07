@@ -189,11 +189,12 @@ def run_benchmark() -> dict:
     import datetime
     import state
 
-    # Refuse if a transcription job is actively running
-    active = [
-        j for j in state.jobs.values()
-        if j.get("status") in {"queued", "transcribing", "diarizing", "loading_model"}
-    ]
+    # Refuse while any job is still working. Not just the Whisper ones: a
+    # benchmark measured against a local LLM hammering the same GPU is worse
+    # than no benchmark at all.
+    from core.job_status import ACTIVE as ACTIVE_STATUSES
+
+    active = [j for j in state.jobs.values() if j.get("status") in ACTIVE_STATUSES]
     if active:
         raise HTTPException(
             status_code=409,

@@ -56,6 +56,9 @@ from api.routes.releases import router as releases_router
 from api.routes.settings import router as settings_router
 from api.routes.transcription import router as transcription_router
 from core.job_helpers import _cleanup_job_temp_files
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import RESUMABLE as RESUMABLE_STATUSES
+from core.job_status import JobStatus
 from core.transcription import _worker_loop_async
 from db import init_db, new_session
 from models import Recording
@@ -266,12 +269,6 @@ async def _shutdown() -> None:
         _watcher_thread.join(timeout=10)
 
 
-_RESUMABLE_STATUSES = [
-    "queued", "downloading", "preparing", "loading_model",
-    "transcribing", "diarizing", "translating",
-]
-
-
 def _warn_if_exposed_without_password() -> None:
     """Print a loud warning when the app is bound beyond loopback unprotected."""
     if not auth.is_enabled() or auth.password_is_set():
@@ -303,7 +300,7 @@ def _recover_interrupted_jobs() -> None:
     try:
         with new_session() as session:
             interrupted = session.exec(
-                select(Recording).where(Recording.status.in_(_RESUMABLE_STATUSES))
+                select(Recording).where(Recording.status.in_(sorted(RESUMABLE_STATUSES)))
             ).all()
             for rec in interrupted:
                 audio_exists = bool(rec.file_path) and os.path.exists(rec.file_path)
@@ -312,11 +309,11 @@ def _recover_interrupted_jobs() -> None:
                         opts = json.loads(rec.transcription_options or "{}")
                     except (TypeError, ValueError):
                         opts = {}
-                    rec.status = "queued"
+                    rec.status = JobStatus.QUEUED
                     rec.status_detail = "Requeued after the app restarted"
                     requeued.append((rec.id, rec.filename, rec.file_path, opts))
                 else:
-                    rec.status = "interrupted"
+                    rec.status = JobStatus.INTERRUPTED
                     rec.status_detail = (
                         "Interrupted by an app restart before the audio was saved — "
                         "please import it again"
@@ -388,7 +385,16 @@ async def _release_poller_loop() -> None:
         await asyncio.sleep(60 * 60 * 4)
 
 
-_ACTIVE_STATUSES = {"queued", "transcribing", "diarizing", "loading_model", "translating"}
+def _should_expire(job: dict, cutoff: float) -> bool:
+    """True when *job* is old enough to release and is no longer working.
+
+    Age alone is not enough. A playlist import or a chunked analysis of a long
+    meeting can easily outlive the hour, and expiring one of those mid-flight
+    detaches the worker from its own SSE queue — see core/job_status.py.
+    """
+    if job.get("expired") or job.get("status") in ACTIVE_STATUSES:
+        return False
+    return job.get("created_at", 0) < cutoff
 
 
 async def _cleanup_loop() -> None:
@@ -399,18 +405,17 @@ async def _cleanup_loop() -> None:
         cutoff = time.time() - 3600
         for job_id in list(state.jobs.keys()):
             job = state.jobs[job_id]
-            if job.get("status") in _ACTIVE_STATUSES or job.get("expired"):
+            if not _should_expire(job, cutoff):
                 continue
-            if job.get("created_at", 0) < cutoff:
-                fp = job.get("file_path", "")
-                if fp and os.path.exists(fp):
-                    try:
-                        if not Path(fp).is_relative_to(STORAGE_ROOT):
-                            os.remove(fp)
-                    except OSError:
-                        pass
-                _cleanup_job_temp_files(job)
-                _expire_job(job_id)
+            fp = job.get("file_path", "")
+            if fp and os.path.exists(fp):
+                try:
+                    if not Path(fp).is_relative_to(STORAGE_ROOT):
+                        os.remove(fp)
+                except OSError:
+                    pass
+            _cleanup_job_temp_files(job)
+            _expire_job(job_id)
 
 
 def _expire_job(job_id: str) -> None:

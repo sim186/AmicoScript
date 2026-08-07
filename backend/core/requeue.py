@@ -15,13 +15,12 @@ import time
 import uuid
 
 import state
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import RETRYABLE as RETRYABLE_STATUSES  # noqa: F401 — re-exported
+from core.job_status import JobStatus
 from db import new_session
 from models import Recording
 from settings import _get_saved_hf_token
-
-# A recording in one of these states is finished with, one way or another, so
-# re-running it is meaningful. Anything else is already in flight.
-RETRYABLE_STATUSES = {"error", "interrupted", "cancelled", "done"}
 
 
 class RequeueError(RuntimeError):
@@ -40,7 +39,7 @@ def build_job(recording_id: str, filename: str, file_path: str, opts: dict,
         "id": job_id,
         "type": "transcribe",
         "recording_id": recording_id,
-        "status": "queued",
+        "status": JobStatus.QUEUED,
         "progress": 0.0,
         "message": "Requeued",
         "file_path": file_path,
@@ -74,10 +73,7 @@ def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
             raise RequeueError("Recording not found")
 
         for job in state.jobs.values():
-            if job.get("recording_id") == recording_id and job.get("status") in (
-                "queued", "downloading", "preparing", "loading_model",
-                "transcribing", "diarizing", "translating",
-            ):
+            if job.get("recording_id") == recording_id and job.get("status") in ACTIVE_STATUSES:
                 raise RequeueError("This recording is already being processed.")
 
         if not rec.file_path or not os.path.exists(rec.file_path):
@@ -92,7 +88,7 @@ def requeue_recording(recording_id: str, *, options: dict | None = None) -> str:
             stored = {}
         opts = {**stored, **(options or {})}
 
-        rec.status = "queued"
+        rec.status = JobStatus.QUEUED
         rec.status_detail = "Queued again at your request"
         rec.transcription_options = json.dumps(opts)
         session.add(rec)

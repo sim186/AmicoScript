@@ -10,13 +10,19 @@ import { switchTab } from './tabs.js';
 import { setProcessing } from './upload.js';
 import { _maybeOpenLatestWatcherRecording, _watcherAutoOpenPending, _watcherWasRecording } from './watcher.js';
 
+// Every status in core/job_status.ACTIVE needs a label here — that set is what
+// /api/jobs filters on. An unlisted status still renders (falling back to the
+// raw value), it just looks like a leaked internal name.
 const QUEUE_STATUS_LABEL = {
   queued: 'Queued',
   downloading: 'Downloading',
-  postprocessing: 'Processing',
   preparing: 'Preparing',
+  loading_model: 'Loading model',
   transcribing: 'Transcribing',
   diarizing: 'Diarizing',
+  translating: 'Translating',
+  running: 'Analyzing',
+  streaming: 'Analyzing',
   warning: 'Warning',
 };
 

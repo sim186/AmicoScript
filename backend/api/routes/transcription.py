@@ -15,6 +15,8 @@ from http_utils import content_disposition_attachment as _content_disposition
 import aiofiles
 import state
 from core.job_helpers import _append_job_log, _push_event, _sync_job_to_db
+from core.job_status import ACTIVE as ACTIVE_STATUSES
+from core.job_status import JobStatus
 from core.source_downloader import DownloadCandidate, is_supported_source_url, resolve_source_candidates
 from core.transcription import start_download_prefetch
 from core.transcription_config import TranscriptionConfig
@@ -435,14 +437,10 @@ async def stream_job(job_id: str):
 @router.get("/api/jobs")
 def list_jobs() -> dict:
     """Return all non-terminal jobs with queue position for the UI queue strip."""
-    active_statuses = {
-        "queued", "downloading", "postprocessing",
-        "preparing", "transcribing", "diarizing", "warning",
-    }
     rows: list[dict] = []
     for jid, j in state.jobs.items():
         st = j.get("status")
-        if st not in active_statuses:
+        if st not in ACTIVE_STATUSES:
             continue
         cf = j.get("cancel_flag")
         if cf and cf.is_set():

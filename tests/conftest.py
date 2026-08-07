@@ -102,6 +102,23 @@ def _clear_diarization_cache():
 
 
 @pytest.fixture()
+def idle_worker(monkeypatch):
+    """Keep the background worker from consuming jobs this test queues.
+
+    The worker loop is live in tests — the `client` fixture runs startup — so a
+    job put on the queue really is picked up, and immediately fails, because
+    there is no Whisper model here. A test that queues something and then
+    asserts it is *queued* is racing that: under the load of a full suite run
+    the worker wins, and the recording already reads 'error'.
+
+    Use this in tests about queueing. Tests about processing should not.
+    """
+    import core.transcription
+
+    monkeypatch.setattr(core.transcription, "_process_job", lambda job_id: None)
+
+
+@pytest.fixture()
 def clean_settings():
     """Empty settings.json before and after a test that writes to it."""
     from settings import _save_settings
