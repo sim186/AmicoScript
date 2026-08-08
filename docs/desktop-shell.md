@@ -77,7 +77,8 @@ bundle ships in browser-fallback mode rather than failing.
   embedded meeting watcher, which previously survived closing a browser tab.
   Users who want the old behaviour can set `AMICOSCRIPT_UI=browser`. Phase 2
   should make the window close to the tray instead.
-- **No auto-update.** Releases are still hand-downloaded zips.
+- **No auto-update for the zips.** They are still hand-downloaded. The wheel
+  has `uv tool upgrade amicoscript`; a bundled updater is Tauri's job.
 
 ### Offline assets
 
@@ -98,7 +99,14 @@ and supervises. Both build chains survive; Tauri is added, not swapped in.
 
 What it buys over Phase 1:
 
-- Signed, real installers: `.dmg`, `.msi`/`.nsis`, `.deb`/`.AppImage`
+- Real installers: `.dmg`, `.msi`/`.nsis`, `.deb`/`.AppImage`, with hooks that
+  apply a signature — **not** the certificates themselves. Tauri does not solve
+  the "unidentified developer" problem: an unsigned `.dmg` is blocked exactly
+  like the current unsigned `.app`, and under the sidecar design the PyInstaller
+  binary ends up inside the bundle and needs notarizing either way. Signing is
+  an independent, paid track (Apple Developer Program; a Windows certificate in
+  a cloud HSM). The route that avoids it entirely is the wheel —
+  see [pypi-release.md](pypi-release.md)
 - Built-in updater (signed `latest.json`), replacing manual zip downloads
 - Native tray that outlives the window, single-instance guard, deep links
 - A working Linux window via an apt-declared WebKitGTK dependency
