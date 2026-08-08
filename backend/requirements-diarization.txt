@@ -16,19 +16,6 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 
-# Capped below 4.0 to match requirements-diarization-cu121.txt, which has no
-# choice — see the reasoning there. Without the cap here the CPU runtime still
-# resolves, silently, to pyannote 4.x: the build stays green while CPU and GPU
-# machines run different pyannote majors, and the CPU one runs a major the
-# backend was not written against.
-#
-# The torch ceiling is part of the same cap, not an independent pin. Left open,
-# the resolver pairs pyannote 3.4 with the newest torch on the CPU index and
-# finds no consistent solution for the tree pyannote 3 pulls in (lightning,
-# speechbrain, torchmetrics); bounded, it lands on torch 2.6 the way the cu121
-# flavour does. Both runtimes now agree on the torch generation as well as the
-# pyannote major, which is the point of capping at all. It moves with the cu121
-# ceiling — raise them together or not at all.
-pyannote.audio>=3.3.2,<4
-torch>=2.3.0,<2.7.0
-torchaudio>=2.3.0,<2.7.0
+pyannote.audio>=3.3.2
+torch>=2.3.0
+torchaudio>=2.3.0

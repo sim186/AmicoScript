@@ -12,13 +12,20 @@
 # Capped below 4.0 deliberately. pyannote.audio 4 requires torch>=2.8, which
 # does not exist on the cu121 index and cannot, so an uncapped range resolves
 # to 4.x and then fails outright — ResolutionImpossible against the torch pin
-# below. Keeping it here rather than only in the CPU file also keeps the two
-# runtimes on the same pyannote major, so diarization does not change
-# behaviour depending on whether the machine has a GPU.
+# below.
 #
-# Moving to pyannote 4 means torch 2.8+, a newer CUDA index than cu121, and
-# updating backend/core/diarization.py for the 4.x API. That is a deliberate
-# upgrade, not something to absorb by leaving the range open.
+# KNOWN GAP: requirements-diarization.txt is deliberately NOT capped to match.
+# Capping it was tried and broke its resolve against the CPU index, for reasons
+# that do not reproduce against PyPI with the same pins — the same constraint
+# set resolves cleanly to pyannote 3.4.0 with torch 2.6.0 outside CI. Until
+# that is understood, the CPU runtime resolves to pyannote 4.x and this one to
+# 3.x, so diarization behaviour differs between GPU and CPU machines. Do not
+# "fix" that by adding a cap here-style bound to the CPU file without a green
+# build to back it up; see docs/pypi-release.md for what has been ruled out.
+#
+# Moving both to pyannote 4 means torch 2.8+, a newer CUDA index than cu121,
+# and updating backend/core/diarization.py for the 4.x API. That is the real
+# resolution, and it is a deliberate upgrade rather than a range left open.
 pyannote.audio>=3.3.2,<4
 torch>=2.3.0,<2.7.0
 torchaudio>=2.3.0,<2.7.0
