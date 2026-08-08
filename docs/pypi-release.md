@@ -95,3 +95,36 @@ even after the files are deleted.
 
 A `workflow_dispatch` run with `publish` off builds and checks the wheel
 without uploading anything, the same way it dry-runs the platform bundles.
+
+## Blocker: no tag can publish until diarization resolves
+
+This is not a wheel problem — the `wheel` job passes — but it stops the whole
+workflow, because `release` needs `build` and `pypi` needs `release`.
+
+`pyannote.audio` 4.0 requires `torch>=2.8`. The cu121 index has nothing newer
+than the 2.6 line and never will, so `generate_runtime_manifest.py` fails with
+`ResolutionImpossible` on Linux and Windows before PyInstaller ever runs. macOS
+is unaffected: it resolves no CUDA flavour.
+
+What has been ruled out, so nobody repeats it:
+
+- **Capping `pyannote.audio<4` in the cu121 file.** Does not fix it. Same
+  `Cannot install pyannote.audio` failure.
+- **Capping it in `requirements-diarization.txt` too.** Makes it worse — breaks
+  the CPU resolve, which is otherwise green, and takes macOS down with it.
+- **Adding a matching `torch<2.7` ceiling to the CPU file.** No effect.
+- **The omegaconf metadata warnings in the log.** Noise. Only 2.1.0 is invalid;
+  pip skips it and picks 2.3.1 fine.
+
+None of it reproduces outside CI. With pip 26.2.1 and the exact 44 bundled pins
+the build resolves against, `pyannote.audio>=3.3.2,<4` plus `torch>=2.3.0,<2.7.0`
+resolves cleanly on PyPI to pyannote 3.4.0, omegaconf 2.3.1, torch 2.6.0 and
+torchaudio 2.6.0. The untested variable is the PyTorch index as the *primary*
+index (`--index-url`), which is what both diarization files use and what a
+sandbox without `download.pytorch.org` access cannot exercise. Diagnosing this
+needs a machine that can reach that index.
+
+The likely real fix is forward, not backward: move the CUDA flavour off cu121
+to cu126/cu128, let both runtimes take pyannote 4.x — the CPU one already
+does — and update `backend/core/diarization.py` for the 4.x API. Note that CPU
+and CUDA machines are on different pyannote majors until then.
