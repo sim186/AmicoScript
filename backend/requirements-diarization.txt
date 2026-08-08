@@ -16,6 +16,11 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 
-pyannote.audio>=3.3.2
+# Capped below 4.0 to match requirements-diarization-cu121.txt, which has no
+# choice — see the reasoning there. Without the cap here the CPU runtime still
+# resolves, silently, to pyannote 4.x: the build stays green while CPU and GPU
+# machines run different pyannote majors, and the CPU one runs a major the
+# backend was not written against.
+pyannote.audio>=3.3.2,<4
 torch>=2.3.0
 torchaudio>=2.3.0

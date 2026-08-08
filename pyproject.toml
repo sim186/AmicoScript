@@ -61,8 +61,11 @@ dependencies = [
 # and pulls in several GB of nvidia-* packages. backend/requirements-diarization.txt
 # points at the CPU index to avoid that; an extra cannot carry an index URL, so
 # CPU-only Linux users should install torch from that index first. README covers it.
+#
+# The pyannote cap matches backend/requirements-diarization.txt — a pip install
+# should not land on a different pyannote major than the packaged builds do.
 diarization = [
-    "pyannote.audio>=3.3.2",
+    "pyannote.audio>=3.3.2,<4",
     "torch>=2.3.0",
     "torchaudio>=2.3.0",
 ]

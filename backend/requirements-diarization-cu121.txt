@@ -9,7 +9,17 @@
 # exists, hence the markers.
 --extra-index-url https://download.pytorch.org/whl/cu121
 
-pyannote.audio>=3.3.2
+# Capped below 4.0 deliberately. pyannote.audio 4 requires torch>=2.8, which
+# does not exist on the cu121 index and cannot, so an uncapped range resolves
+# to 4.x and then fails outright — ResolutionImpossible against the torch pin
+# below. Keeping it here rather than only in the CPU file also keeps the two
+# runtimes on the same pyannote major, so diarization does not change
+# behaviour depending on whether the machine has a GPU.
+#
+# Moving to pyannote 4 means torch 2.8+, a newer CUDA index than cu121, and
+# updating backend/core/diarization.py for the 4.x API. That is a deliberate
+# upgrade, not something to absorb by leaving the range open.
+pyannote.audio>=3.3.2,<4
 torch>=2.3.0,<2.7.0
 torchaudio>=2.3.0,<2.7.0
 
