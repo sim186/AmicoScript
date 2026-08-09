@@ -27,6 +27,16 @@ Typical usage:
 
 ## API Reference
 
+The complete, always-current list of endpoints is the generated reference at
+**<https://sim186.github.io/AmicoScript/api.html>**, built from the FastAPI routes
+themselves (`python scripts/generate_openapi.py` → `website/openapi.json`). A running
+install serves the same schema at `http://localhost:8002/openapi.json`, with Swagger UI
+at `/docs`.
+
+What follows is the hand-written tour of the endpoints worth explaining in prose —
+the request/response shapes, the export formats, and the auth rules. Reach for the
+generated reference when you want the whole surface.
+
 ### Models
 
 **GET /api/models**

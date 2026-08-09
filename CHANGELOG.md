@@ -6,6 +6,30 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### 📖 A published API reference that cannot go stale
+
+The site now hosts the full HTTP API at
+[amicoscript/api.html](https://sim186.github.io/AmicoScript/api.html) — all 73
+endpoints, grouped by area, with request bodies, parameters and response codes.
+
+It is generated, not written. `scripts/generate_openapi.py` imports the app and
+dumps the schema FastAPI already derives from the routes into
+`website/openapi.json`, which the page renders. Adding a route documents it; a
+test fails if the committed schema no longer matches the code, and the Pages
+deploy regenerates it from the commit being published. The hand-written endpoint
+list it replaces on the docs page had drifted — it described six endpoints out of
+seventy-three and got some of them wrong.
+
+- **The routes are grouped now.** Each router carries a tag (Transcription,
+  Library, Analyses, …) with a one-line description, which is what turns a flat
+  list into something navigable.
+- **The reference renders offline.** Redoc is vendored under `website/assets/`
+  rather than pulled from a CDN, so no third party can take the docs down.
+  `scripts/update_redoc.py` refreshes it.
+- **`docs.html` now explains what the reference cannot**: how authentication
+  differs for loopback and exposed installs, and a start-to-export walkthrough in
+  curl. The home page links to it too.
+
 ### 🔍 One box for finding anything, and doing anything
 
 `Ctrl`/`⌘` + `K` opens a command palette from anywhere in the app — including

@@ -26,6 +26,15 @@
     .prose a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
     .prose strong { color: #e2e8f0; font-weight: 600; }
     .prose hr { border-color: #1e293b; margin: 2rem 0; }
+    /* .prose a wins on specificity over the utility classes, so the call-to-action
+       button gets its own rule rather than a pile of !important. */
+    .prose a.btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.625rem 1.25rem; border-radius: 0.75rem;
+      background: #6366f1; color: #fff; font-weight: 600;
+      text-decoration: none; transition: background 0.15s;
+    }
+    .prose a.btn-primary:hover { background: #4f46e5; }
     .nav-link { display: block; padding: 0.3rem 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; color: #94a3b8; transition: all 0.15s; }
     .nav-link:hover { background: #1e293b; color: #f1f5f9; }
     .nav-section { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; color: #475569; text-transform: uppercase; padding: 0.5rem 0.75rem 0.25rem; margin-top: 1rem; }
@@ -43,6 +52,7 @@
       </a>
       <div class="flex items-center gap-3 sm:gap-5 text-sm text-gray-400">
         <a href="docs.html" class="text-white font-medium">Docs</a>
+        <a href="api.html" class="hover:text-white transition-colors">API</a>
         <a href="changelog.html" class="hidden sm:block hover:text-white transition-colors">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
       </div>
@@ -63,13 +73,13 @@
       <a href="#ai-analysis" class="nav-link">AI Analysis & LLM</a>
       <a href="#gpu" class="nav-link">GPU Support</a>
 
-      <div class="nav-section">API Reference</div>
-      <a href="#api-models" class="nav-link">Models</a>
-      <a href="#api-settings" class="nav-link">Settings</a>
-      <a href="#api-transcribe" class="nav-link">Transcription</a>
-      <a href="#api-jobs" class="nav-link">Jobs</a>
-      <a href="#api-export" class="nav-link">Export</a>
-      <a href="#api-llm" class="nav-link">LLM</a>
+      <div class="nav-section">API</div>
+      <a href="#api" class="nav-link">Using the API</a>
+      <a href="#api-auth" class="nav-link">Authentication</a>
+      <a href="#api-transcribe" class="nav-link">Transcribe a file</a>
+      <a href="#api-library" class="nav-link">Library &amp; search</a>
+      <a href="#api-llm" class="nav-link">Analyses</a>
+      <a href="api.html" class="nav-link">Full reference →</a>
     </aside>
 
     <!-- Content -->
@@ -188,47 +198,74 @@ ollama pull llama2        # More capable (~4 GB)</code></pre>
 
       <hr />
 
-      <h2>API Reference</h2>
+      <h2 id="api">Using the API</h2>
+      <p>
+        Everything the UI does goes through the same HTTP API, so anything you can click you can also
+        script. The full endpoint-by-endpoint reference lives on its own page — it is generated from the
+        server's OpenAPI schema, so it always matches the code rather than drifting from it.
+      </p>
+      <p class="my-6">
+        <a href="api.html" class="btn-primary">Open the API reference →</a>
+      </p>
+      <p>
+        The schema itself is at <a href="openapi.json">openapi.json</a> if you would rather generate a
+        client. A running install also serves its own interactive copy at
+        <code>http://localhost:8002/docs</code>, and the raw schema at <code>/openapi.json</code>.
+      </p>
 
-      <h3 id="api-models">Models</h3>
-      <p><code>GET /api/models</code> — Returns available Whisper models.</p>
+      <h3 id="api-auth">Authentication</h3>
+      <p>
+        AmicoScript is local-first, so a request from the machine itself (<code>127.0.0.1</code>,
+        <code>::1</code>) needs no credentials in the default <code>auto</code> mode. Anything arriving
+        from elsewhere — a reverse proxy, another host on your network — must authenticate:
+      </p>
+      <ul>
+        <li><strong>Browsers</strong> use the session cookie set by <code>POST /api/auth/login</code>.</li>
+        <li><strong>Scripts</strong> send the API token: <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+      </ul>
+      <p>
+        Fetch the token from the machine itself with <code>GET /api/auth/api-token</code>, or copy it from
+        the app's Security settings. Until a password is set, non-loopback requests are refused with
+        <code>503</code> — exposing the app fails closed instead of publishing your library.
+      </p>
+      <pre><code>curl -H "Authorization: Bearer $AMICOSCRIPT_TOKEN" \
+  https://amicoscript.example.com/api/library</code></pre>
 
-      <h3 id="api-settings">Settings</h3>
-      <p><code>GET /api/settings</code> — Retrieve saved settings (HF token, LLM config).</p>
-      <p><code>POST /api/settings</code> — Save settings.</p>
+      <h3 id="api-transcribe">Transcribe a file end to end</h3>
+      <pre><code># 1. start a job — returns {"job_id": "..."}
+JOB=$(curl -s -F file=@meeting.m4a -F model=small -F diarize=true \
+  http://localhost:8002/api/transcribe | python -c 'import json,sys;print(json.load(sys.stdin)["job_id"])')
 
-      <h3 id="api-transcribe">Transcription</h3>
-      <p><code>POST /api/transcribe</code> — Upload an audio file and start a transcription job.</p>
-      <pre><code>// Response
-{
-  "job_id": "string"
-}</code></pre>
+# 2. follow progress (Server-Sent Events, one JSON event per update)
+curl -N http://localhost:8002/api/jobs/$JOB/stream
 
-      <h3 id="api-jobs">Jobs</h3>
-      <p><code>GET /api/jobs/{id}/stream</code> — Server-Sent Events stream for real-time progress.</p>
-      <p><code>POST /api/jobs/{id}/cancel</code> — Cancel a running job.</p>
-      <p><code>GET /api/jobs/{id}/result</code> — Full transcription result as JSON.</p>
+# 3. take the result, or an export in json / srt / txt / md
+curl http://localhost:8002/api/jobs/$JOB/result
+curl -OJ http://localhost:8002/api/jobs/$JOB/export/md</code></pre>
+      <p>
+        <code>POST /api/transcribe/url</code> takes a <code>url</code> field instead of a file for
+        YouTube, Vimeo and the other supported sources. Jobs can be cancelled with
+        <code>POST /api/jobs/{job_id}/cancel</code>.
+      </p>
 
-      <h3 id="api-export">Export</h3>
-      <p><code>GET /api/jobs/{id}/export/{fmt}</code> — Download transcript in <code>json</code>, <code>srt</code>, <code>txt</code>, or <code>md</code> format.</p>
+      <h3 id="api-library">Library and search</h3>
+      <p>
+        Finished jobs become recordings: <code>GET /api/library</code> lists them,
+        <code>GET /api/recordings/{id}/transcript</code> returns the segments, and
+        <code>GET /api/search?q=…</code> runs full-text search across every transcript. Speaker names,
+        segment text, folders and tags are all editable over the API too.
+      </p>
 
-      <h3 id="api-llm">LLM</h3>
-      <p><code>GET /api/llm/settings</code> — Current LLM configuration.</p>
-      <p><code>POST /api/llm/settings</code> — Save LLM settings (<code>llm_base_url</code>, <code>llm_model_name</code>, <code>llm_api_key</code>).</p>
-      <p><code>POST /api/llm/test-connection</code> — Quick connectivity test.</p>
-      <p><code>GET /api/llm/models</code> — List models exposed by the LLM server.</p>
-      <p><code>POST /api/llm/models/pull</code> — Trigger model pull (Ollama-style).</p>
-      <p><code>POST /api/recordings/{id}/analyses</code> — Create a new analysis job.</p>
-      <p><code>GET /api/recordings/{id}/analyses</code> — List past analyses for a recording.</p>
-      <p><code>GET /api/recordings/{id}/analyses/{analysis_id}</code> — Fetch a specific analysis result.</p>
-
-      <h4>Example: start an analysis</h4>
+      <h3 id="api-llm">Analyses</h3>
       <pre><code>curl -X POST "http://localhost:8002/api/recordings/&lt;RECORDING_ID&gt;/analyses" \
   -F analysis_type=summary \
-  -F output_language=English</code></pre>
+  -F output_language=English
 
-      <h4>Example: test LLM connection</h4>
-      <pre><code>curl -X POST "http://localhost:8002/api/llm/test-connection"</code></pre>
+curl -X POST "http://localhost:8002/api/llm/test-connection"</code></pre>
+      <p>
+        Results are polled or fetched with <code>GET /api/recordings/{id}/analyses</code>. LLM
+        configuration lives under <code>/api/llm/settings</code>.
+      </p>
 
     </main>
   </div>
@@ -242,6 +279,7 @@ ollama pull llama2        # More capable (~4 GB)</code></pre>
       </div>
       <div class="flex items-center gap-5">
         <a href="index.html" class="hover:text-gray-300 transition-colors">Home</a>
+        <a href="api.html" class="hover:text-gray-300 transition-colors">API</a>
         <a href="changelog.html" class="hover:text-gray-300 transition-colors">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
       </div>

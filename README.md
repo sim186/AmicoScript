@@ -378,6 +378,10 @@ Full documentation (API, setup, details):
 
 [Documentation](docs/doc.md) · [Desktop shell (window, packaging, Tauri roadmap)](docs/desktop-shell.md)
 
+**[API reference](https://sim186.github.io/AmicoScript/api.html)** — every endpoint the UI uses,
+generated from the FastAPI routes with `python scripts/generate_openapi.py` and published with the
+site. A running install serves the same thing at `http://localhost:8002/docs`.
+
 ---
 
 ## 🏗️ Architecture (brief)

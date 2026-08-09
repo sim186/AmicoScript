@@ -28,6 +28,7 @@
     .change-item::before { content: '–'; position: absolute; left: 0; color: #475569; }
     .change-item strong { color: #e2e8f0; font-weight: 600; }
     .change-item a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+    .change-item code { font-family: ui-monospace, monospace; font-size: 0.85em; color: #a5b4fc; }
   </style>
   <script data-goatcounter="https://seamoce.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
@@ -42,6 +43,7 @@
       </a>
       <div class="flex items-center gap-3 sm:gap-5 text-sm text-gray-400">
         <a href="docs.html" class="hidden sm:block hover:text-white transition-colors">Docs</a>
+        <a href="api.html" class="hidden sm:block hover:text-white transition-colors">API</a>
         <a href="changelog.html" class="text-white font-medium">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
       </div>
@@ -53,12 +55,84 @@
     <h1 class="text-3xl sm:text-4xl font-bold text-white mb-2">Changelog</h1>
     <p class="text-gray-400 text-lg mb-12">All notable changes to AmicoScript. Follows <a href="https://semver.org/" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">Semantic Versioning</a>.</p>
 
-    <!-- v1.11.0 -->
+    <!-- v1.16.0 -->
     <div class="release latest">
       <div class="flex items-center gap-3 flex-wrap">
-        <h2>v1.11.0</h2>
+        <h2>v1.16.0</h2>
         <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-900/60 text-indigo-300 rounded-full">Latest</span>
       </div>
+      <div class="date">August 2, 2026</div>
+      <div>
+        <span class="badge badge-feat">🖥️ Desktop</span>
+        <span class="badge badge-ui">📦 Offline</span>
+      </div>
+      <div class="change-item"><strong>Native desktop window:</strong> the packaged build draws the UI in the webview the OS already ships — WKWebView on macOS, WebView2 on Windows — so no Chromium is bundled and the download does not grow. Closing the window shuts the backend down cleanly.</div>
+      <div class="change-item"><strong>Choose how the UI opens</strong> with <code>AMICOSCRIPT_UI</code>: <code>window</code> (default), <code>browser</code>, or <code>none</code>. If no webview engine is available the app falls back to a browser tab instead of failing.</div>
+      <div class="change-item"><strong>Offline-first frontend:</strong> Tailwind, marked, WaveSurfer and the Inter font ship with the app instead of being fetched from CDNs, so the UI renders with no network at all.</div>
+      <div class="change-item"><strong>Linux keeps opening a browser tab</strong> — its webview backend lives in system packages that cannot be bundled into a portable build.</div>
+    </div>
+
+    <!-- v1.14.0 – v1.15.0 -->
+    <div class="release">
+      <h2>v1.14.0 – v1.15.0</h2>
+      <div class="date">August 2, 2026</div>
+      <span class="badge badge-test">🔧 Maintenance</span>
+      <div class="change-item">Packaging and release-pipeline maintenance.</div>
+    </div>
+
+    <!-- v1.13.0 -->
+    <div class="release">
+      <h2>v1.13.0</h2>
+      <div class="date">August 2, 2026</div>
+      <div>
+        <span class="badge badge-feat">📞 Meeting capture</span>
+        <span class="badge badge-fix">🐛 Fixes</span>
+      </div>
+      <div class="change-item"><strong>Meeting auto-capture (Windows, beta):</strong> a background helper detects an in-progress call — Teams, Zoom, Webex, Meet in a browser, plus WhatsApp/Telegram/Signal/Slack/Discord voice calls — records system audio and your microphone, and queues the result for transcription when the call ends. Detection is entirely local; no meeting APIs, no cloud.</div>
+      <div class="change-item"><strong>Bundled with the Windows app:</strong> the native build runs the watcher in-process — no separate install, no scheduled task. A tray icon shows status (off / idle / recording) and can pause auto-capture.</div>
+      <div class="change-item"><strong>Live recording indicator</strong> with elapsed timer and detected app, and the finished transcript opens automatically once it is ready.</div>
+      <div class="change-item"><strong>Captures are written at 16 kHz mono</strong>, the rate Whisper transcribes at — a 2 h meeting is ~230 MB instead of ~700 MB.</div>
+      <div class="change-item"><strong>Auto-captured meetings now use your actual settings.</strong> The watcher used to hard-code diarization and the <code>small</code> model, so every recorded meeting was diarized regardless of the Speakers toggle.</div>
+      <div class="change-item">Long meeting uploads no longer time out at 60 s, and orphaned capture scratch files are cleaned up on watcher start.</div>
+    </div>
+
+    <!-- v1.12.2 -->
+    <div class="release">
+      <h2>v1.12.2</h2>
+      <div class="date">June 3, 2026</div>
+      <div>
+        <span class="badge badge-ui">✨ UI</span>
+        <span class="badge badge-fix">🐛 Fix</span>
+        <span class="badge badge-feat">🔌 API</span>
+      </div>
+      <div class="change-item"><strong>Floating queue widget:</strong> active jobs surface in a bottom-right pill; click to expand a panel listing every non-terminal job with per-row cancel and click-to-attach.</div>
+      <div class="change-item"><strong>Enqueue while running:</strong> the drop zone and URL field stay usable during transcription, so more files can be queued without waiting.</div>
+      <div class="change-item"><strong>Diarization progress is real:</strong> pyannote's step events (segmentation → embeddings → clustering) now drive the bar instead of it freezing at 82%.</div>
+      <div class="change-item"><strong>Cancel is now real</strong> for queued and running jobs, including during the URL download phase and around the diarization pipeline.</div>
+      <div class="change-item"><strong>Diarization compatibility with pyannote.audio 3.4+</strong> (<a href="https://github.com/sim186/AmicoScript/issues/24" target="_blank" rel="noopener">#24</a>) and with huggingface_hub 1.0+ / torch 2.6+. Thanks to @Tiritibambix.</div>
+      <div class="change-item"><strong>Export filenames with non-latin-1 characters</strong> (<a href="https://github.com/sim186/AmicoScript/issues/25" target="_blank" rel="noopener">#25</a>) no longer fail — exports emit RFC 5987 headers.</div>
+      <div class="change-item"><strong>New <code>GET /api/jobs</code></strong> lists non-terminal jobs with status, progress, queue position and creation time.</div>
+    </div>
+
+    <!-- v1.12.1 -->
+    <div class="release">
+      <h2>v1.12.1</h2>
+      <div class="date">May 13, 2026</div>
+      <span class="badge badge-feat">⚡ Performance</span>
+      <div class="change-item"><strong>Benchmark elapsed time:</strong> each model result includes load + inference combined, with total wall-clock time for the run.</div>
+    </div>
+
+    <!-- v1.12.0 -->
+    <div class="release">
+      <h2>v1.12.0</h2>
+      <div class="date">May 12, 2026</div>
+      <span class="badge badge-feat">⚡ Performance</span>
+      <div class="change-item"><strong>Benchmark tool:</strong> runs tiny/small/medium against a standard 11 s clip and reports load time, inference time and real-time factor for each. Results can be shared to the community with a pre-filled GitHub issue.</div>
+    </div>
+
+    <!-- v1.11.0 -->
+    <div class="release">
+      <h2>v1.11.0</h2>
       <div class="date">May 12, 2026</div>
       <div>
         <span class="badge badge-ui">✨ UI</span>
@@ -260,6 +334,7 @@
       <div class="flex items-center gap-5">
         <a href="index.html" class="hover:text-gray-300 transition-colors">Home</a>
         <a href="docs.html" class="hover:text-gray-300 transition-colors">Docs</a>
+        <a href="api.html" class="hover:text-gray-300 transition-colors">API</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
       </div>
     </div>

@@ -75,7 +75,69 @@ if (BASE_DIR / "scripts").exists():
 else:
     SCRIPTS_DIR = BASE_DIR.parent / "scripts"
 
-app = FastAPI(title="AmicoScript")
+API_DESCRIPTION = """
+The HTTP API behind the AmicoScript desktop app, web UI, and TUI. Everything the
+interface can do — uploading audio, following a job, reading transcripts, running
+an LLM analysis — goes through the endpoints below, so a script can drive the same
+workflow the UI does.
+
+The server runs on your own machine (or your own Docker host). There is no hosted
+AmicoScript API: the base URL is wherever you started it, `http://localhost:8002`
+by default.
+
+### Authentication
+
+AmicoScript is local-first, so what a request needs depends on where it comes from
+and on the `AMICOSCRIPT_AUTH` mode (see `backend/auth.py`):
+
+* **Loopback requests** (`127.0.0.1`, `::1`) are served without credentials in the
+  default `auto` mode — the usual case for a desktop or local Docker install.
+* **Everything else** needs a session cookie from `POST /api/auth/login`, or the
+  API token in an `Authorization: Bearer <token>` header (`X-Amicoscript-Token` also
+  works). Non-loopback requests are refused with `503` until a password is set, so
+  exposing the app publicly fails closed rather than publishing your library.
+
+Retrieve the token for headless clients with `GET /api/auth/api-token` from the
+machine itself, or from the app's Security settings.
+
+```bash
+curl -H "Authorization: Bearer $AMICOSCRIPT_TOKEN" \\
+  https://amicoscript.example.com/api/library
+```
+
+### Streaming endpoints
+
+Job progress is delivered over Server-Sent Events rather than polling:
+`GET /api/jobs/{job_id}/stream` emits a JSON event per update until the job reaches
+`done`, `error`, or `cancelled`, with a heartbeat every 30s in between. OpenAPI has
+no vocabulary for an SSE stream, so it is documented below as an ordinary `GET` —
+read it with an EventSource/SSE client, not a single-shot request.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "Auth", "description": "Login, logout, session status, and the API token for headless clients."},
+    {"name": "Settings", "description": "Whisper defaults, device selection, Hugging Face token, and other stored app settings."},
+    {"name": "LLM", "description": "LLM provider configuration, connectivity tests, and model listing/pulling."},
+    {"name": "Analyses", "description": "Summaries, action items, translations, and custom prompts run against a transcript."},
+    {"name": "Releases", "description": "Version reporting and update checks against the GitHub releases feed."},
+    {"name": "Transcription", "description": "Uploads, URL imports, job control, progress streams, and result downloads."},
+    {"name": "Library", "description": "Stored recordings: listing, metadata, transcript edits, audio, and exports."},
+    {"name": "Library chat", "description": "Retrieval-augmented chat across the transcripts in your library."},
+    {"name": "Folders & tags", "description": "Organising recordings into folders and tags, including tag suggestions."},
+    {"name": "Search", "description": "Full-text search across transcripts, backed by SQLite FTS5."},
+    {"name": "Benchmark", "description": "Local speed benchmarks for the installed Whisper models and devices."},
+    {"name": "Backup", "description": "Export and restore the library as a portable backup bundle."},
+]
+
+app = FastAPI(
+    title="AmicoScript API",
+    version=releases.local_version() or "0.0.0",
+    description=API_DESCRIPTION,
+    openapi_tags=OPENAPI_TAGS,
+    license_info={"name": "MIT", "url": "https://github.com/sim186/AmicoScript/blob/main/LICENSE"},
+    contact={"name": "AmicoScript on GitHub", "url": "https://github.com/sim186/AmicoScript"},
+    servers=[{"url": "http://localhost:8002", "description": "Local install (default)"}],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -124,18 +186,20 @@ async def _require_auth(request, call_next):
     return await call_next(request)
 
 
-app.include_router(auth_router)
-app.include_router(settings_router)
-app.include_router(llm_router)
-app.include_router(analyses_router)
-app.include_router(releases_router)
-app.include_router(transcription_router)
-app.include_router(library_router)
-app.include_router(library_chat_router)
-app.include_router(folders_tags_router)
-app.include_router(search_router)
-app.include_router(benchmark_router)
-app.include_router(backup_router)
+# The tags are what group the endpoints in the generated reference
+# (website/api.html); they mirror the names declared in OPENAPI_TAGS above.
+app.include_router(auth_router, tags=["Auth"])
+app.include_router(settings_router, tags=["Settings"])
+app.include_router(llm_router, tags=["LLM"])
+app.include_router(analyses_router, tags=["Analyses"])
+app.include_router(releases_router, tags=["Releases"])
+app.include_router(transcription_router, tags=["Transcription"])
+app.include_router(library_router, tags=["Library"])
+app.include_router(library_chat_router, tags=["Library chat"])
+app.include_router(folders_tags_router, tags=["Folders & tags"])
+app.include_router(search_router, tags=["Search"])
+app.include_router(benchmark_router, tags=["Benchmark"])
+app.include_router(backup_router, tags=["Backup"])
 
 
 @app.on_event("startup")
