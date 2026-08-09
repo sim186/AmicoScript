@@ -1,0 +1,3826 @@
+{
+  "components": {
+    "schemas": {
+      "Body_assign_speaker_api_recordings__recording_id__transcript_assign_speaker_post": {
+        "properties": {
+          "segment_indices": {
+            "title": "Segment Indices",
+            "type": "string"
+          },
+          "speaker_name": {
+            "title": "Speaker Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_indices",
+          "speaker_name"
+        ],
+        "title": "Body_assign_speaker_api_recordings__recording_id__transcript_assign_speaker_post",
+        "type": "object"
+      },
+      "Body_create_analysis_api_recordings__recording_id__analyses_post": {
+        "properties": {
+          "analysis_type": {
+            "title": "Analysis Type",
+            "type": "string"
+          },
+          "custom_prompt": {
+            "default": "",
+            "title": "Custom Prompt",
+            "type": "string"
+          },
+          "output_language": {
+            "default": "",
+            "title": "Output Language",
+            "type": "string"
+          },
+          "target_language": {
+            "default": "",
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "analysis_type"
+        ],
+        "title": "Body_create_analysis_api_recordings__recording_id__analyses_post",
+        "type": "object"
+      },
+      "Body_create_folder_api_folders_post": {
+        "properties": {
+          "color_code": {
+            "default": "#6c63ff",
+            "title": "Color Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "default": "",
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "Body_create_folder_api_folders_post",
+        "type": "object"
+      },
+      "Body_create_tag_api_tags_post": {
+        "properties": {
+          "color_code": {
+            "default": "#6c63ff",
+            "title": "Color Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "Body_create_tag_api_tags_post",
+        "type": "object"
+      },
+      "Body_edit_segment_api_recordings__recording_id__transcript_segments__segment_index__patch": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Body_edit_segment_api_recordings__recording_id__transcript_segments__segment_index__patch",
+        "type": "object"
+      },
+      "Body_import_library_api_library_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "mode": {
+            "default": "skip",
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_library_api_library_import_post",
+        "type": "object"
+      },
+      "Body_install_watcher_api_watcher_install_post": {
+        "properties": {
+          "token": {
+            "default": "",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "title": "Body_install_watcher_api_watcher_install_post",
+        "type": "object"
+      },
+      "Body_login_api_auth_login_post": {
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "Body_login_api_auth_login_post",
+        "type": "object"
+      },
+      "Body_rename_recording_speaker_api_recordings__recording_id__transcript_rename_speaker_post": {
+        "properties": {
+          "new_name": {
+            "title": "New Name",
+            "type": "string"
+          },
+          "old_name": {
+            "title": "Old Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_name",
+          "new_name"
+        ],
+        "title": "Body_rename_recording_speaker_api_recordings__recording_id__transcript_rename_speaker_post",
+        "type": "object"
+      },
+      "Body_rename_speaker_api_jobs__job_id__rename_speaker_post": {
+        "properties": {
+          "new_name": {
+            "title": "New Name",
+            "type": "string"
+          },
+          "old_name": {
+            "title": "Old Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_name",
+          "new_name"
+        ],
+        "title": "Body_rename_speaker_api_jobs__job_id__rename_speaker_post",
+        "type": "object"
+      },
+      "Body_save_llm_settings_api_llm_settings_post": {
+        "properties": {
+          "llm_allow_cloud": {
+            "default": "",
+            "title": "Llm Allow Cloud",
+            "type": "string"
+          },
+          "llm_api_key": {
+            "default": "__unchanged__",
+            "title": "Llm Api Key",
+            "type": "string"
+          },
+          "llm_base_url": {
+            "default": "",
+            "title": "Llm Base Url",
+            "type": "string"
+          },
+          "llm_context_tokens": {
+            "default": "",
+            "title": "Llm Context Tokens",
+            "type": "string"
+          },
+          "llm_embedding_model": {
+            "default": "__unchanged__",
+            "title": "Llm Embedding Model",
+            "type": "string"
+          },
+          "llm_max_output_tokens": {
+            "default": "",
+            "title": "Llm Max Output Tokens",
+            "type": "string"
+          },
+          "llm_model_name": {
+            "default": "",
+            "title": "Llm Model Name",
+            "type": "string"
+          },
+          "llm_provider": {
+            "default": "",
+            "title": "Llm Provider",
+            "type": "string"
+          }
+        },
+        "title": "Body_save_llm_settings_api_llm_settings_post",
+        "type": "object"
+      },
+      "Body_save_settings_api_settings_post": {
+        "properties": {
+          "auto_summarize_meetings": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Summarize Meetings"
+          },
+          "diarize": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diarize"
+          },
+          "hf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hf Token"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "whisper_compute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whisper Compute"
+          },
+          "whisper_device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whisper Device"
+          },
+          "whisper_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whisper Model"
+          }
+        },
+        "title": "Body_save_settings_api_settings_post",
+        "type": "object"
+      },
+      "Body_set_meeting_capture_api_settings_meeting_capture_post": {
+        "properties": {
+          "enabled": {
+            "default": "false",
+            "title": "Enabled",
+            "type": "string"
+          },
+          "token": {
+            "default": "",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "title": "Body_set_meeting_capture_api_settings_meeting_capture_post",
+        "type": "object"
+      },
+      "Body_set_password_api_auth_password_post": {
+        "properties": {
+          "current_password": {
+            "default": "",
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "new_password"
+        ],
+        "title": "Body_set_password_api_auth_password_post",
+        "type": "object"
+      },
+      "Body_set_watcher_status_api_watcher_status_post": {
+        "properties": {
+          "app": {
+            "default": "",
+            "title": "App",
+            "type": "string"
+          },
+          "recording": {
+            "default": "false",
+            "title": "Recording",
+            "type": "string"
+          },
+          "token": {
+            "default": "",
+            "title": "Token",
+            "type": "string"
+          },
+          "version": {
+            "default": "",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "title": "Body_set_watcher_status_api_watcher_status_post",
+        "type": "object"
+      },
+      "Body_transcribe_api_transcribe_post": {
+        "properties": {
+          "colab_url": {
+            "default": "",
+            "title": "Colab Url",
+            "type": "string"
+          },
+          "diarize": {
+            "default": "false",
+            "title": "Diarize",
+            "type": "string"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "hf_token": {
+            "default": "",
+            "title": "Hf Token",
+            "type": "string"
+          },
+          "language": {
+            "default": "",
+            "title": "Language",
+            "type": "string"
+          },
+          "max_speakers": {
+            "default": "",
+            "title": "Max Speakers",
+            "type": "string"
+          },
+          "min_speakers": {
+            "default": "",
+            "title": "Min Speakers",
+            "type": "string"
+          },
+          "model": {
+            "default": "small",
+            "title": "Model",
+            "type": "string"
+          },
+          "num_speakers": {
+            "default": "",
+            "title": "Num Speakers",
+            "type": "string"
+          },
+          "source": {
+            "default": "upload",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_api_transcribe_post",
+        "type": "object"
+      },
+      "Body_transcribe_from_url_api_transcribe_url_post": {
+        "properties": {
+          "allow_playlist": {
+            "default": "true",
+            "title": "Allow Playlist",
+            "type": "string"
+          },
+          "colab_url": {
+            "default": "",
+            "title": "Colab Url",
+            "type": "string"
+          },
+          "diarize": {
+            "default": "false",
+            "title": "Diarize",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "hf_token": {
+            "default": "",
+            "title": "Hf Token",
+            "type": "string"
+          },
+          "language": {
+            "default": "",
+            "title": "Language",
+            "type": "string"
+          },
+          "max_speakers": {
+            "default": "",
+            "title": "Max Speakers",
+            "type": "string"
+          },
+          "min_speakers": {
+            "default": "",
+            "title": "Min Speakers",
+            "type": "string"
+          },
+          "model": {
+            "default": "small",
+            "title": "Model",
+            "type": "string"
+          },
+          "num_speakers": {
+            "default": "",
+            "title": "Num Speakers",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_url"
+        ],
+        "title": "Body_transcribe_from_url_api_transcribe_url_post",
+        "type": "object"
+      },
+      "Body_update_folder_api_folders__folder_id__patch": {
+        "properties": {
+          "color_code": {
+            "default": "__unset__",
+            "title": "Color Code",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "default": "__unset__",
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "title": "Body_update_folder_api_folders__folder_id__patch",
+        "type": "object"
+      },
+      "Body_update_recording_api_recordings__recording_id__patch": {
+        "properties": {
+          "alias": {
+            "default": "__unset__",
+            "title": "Alias",
+            "type": "string"
+          },
+          "filename": {
+            "default": "",
+            "title": "Filename",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "__unset__",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "Body_update_recording_api_recordings__recording_id__patch",
+        "type": "object"
+      },
+      "Body_update_tag_api_tags__tag_id__patch": {
+        "properties": {
+          "color_code": {
+            "default": "",
+            "title": "Color Code",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "Body_update_tag_api_tags__tag_id__patch",
+        "type": "object"
+      },
+      "BulkExportRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "wikilinks": {
+            "default": false,
+            "title": "Wikilinks",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "BulkExportRequest",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WhisperModelPayload": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "WhisperModelPayload",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "name": "AmicoScript on GitHub",
+      "url": "https://github.com/sim186/AmicoScript"
+    },
+    "description": "\nThe HTTP API behind the AmicoScript desktop app, web UI, and TUI. Everything the\ninterface can do — uploading audio, following a job, reading transcripts, running\nan LLM analysis — goes through the endpoints below, so a script can drive the same\nworkflow the UI does.\n\nThe server runs on your own machine (or your own Docker host). There is no hosted\nAmicoScript API: the base URL is wherever you started it, `http://localhost:8002`\nby default.\n\n### Authentication\n\nAmicoScript is local-first, so what a request needs depends on where it comes from\nand on the `AMICOSCRIPT_AUTH` mode (see `backend/auth.py`):\n\n* **Loopback requests** (`127.0.0.1`, `::1`) are served without credentials in the\n  default `auto` mode — the usual case for a desktop or local Docker install.\n* **Everything else** needs a session cookie from `POST /api/auth/login`, or the\n  API token in an `Authorization: Bearer <token>` header (`X-Amicoscript-Token` also\n  works). Non-loopback requests are refused with `503` until a password is set, so\n  exposing the app publicly fails closed rather than publishing your library.\n\nRetrieve the token for headless clients with `GET /api/auth/api-token` from the\nmachine itself, or from the app's Security settings.\n\n```bash\ncurl -H \"Authorization: Bearer $AMICOSCRIPT_TOKEN\" \\\n  https://amicoscript.example.com/api/library\n```\n\n### Streaming endpoints\n\nJob progress is delivered over Server-Sent Events rather than polling:\n`GET /api/jobs/{job_id}/stream` emits a JSON event per update until the job reaches\n`done`, `error`, or `cancelled`, with a heartbeat every 30s in between. OpenAPI has\nno vocabulary for an SSE stream, so it is documented below as an ordinary `GET` —\nread it with an EventSource/SSE client, not a single-shot request.\n",
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/sim186/AmicoScript/blob/main/LICENSE"
+    },
+    "title": "AmicoScript API",
+    "version": "1.16.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/audio/{job_id}": {
+      "get": {
+        "operationId": "get_audio_api_audio__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audio",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/auth/api-token": {
+      "get": {
+        "description": "Token for headless clients (TUI, meeting watcher) in `always` mode.",
+        "operationId": "get_api_token_api_auth_api_token_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Api Token Api Auth Api Token Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Api Token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_api_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Login Api Auth Login Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Logout Api Auth Logout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/password": {
+      "delete": {
+        "description": "Remove the password. Local-only: it re-opens the instance.",
+        "operationId": "remove_password_api_auth_password_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "current_password",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Current Password",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Password Api Auth Password Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Password",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "description": "Set or change the password.\n\nChanging an existing password requires the current one. Setting the first\npassword requires either a local request or an already-valid session, so a\nstranger cannot claim an exposed instance before its owner does.",
+        "operationId": "set_password_api_auth_password_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_password_api_auth_password_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Password Api Auth Password Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Password",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/status": {
+      "get": {
+        "description": "Tells the UI whether to show a login screen or a password-setup prompt.",
+        "operationId": "auth_status_api_auth_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Status Api Auth Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Auth Status",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/benchmark/run": {
+      "post": {
+        "operationId": "run_benchmark_api_benchmark_run_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Benchmark Api Benchmark Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Run Benchmark",
+        "tags": [
+          "Benchmark"
+        ]
+      }
+    },
+    "/api/exit": {
+      "post": {
+        "operationId": "api_exit_api_exit_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Exit",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/folders": {
+      "get": {
+        "operationId": "list_folders_api_folders_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Folders Api Folders Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Folders",
+        "tags": [
+          "Folders & tags"
+        ]
+      },
+      "post": {
+        "operationId": "create_folder_api_folders_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_folder_api_folders_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Folder Api Folders Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Folder",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/folders/{folder_id}": {
+      "delete": {
+        "operationId": "delete_folder_api_folders__folder_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "delete_recordings",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Delete Recordings",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Folder Api Folders  Folder Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Folder",
+        "tags": [
+          "Folders & tags"
+        ]
+      },
+      "patch": {
+        "operationId": "update_folder_api_folders__folder_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_folder_api_folders__folder_id__patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Folder Api Folders  Folder Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Folder",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "description": "Return all non-terminal jobs with queue position for the UI queue strip.",
+        "operationId": "list_jobs_api_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Jobs Api Jobs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Jobs",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "operationId": "cancel_job_api_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cancel Job Api Jobs  Job Id  Cancel Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Job",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/export/{fmt}": {
+      "get": {
+        "operationId": "export_job_api_jobs__job_id__export__fmt__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fmt",
+            "required": true,
+            "schema": {
+              "title": "Fmt",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wikilinks",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wikilinks",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Job",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/logs": {
+      "get": {
+        "operationId": "get_job_logs_api_jobs__job_id__logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Job Logs Api Jobs  Job Id  Logs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job Logs",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/rename-speaker": {
+      "post": {
+        "operationId": "rename_speaker_api_jobs__job_id__rename_speaker_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_rename_speaker_api_jobs__job_id__rename_speaker_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename Speaker Api Jobs  Job Id  Rename Speaker Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Speaker",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/result": {
+      "get": {
+        "operationId": "get_result_api_jobs__job_id__result_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Result Api Jobs  Job Id  Result Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Result",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/stream": {
+      "get": {
+        "operationId": "stream_job_api_jobs__job_id__stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Job",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/latest-release": {
+      "get": {
+        "operationId": "api_latest_release_api_latest_release_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Latest Release Api Latest Release Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Latest Release",
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
+    "/api/library": {
+      "get": {
+        "operationId": "get_library_api_library_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "folder_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Tag Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "created_at",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Library Api Library Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Library",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/library/chat": {
+      "post": {
+        "operationId": "chat_with_library_api_library_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Chat With Library Api Library Chat Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat With Library",
+        "tags": [
+          "Library chat"
+        ]
+      }
+    },
+    "/api/library/export": {
+      "get": {
+        "description": "Download the library as a zip bundle.\n\n``ids`` — optional comma-separated recording ids, to export a subset.\n``include_audio`` — set false for a metadata-only bundle (much smaller).",
+        "operationId": "export_library_api_library_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_audio",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Audio",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ids",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Ids",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Library",
+        "tags": [
+          "Backup"
+        ]
+      }
+    },
+    "/api/library/import": {
+      "post": {
+        "description": "Import a bundle produced by /api/library/export.\n\n``mode=skip`` (default) leaves existing rows untouched; ``mode=overwrite``\nreplaces them. Rows are matched by primary key, so re-importing the same\nbundle twice is a no-op rather than a duplicate library.",
+        "operationId": "import_library_api_library_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_library_api_library_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Library Api Library Import Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Library",
+        "tags": [
+          "Backup"
+        ]
+      }
+    },
+    "/api/library/index": {
+      "get": {
+        "operationId": "get_index_status_api_library_index_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Index Status Api Library Index Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Index Status",
+        "tags": [
+          "Library chat"
+        ]
+      }
+    },
+    "/api/library/index/embed": {
+      "post": {
+        "description": "Embed a slice of the chunks that have none. Call until pending is 0.",
+        "operationId": "embed_index_api_library_index_embed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Embed Index Api Library Index Embed Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Embed Index",
+        "tags": [
+          "Library chat"
+        ]
+      }
+    },
+    "/api/library/index/rebuild": {
+      "post": {
+        "description": "Chunk transcripts that have no chunks yet, or all of them with ?all=true.",
+        "operationId": "rebuild_index_api_library_index_rebuild_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "all",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "All",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rebuild Index Api Library Index Rebuild Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebuild Index",
+        "tags": [
+          "Library chat"
+        ]
+      }
+    },
+    "/api/llm/detect": {
+      "get": {
+        "description": "Scan the well-known local ports for a server that is already running.\n\nSaves the user from knowing that LM Studio is 1234 and Unsloth is 8888, and\nfrom guessing the right host when AmicoScript runs in a container.",
+        "operationId": "detect_llm_servers_api_llm_detect_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Detect Llm Servers Api Llm Detect Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Detect Llm Servers",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/llm/models": {
+      "get": {
+        "description": "Models offered by the configured server, or by *base_url* if given.\n\nPassing base_url lets the setup UI preview a server before saving it.",
+        "operationId": "list_llm_models_api_llm_models_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "base_url",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Base Url",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Llm Models Api Llm Models Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Llm Models",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/llm/models/pull": {
+      "post": {
+        "description": "Download a model. Only Ollama exposes this; others manage models in-app.",
+        "operationId": "pull_llm_model_api_llm_models_pull_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pull Llm Model Api Llm Models Pull Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull Llm Model",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/llm/providers": {
+      "get": {
+        "description": "Presets for the setup UI, plus what the runtime looks like from here.",
+        "operationId": "list_providers_api_llm_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Providers Api Llm Providers Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Providers",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/llm/settings": {
+      "get": {
+        "description": "LLM config for the UI. The API key is reported as set/unset, never echoed.",
+        "operationId": "get_llm_settings_api_llm_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Llm Settings Api Llm Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Llm Settings",
+        "tags": [
+          "LLM"
+        ]
+      },
+      "post": {
+        "description": "Persist LLM config.\n\n``llm_api_key`` defaults to the \"unchanged\" sentinel so a UI that never\nreceived the real key cannot blank it out by saving the form.\n\nThe base URL is normalized on the way in — a trailing ``/v1``, a pasted\nendpoint path, or ``localhost`` while running in a container are all fixed\nhere — and the change is reported back so the UI can tell the user.",
+        "operationId": "save_llm_settings_api_llm_settings_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_save_llm_settings_api_llm_settings_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Llm Settings Api Llm Settings Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Llm Settings",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/llm/test-connection": {
+      "post": {
+        "description": "Try a real completion and report something the user can act on.",
+        "operationId": "test_llm_connection_api_llm_test_connection_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Llm Connection Api Llm Test Connection Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Test Llm Connection",
+        "tags": [
+          "LLM"
+        ]
+      }
+    },
+    "/api/models": {
+      "get": {
+        "operationId": "get_models_api_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Models Api Models Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Models",
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
+    "/api/recordings/bulk-export/md": {
+      "post": {
+        "operationId": "bulk_export_md_api_recordings_bulk_export_md_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Export Md",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}": {
+      "delete": {
+        "operationId": "delete_recording_api_recordings__recording_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Recording Api Recordings  Recording Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Recording",
+        "tags": [
+          "Library"
+        ]
+      },
+      "get": {
+        "operationId": "get_recording_api_recordings__recording_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Recording Api Recordings  Recording Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recording",
+        "tags": [
+          "Library"
+        ]
+      },
+      "patch": {
+        "operationId": "update_recording_api_recordings__recording_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_recording_api_recordings__recording_id__patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Recording Api Recordings  Recording Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Recording",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/analyses": {
+      "get": {
+        "operationId": "list_analyses_api_recordings__recording_id__analyses_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Analyses Api Recordings  Recording Id  Analyses Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Analyses",
+        "tags": [
+          "Analyses"
+        ]
+      },
+      "post": {
+        "operationId": "create_analysis_api_recordings__recording_id__analyses_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_analysis_api_recordings__recording_id__analyses_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Analysis Api Recordings  Recording Id  Analyses Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Analysis",
+        "tags": [
+          "Analyses"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/analyses/{analysis_id}": {
+      "delete": {
+        "operationId": "delete_analysis_api_recordings__recording_id__analyses__analysis_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Analysis Api Recordings  Recording Id  Analyses  Analysis Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Analysis",
+        "tags": [
+          "Analyses"
+        ]
+      },
+      "get": {
+        "operationId": "get_analysis_api_recordings__recording_id__analyses__analysis_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Analysis Api Recordings  Recording Id  Analyses  Analysis Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Analysis",
+        "tags": [
+          "Analyses"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/audio": {
+      "get": {
+        "operationId": "get_recording_audio_api_recordings__recording_id__audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recording Audio",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/export/{fmt}": {
+      "get": {
+        "operationId": "export_recording_api_recordings__recording_id__export__fmt__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fmt",
+            "required": true,
+            "schema": {
+              "title": "Fmt",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wikilinks",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wikilinks",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Recording",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/retry": {
+      "post": {
+        "description": "Transcribe an existing recording again.\n\nUntil now a failed transcription was a dead end: the audio was still on\ndisk, but the only way to try again was to delete the recording and\nre-import the file. This reuses the stored options, so a retry runs with the\nsame model, language and diarization settings as the original attempt.",
+        "operationId": "retry_recording_api_recordings__recording_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retry Recording Api Recordings  Recording Id  Retry Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Recording",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/suggest-tags": {
+      "post": {
+        "description": "Ask the LLM for tags for this recording. Applies nothing.\n\nRuns synchronously rather than as a queued analysis job: the output is a\nhandful of words, and a suggestion the user has to come back for later is\none they will not use.",
+        "operationId": "suggest_recording_tags_api_recordings__recording_id__suggest_tags_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Suggest Recording Tags Api Recordings  Recording Id  Suggest Tags Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suggest Recording Tags",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/tags/{tag_id}": {
+      "delete": {
+        "operationId": "remove_recording_tag_api_recordings__recording_id__tags__tag_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Recording Tag Api Recordings  Recording Id  Tags  Tag Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Recording Tag",
+        "tags": [
+          "Folders & tags"
+        ]
+      },
+      "post": {
+        "operationId": "add_recording_tag_api_recordings__recording_id__tags__tag_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Recording Tag Api Recordings  Recording Id  Tags  Tag Id  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Recording Tag",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript": {
+      "get": {
+        "operationId": "get_recording_transcript_api_recordings__recording_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Recording Transcript Api Recordings  Recording Id  Transcript Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recording Transcript",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/assign-speaker": {
+      "post": {
+        "operationId": "assign_speaker_api_recordings__recording_id__transcript_assign_speaker_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_assign_speaker_api_recordings__recording_id__transcript_assign_speaker_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Assign Speaker Api Recordings  Recording Id  Transcript Assign Speaker Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Speaker",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/rename-speaker": {
+      "post": {
+        "operationId": "rename_recording_speaker_api_recordings__recording_id__transcript_rename_speaker_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_rename_recording_speaker_api_recordings__recording_id__transcript_rename_speaker_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename Recording Speaker Api Recordings  Recording Id  Transcript Rename Speaker Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Recording Speaker",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/segments/{segment_index}": {
+      "patch": {
+        "operationId": "edit_segment_api_recordings__recording_id__transcript_segments__segment_index__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_index",
+            "required": true,
+            "schema": {
+              "title": "Segment Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_edit_segment_api_recordings__recording_id__transcript_segments__segment_index__patch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Edit Segment Api Recordings  Recording Id  Transcript Segments  Segment Index  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Segment",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/segments/{segment_index}/reset": {
+      "post": {
+        "operationId": "reset_segment_api_recordings__recording_id__transcript_segments__segment_index__reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_index",
+            "required": true,
+            "schema": {
+              "title": "Segment Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reset Segment Api Recordings  Recording Id  Transcript Segments  Segment Index  Reset Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Segment",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/segments/{segment_index}/translate": {
+      "post": {
+        "operationId": "translate_segment_api_api_recordings__recording_id__transcript_segments__segment_index__translate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "segment_index",
+            "required": true,
+            "schema": {
+              "title": "Segment Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Translate Segment Api Api Recordings  Recording Id  Transcript Segments  Segment Index  Translate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Translate Segment Api",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/recordings/{recording_id}/transcript/translate-all": {
+      "post": {
+        "operationId": "translate_all_api_api_recordings__recording_id__transcript_translate_all_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Translate All Api Api Recordings  Recording Id  Transcript Translate All Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Translate All Api",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "search_api_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Search Api Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Settings Api Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "post": {
+        "description": "Persist HF token and/or transcription defaults.\n\nFields are optional so the UI can save the HF token alone (existing\nbehaviour) or push model/language/diarize without clearing the token.",
+        "operationId": "save_settings_api_settings_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_save_settings_api_settings_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Settings Api Settings Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Settings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/settings/meeting-capture": {
+      "post": {
+        "description": "Toggle the external meeting auto-capture watcher on/off.\n\nThe watcher (scripts/meeting_watcher/watcher.py) polls this flag and only\nrecords meetings while it is enabled.",
+        "operationId": "set_meeting_capture_api_settings_meeting_capture_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_meeting_capture_api_settings_meeting_capture_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Meeting Capture Api Settings Meeting Capture Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Meeting Capture",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "operationId": "list_tags_api_tags_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "folder_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Tags Api Tags Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tags",
+        "tags": [
+          "Folders & tags"
+        ]
+      },
+      "post": {
+        "operationId": "create_tag_api_tags_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_tag_api_tags_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Tag Api Tags Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Tag",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/tags/{tag_id}": {
+      "delete": {
+        "operationId": "delete_tag_api_tags__tag_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Tag Api Tags  Tag Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Tag",
+        "tags": [
+          "Folders & tags"
+        ]
+      },
+      "patch": {
+        "operationId": "update_tag_api_tags__tag_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_tag_api_tags__tag_id__patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Tag Api Tags  Tag Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Tag",
+        "tags": [
+          "Folders & tags"
+        ]
+      }
+    },
+    "/api/transcribe": {
+      "post": {
+        "operationId": "transcribe_api_transcribe_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_api_transcribe_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transcribe Api Transcribe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcribe",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/transcribe/url": {
+      "post": {
+        "operationId": "transcribe_from_url_api_transcribe_url_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_from_url_api_transcribe_url_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transcribe From Url Api Transcribe Url Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcribe From Url",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "get_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Version Api Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Version",
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
+    "/api/watcher/install": {
+      "post": {
+        "description": "Install/update the external watcher on this host, triggered from the\nUI instead of the user manually running setup.bat. Only works when the\nbackend itself runs on the target Windows host (not e.g. in Docker) —\nsee _install_watcher_sync.",
+        "operationId": "install_watcher_api_watcher_install_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_install_watcher_api_watcher_install_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Install Watcher Api Watcher Install Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Install Watcher",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/watcher/status": {
+      "get": {
+        "description": "Current watcher state for the web UI: whether it's installed/running\n(``alive``) and whether it's recording right now (``recording``).",
+        "operationId": "get_watcher_status_api_watcher_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Watcher Status Api Watcher Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Watcher Status",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "post": {
+        "description": "Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).\n\nThe watcher posts ``recording=true`` when a capture starts and again\nperiodically while it runs, then ``recording=false`` on stop. Stored only in\nmemory — see WATCHER_STATUS_TTL for the staleness rule.",
+        "operationId": "set_watcher_status_api_watcher_status_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_watcher_status_api_watcher_status_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Watcher Status Api Watcher Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Watcher Status",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/whisper/models": {
+      "get": {
+        "operationId": "get_whisper_models_api_whisper_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Whisper Models Api Whisper Models Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Whisper Models",
+        "tags": [
+          "Releases"
+        ]
+      },
+      "post": {
+        "operationId": "set_whisper_model_api_whisper_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhisperModelPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Whisper Model Api Whisper Models Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Whisper Model",
+        "tags": [
+          "Releases"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Local install (default)",
+      "url": "http://localhost:8002"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Login, logout, session status, and the API token for headless clients.",
+      "name": "Auth"
+    },
+    {
+      "description": "Whisper defaults, device selection, Hugging Face token, and other stored app settings.",
+      "name": "Settings"
+    },
+    {
+      "description": "LLM provider configuration, connectivity tests, and model listing/pulling.",
+      "name": "LLM"
+    },
+    {
+      "description": "Summaries, action items, translations, and custom prompts run against a transcript.",
+      "name": "Analyses"
+    },
+    {
+      "description": "Version reporting and update checks against the GitHub releases feed.",
+      "name": "Releases"
+    },
+    {
+      "description": "Uploads, URL imports, job control, progress streams, and result downloads.",
+      "name": "Transcription"
+    },
+    {
+      "description": "Stored recordings: listing, metadata, transcript edits, audio, and exports.",
+      "name": "Library"
+    },
+    {
+      "description": "Retrieval-augmented chat across the transcripts in your library.",
+      "name": "Library chat"
+    },
+    {
+      "description": "Organising recordings into folders and tags, including tag suggestions.",
+      "name": "Folders & tags"
+    },
+    {
+      "description": "Full-text search across transcripts, backed by SQLite FTS5.",
+      "name": "Search"
+    },
+    {
+      "description": "Local speed benchmarks for the installed Whisper models and devices.",
+      "name": "Benchmark"
+    },
+    {
+      "description": "Export and restore the library as a portable backup bundle.",
+      "name": "Backup"
+    }
+  ]
+}
