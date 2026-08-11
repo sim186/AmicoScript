@@ -313,7 +313,13 @@ def test_transcribe_posts_resolved_options(monkeypatch, tmp_path):
 
     assert watcher.transcribe(wav) == ("job", "rec")
     assert posted["url"].endswith("/api/transcribe")
-    assert posted["data"] == {"model": "medium", "language": "it", "diarize": "false"}
+    assert posted["data"] == {
+        "model": "medium",
+        "language": "it",
+        "diarize": "false",
+        # Tags the recording as a captured call so the backend can auto-summarize it.
+        "source": "meeting",
+    }
 
 
 def test_cleanup_orphan_raw_removes_only_scratch_files(monkeypatch, tmp_path):

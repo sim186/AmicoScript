@@ -13,8 +13,21 @@ def _add_data_arg(src: str, dest: str) -> str:
     """
     return f"--add-data={src}{os.pathsep}{dest}"
 
-def build(gpu: bool = False):
-    app_name = "AmicoScript-GPU" if gpu else "AmicoScript"
+def build():
+    """Build the one bundle. There is no CPU/GPU split any more.
+
+    There used to be two: a CPU build and a GPU build that differed only in
+    whether the CUDA torch wheels and the nvidia CUDA libraries were collected
+    into it. That put the choice on the user at download time, in a filename,
+    before they could know the answer — and doubled every platform in the
+    release matrix.
+
+    Now nothing torch-shaped is bundled at all. The build records what it would
+    have installed in runtime_manifest.json, and backend/runtime_pack.py fetches
+    the CPU or CUDA set on the first job that needs it, choosing by what the
+    driver on that machine actually reports.
+    """
+    app_name = "AmicoScript"
 
     # Detect OS
     is_windows = sys.platform.startswith('win')
@@ -43,8 +56,23 @@ def build(gpu: bool = False):
         _add_data_arg('CHANGELOG.md', '.'),      # Include changelog
         '--hidden-import=main',            # backend/main.py imported dynamically in run.py
         '--hidden-import=ffmpeg_helper',   # backend/ffmpeg_helper.py imported dynamically in run.py
+        '--hidden-import=cuda_runtime',    # backend/cuda_runtime.py — preloads CUDA libs
+        '--hidden-import=runtime_pack',    # backend/runtime_pack.py — imported from run.py
+        '--hidden-import=gpu_probe',       # backend/gpu_probe.py — imported lazily by both
         '--hidden-import=sse_starlette.sse',
     ]
+
+    # The downloaded runtime's inventory. Absent when the manifest has not been
+    # generated, which produces a bundle that transcribes but cannot diarize —
+    # so it is loud rather than silent.
+    manifest = os.path.join(root, 'runtime_manifest.json')
+    if os.path.exists(manifest):
+        args.append(_add_data_arg('runtime_manifest.json', '.'))
+    else:
+        print('WARNING: runtime_manifest.json is missing — this build will not be '
+              'able to download PyTorch, so speaker diarization will be '
+              'unavailable in it. Run '
+              '"python scripts/generate_runtime_manifest.py" first.')
 
     # Exclude known heavy/optional modules so PyInstaller doesn't accidentally
     # pull them into the bundle when building from a minimal venv.
@@ -53,6 +81,31 @@ def build(gpu: bool = False):
         'tensorboard',
         'torch.utils.tensorboard',
         'uvicorn.streaming',
+    ]
+
+    # The diarization stack, kept out on purpose rather than by accident.
+    #
+    # These are downloaded at runtime (backend/runtime_pack.py), and that only
+    # works if they are genuinely absent here: PyInstaller puts a bundled module
+    # in the PYZ archive, and its FrozenImporter sits ahead of every path-based
+    # finder on sys.meta_path, so a bundled torch wins over a downloaded one no
+    # matter what sys.path says. A build machine that happens to have torch
+    # installed — a dev laptop, or CI after running the test suite — would
+    # otherwise produce a two-gigabyte bundle that ignores the download it just
+    # performed.
+    excludes += [
+        'torch',
+        'torchaudio',
+        'torchvision',
+        'pyannote',
+        'pyannote.audio',
+        'pytorch_lightning',
+        'lightning',
+        'lightning_fabric',
+        'torchmetrics',
+        'speechbrain',
+        'asteroid_filterbanks',
+        'nvidia',
     ]
     for ex in excludes:
         args.append(f"--exclude-module={ex}")
@@ -65,9 +118,6 @@ def build(gpu: bool = False):
         if _importlib_util.find_spec('faster_whisper') is not None:
             args.append('--hidden-import=faster_whisper')
             args.append('--collect-data=faster_whisper')
-        if _importlib_util.find_spec('pyannote.audio') is not None:
-            args.append('--hidden-import=pyannote.audio')
-            args.append('--collect-data=pyannote.audio')
         if _importlib_util.find_spec('huggingface_hub') is not None:
             # Imported dynamically via importlib in backend/resource_downloader.py
             args.append('--hidden-import=huggingface_hub')
@@ -255,4 +305,8 @@ VSVersionInfo(
     print("\nNote: You may need to manually bundle ffmpeg binaries in the dist folder if not in system path.")
 
 if __name__ == "__main__":
-    build(gpu='--gpu' in sys.argv)
+    if '--gpu' in sys.argv:
+        print('Note: --gpu no longer does anything. There is one build, and it '
+              'picks the CPU or CUDA runtime at first use from what the machine '
+              'reports. See docs/runtime-pack.md.')
+    build()

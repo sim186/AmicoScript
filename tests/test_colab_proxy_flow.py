@@ -2,8 +2,6 @@ import json
 import threading
 from pathlib import Path
 
-import pytest
-
 import state
 from core import colab_proxy
 
@@ -60,8 +58,8 @@ def test_handle_colab_job_done_flow(tmp_path, monkeypatch):
     pushed = []
     sync_calls = []
 
-    monkeypatch.setattr(colab_proxy, "_push_event", lambda *args, **kwargs: pushed.append((args, kwargs)))
-    monkeypatch.setattr(colab_proxy, "_sync_job_to_db", lambda j: sync_calls.append(j))
+    monkeypatch.setattr(colab_proxy, "push_event", lambda *args, **kwargs: pushed.append((args, kwargs)))
+    monkeypatch.setattr(colab_proxy, "sync_job_to_db", lambda j: sync_calls.append(j))
 
     def _fake_post(url, **kwargs):
         if url.endswith("/api/transcribe"):
@@ -82,7 +80,7 @@ def test_handle_colab_job_done_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(colab_proxy.requests, "post", _fake_post)
     monkeypatch.setattr(colab_proxy.requests, "get", _fake_get)
 
-    colab_proxy._handle_colab_job(job_id)
+    colab_proxy.handle_colab_job(job_id)
 
     assert state.jobs[job_id]["result"]["language"] == "en"
     assert any(args[1] == "done" for args, _ in pushed)
@@ -95,8 +93,8 @@ def test_handle_colab_job_error_status_flow(tmp_path, monkeypatch):
     pushed = []
     sync_calls = []
 
-    monkeypatch.setattr(colab_proxy, "_push_event", lambda *args, **kwargs: pushed.append((args, kwargs)))
-    monkeypatch.setattr(colab_proxy, "_sync_job_to_db", lambda j: sync_calls.append(j))
+    monkeypatch.setattr(colab_proxy, "push_event", lambda *args, **kwargs: pushed.append((args, kwargs)))
+    monkeypatch.setattr(colab_proxy, "sync_job_to_db", lambda j: sync_calls.append(j))
 
     monkeypatch.setattr(colab_proxy.requests, "post", lambda *_args, **_kwargs: _FakeResponse(json_data={"job_id": "remote-2"}))
 
@@ -110,7 +108,7 @@ def test_handle_colab_job_error_status_flow(tmp_path, monkeypatch):
 
     monkeypatch.setattr(colab_proxy.requests, "get", _fake_get)
 
-    colab_proxy._handle_colab_job(job_id)
+    colab_proxy.handle_colab_job(job_id)
 
     assert state.jobs[job_id]["error"] == "remote failed"
     assert any(args[1] == "error" for args, _ in pushed)
@@ -134,6 +132,6 @@ def test_handle_colab_job_400_includes_remote_detail(tmp_path, monkeypatch):
 
     monkeypatch.setattr(colab_proxy.requests, "post", lambda *_args, **_kwargs: _BadRequestResponse())
 
-    colab_proxy._handle_colab_job(job_id)
+    colab_proxy.handle_colab_job(job_id)
 
     assert "Unsupported file type: .webm" in (state.jobs[job_id].get("error") or "")

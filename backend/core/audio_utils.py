@@ -7,10 +7,10 @@ from pathlib import Path
 
 import state
 
-from core.job_helpers import _append_job_log
+from core.job_helpers import append_job_log
 
 
-def _normalize_audio(
+def normalize_audio(
     job_id: str,
     input_path: str,
     purpose: str,
@@ -26,7 +26,7 @@ def _normalize_audio(
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if not ffmpeg_bin:
-        _append_job_log(
+        append_job_log(
             job_id,
             "WARN",
             "ffmpeg not found in PATH; using original file",
@@ -54,11 +54,11 @@ def _normalize_audio(
     ]
 
     try:
-        _append_job_log(job_id, "INFO", f"Normalizing audio for {purpose} (mono/16k PCM)")
+        append_job_log(job_id, "INFO", f"Normalizing audio for {purpose} (mono/16k PCM)")
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180, check=False)
         if proc.returncode != 0:
             stderr = (proc.stderr or "").strip()
-            _append_job_log(
+            append_job_log(
                 job_id,
                 "WARN",
                 f"ffmpeg normalization failed: {stderr or f'code {proc.returncode}'}",
@@ -71,15 +71,15 @@ def _normalize_audio(
 
         return normalized_path
     except Exception as exc:
-        _append_job_log(job_id, "WARN", f"ffmpeg normalization exception: {exc}")
+        append_job_log(job_id, "WARN", f"ffmpeg normalization exception: {exc}")
         return input_path
 
 
-def _convert_audio_for_transcription(job_id: str, input_path: str, force: bool = False) -> str:
-    """Compatibility wrapper around _normalize_audio for transcription."""
-    return _normalize_audio(job_id, input_path, purpose="transcription", force=force)
+def convert_audio_for_transcription(job_id: str, input_path: str, force: bool = False) -> str:
+    """Compatibility wrapper around normalize_audio for transcription."""
+    return normalize_audio(job_id, input_path, purpose="transcription", force=force)
 
 
-def _convert_audio_for_diarization(job_id: str, input_path: str, force: bool = True) -> str:
-    """Compatibility wrapper around _normalize_audio for diarization."""
-    return _normalize_audio(job_id, input_path, purpose="diarization", force=force)
+def convert_audio_for_diarization(job_id: str, input_path: str, force: bool = True) -> str:
+    """Compatibility wrapper around normalize_audio for diarization."""
+    return normalize_audio(job_id, input_path, purpose="diarization", force=force)

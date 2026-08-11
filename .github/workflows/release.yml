@@ -4,41 +4,46 @@ on:
   push:
     tags:
       - 'v*'
+  # A tag used to be the only way to find out whether package.py and
+  # generate_runtime_manifest.py still work, which made every release the first
+  # run of the release path. This builds all three platforms on demand and, by
+  # default, publishes nothing.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub release (leave off for a build-only dry run)'
+        type: boolean
+        default: false
+      tag:
+        description: 'Tag to publish to, if publishing'
+        type: string
+        required: false
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build ${{ matrix.variant }} on ${{ matrix.os }}
+    name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      # One platform failing should not hide whether the others still build.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            variant: cpu
-            dist_name: AmicoScript
             artifact_os: linux
           - os: windows-latest
-            variant: cpu
-            dist_name: AmicoScript
             artifact_os: windows
           - os: macos-latest
-            variant: cpu
-            dist_name: AmicoScript
             artifact_os: macos
-          - os: windows-latest
-            variant: gpu
-            dist_name: AmicoScript-GPU
-            artifact_os: windows-gpu
-          - os: ubuntu-latest
-            variant: gpu
-            dist_name: AmicoScript-GPU
-            artifact_os: linux-gpu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Must match the interpreter the runtime pack's wheels are resolved for:
+      # generate_runtime_manifest.py tags the manifest with this version, and
+      # runtime_pack downloads those exact wheels into the frozen interpreter.
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -47,11 +52,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ "${{ matrix.variant }}" = "gpu" ]; then
-            pip install -r backend/requirements-gpu.txt
-          else
-            pip install -r backend/requirements.txt
-          fi
+          pip install -r backend/requirements.txt
           # Pulls pywebview (native window shell) on Windows/macOS only — the
           # marker skips Linux, where WebKitGTK lives in system packages that
           # PyInstaller cannot bundle. Linux builds ship in browser-fallback
@@ -67,48 +68,214 @@ jobs:
         run: pip install -r scripts/meeting_watcher/requirements.txt
         shell: bash
 
-      - name: Build with PyInstaller
-        run: |
-          if [ "${{ matrix.variant }}" = "gpu" ]; then
-            python package.py --gpu
-          else
-            python package.py
-          fi
+      # torch, torchaudio and pyannote are deliberately NOT installed above:
+      # they are not bundled, they are downloaded on first use. This step
+      # records the exact wheels (URLs and hashes) that download will fetch,
+      # resolved against the versions installed here so the two halves cannot
+      # disagree about a shared dependency. It must run before package.py.
+      - name: Resolve the runtime pack manifest
+        run: python scripts/generate_runtime_manifest.py
         shell: bash
 
+      - name: Build with PyInstaller
+        run: python package.py
+        shell: bash
+
+      # Asserts the packaging contract as well as booting the app: torch absent
+      # from the bundle, manifest present and non-empty.
       - name: Smoke test built artifact
+        run: AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py
+        shell: bash
+
+      # On a tag push this is the tag. On a dry run it is whatever branch was
+      # dispatched, which contains slashes often enough to matter — they would
+      # turn the filename into a path that no directory exists for.
+      - name: Name the artifact
+        id: name
         run: |
-          if [ "${{ matrix.variant }}" = "gpu" ]; then
-            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py --gpu
-          else
-            AMICO_SMOKE_TIMEOUT=180 python scripts/smoke_test_bundle.py
-          fi
+          label="${{ inputs.tag || github.ref_name }}"
+          echo "zip=AmicoScript-${label//\//-}-${{ matrix.artifact_os }}.zip" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Create zip artifact (Windows)
         if: runner.os == 'Windows'
         run: |
-          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/${{ matrix.dist_name }}/*' -DestinationPath 'build\artifacts\AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip' -Force"
+          pwsh -Command "if (-Not (Test-Path build\artifacts)) { New-Item -ItemType Directory -Path build\artifacts | Out-Null }; Compress-Archive -Path 'dist/AmicoScript/*' -DestinationPath 'build\artifacts\${{ steps.name.outputs.zip }}' -Force"
 
       - name: Create zip artifact (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p build/artifacts
           # Preserve .app bundle structure.
-          ditto -c -k --keepParent "dist/AmicoScript.app" "build/artifacts/AmicoScript-${{ github.ref_name }}-macos.zip"
+          ditto -c -k --keepParent "dist/AmicoScript.app" "build/artifacts/${{ steps.name.outputs.zip }}"
         shell: bash
 
+      # No `|| true`: a zip that fails here used to leave the job green and the
+      # release without a Linux asset, which is exactly how v1.16.0 shipped.
       - name: Create zip artifact (Linux)
         if: runner.os == 'Linux'
         run: |
           mkdir -p build/artifacts
-          zip -r "build/artifacts/AmicoScript-${{ github.ref_name }}-${{ matrix.artifact_os }}.zip" dist/${{ matrix.dist_name }} || true
+          zip -r "build/artifacts/${{ steps.name.outputs.zip }}" dist/AmicoScript
         shell: bash
 
+      # Handed to the release job rather than uploaded from here. Three jobs
+      # calling the release action concurrently with allowUpdates raced, and
+      # lost both Linux assets from v1.16.0 while every job reported success.
+      - name: Hand the artifact to the release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.artifact_os }}
+          path: build/artifacts/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  # The pip/uv install path. The wheel is pure Python — the frontend and the
+  # backend ride along as package data — so it is built once rather than per
+  # platform, and it deliberately runs on dry runs too, for the same reason the
+  # matrix does: a tag should never be the first execution of this path.
+  wheel:
+    name: Build the Python distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+        shell: bash
+
+      # PyPI refuses a version it has already seen, and a filename is never
+      # reusable even after a delete. A tag that disagrees with VERSION would
+      # therefore burn the version rather than fail, so it is caught up front.
+      - name: Check the tag matches VERSION
+        if: github.event_name == 'push' || inputs.publish
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "$tag" != "v$version" ]; then
+            echo "Tag '$tag' disagrees with VERSION '$version' (expected 'v$version')." >&2
+            echo "Run scripts/bump_version.py so the two cannot drift." >&2
+            exit 1
+          fi
+        shell: bash
+
+      # PyPI renders the README and rejects markup it cannot parse. Without this
+      # the first sign of trouble is a failed upload, after the release is cut.
+      - name: Check the metadata
+        run: twine check dist/*
+        shell: bash
+
+      # A broken force-include in pyproject.toml yields a wheel that builds,
+      # installs and runs — serving nothing. See the script's docstring.
+      - name: Check the wheel carries the app
+        run: python scripts/check_wheel.py dist/*.whl
+        shell: bash
+
+      # Installed from the built wheel rather than the checkout, so this
+      # exercises what users actually get: console script, package data, the
+      # frontend served off the installed tree.
+      - name: Smoke test the installed wheel
+        run: |
+          python -m venv /tmp/wheeltest
+          /tmp/wheeltest/bin/pip install --quiet dist/*.whl
+          AMICOSCRIPT_NO_BROWSER=1 /tmp/wheeltest/bin/amicoscript &
+          pid=$!
+          for _ in $(seq 1 90); do
+            if curl -sf -o /dev/null http://127.0.0.1:8002/; then break; fi
+            sleep 1
+          done
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8002/)
+          kill $pid 2>/dev/null || true
+          if [ "$status" != "200" ]; then
+            echo "Installed wheel did not serve the frontend (HTTP $status)." >&2
+            exit 1
+          fi
+          echo "Installed wheel served the frontend."
+        shell: bash
+
+      - name: Hand the distribution to the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish release
+    needs: [build, wheel]
+    runs-on: ubuntu-latest
+    # Every platform must have built, and so must the wheel — otherwise the
+    # release publishes, `pypi` skips on the failed dependency, and the version
+    # exists on GitHub but not on PyPI. A release missing an artifact is the
+    # failure this job exists to prevent, so a partial one is not published.
+    if: github.event_name == 'push' || inputs.publish
+    steps:
+      # A dispatch defaults to the dispatched ref, which for a branch would
+      # publish a release tagged with the branch name. Publishing is opt-in;
+      # naming what it publishes to is then mandatory.
+      - name: Require a version tag when publishing by hand
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          case "${{ inputs.tag }}" in
+            v*) ;;
+            *) echo "Publishing from a manual run needs a tag like v1.17.0; got '${{ inputs.tag }}'." >&2
+               exit 1 ;;
+          esac
+        shell: bash
+
+      - name: Collect every platform's artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Check all three are present
+        run: |
+          count=$(ls -1 artifacts/*.zip | wc -l)
+          ls -la artifacts/
+          if [ "$count" -ne 3 ]; then
+            echo "Expected 3 artifacts (linux, windows, macos), found $count." >&2
+            exit 1
+          fi
+        shell: bash
+
+      # One writer, so there is no race to lose an asset to.
       - name: Create GitHub Release and upload artifacts
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
-          artifacts: build/artifacts/*.zip
+          tag: ${{ inputs.tag || github.ref_name }}
+          artifacts: artifacts/*.zip
           allowUpdates: true
           skipIfReleaseExists: false
+
+  # Last, and needing `release`, on purpose: a PyPI upload cannot be undone —
+  # the version is spent even if the files are deleted — so nothing goes out
+  # until the GitHub release it accompanies exists.
+  pypi:
+    name: Publish to PyPI
+    needs: [wheel, release]
+    runs-on: ubuntu-latest
+    permissions:
+      # Trusted publishing: PyPI verifies this workflow's OIDC identity, so
+      # there is no API token to store or rotate. One-time setup on the PyPI
+      # side is documented in docs/pypi-release.md.
+      id-token: write
+    steps:
+      - name: Collect the distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1

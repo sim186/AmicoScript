@@ -5,18 +5,27 @@ import json
 import time
 from pathlib import Path
 
-from http_utils import content_disposition_attachment as _content_disposition
+from http_utils import content_disposition_attachment
 
-from db import get_session
+import state
+from core.job_status import RETRYABLE as RETRYABLE_STATUSES
+from core.jobs import submit
+from core.library_index import index_recording
+from core.requeue import RequeueError, requeue_recording
+from db import get_session, new_session
+from storage import get_recording_audio_path
 
-from exports import _format_json, _format_md, _format_md_bulk, _format_srt, _format_txt
+from exports import format_md_bulk, render_export
 from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
-from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
+from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript, TranscriptChunk
 from sqlmodel import Session, select
+from utils.logging_utils import get_logger
 
 router = APIRouter()
+
+_index_logger = get_logger("amicoscript.library")
 
 AUDIO_MEDIA_TYPES = {
     ".mp3": "audio/mpeg",
@@ -25,6 +34,56 @@ AUDIO_MEDIA_TYPES = {
     ".ogg": "audio/ogg",
     ".flac": "audio/flac",
 }
+
+
+def _reindex_for_chat(recording_id: str, session: Session) -> None:
+    """Rebuild this recording's chat chunks after its transcript changed.
+
+    Editing a segment or renaming a speaker rewrites the transcript, and a
+    stale chunk would keep the old wording findable — and quotable in an
+    answer. Never fatal: the edit itself has already been saved.
+    """
+    try:
+        index_recording(recording_id, session)
+    except Exception:
+        _index_logger.exception("Could not reindex %s for library chat", recording_id)
+
+
+def _export_meta(recording: Recording, session: Session) -> dict:
+    """The facts a Markdown export needs that are not in the transcript itself.
+
+    Tags and folder live on the recording, and the model name is buried inside
+    the stored ``transcription_options`` JSON.
+    """
+    links = session.exec(
+        select(RecordingTag).where(RecordingTag.recording_id == recording.id)
+    ).all()
+    tag_ids = [lnk.tag_id for lnk in links]
+    tags = []
+    if tag_ids:
+        tags = [t.name for t in session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()]
+
+    folder = ""
+    if recording.folder_id:
+        found = session.get(Folder, recording.folder_id)
+        folder = found.name if found else ""
+
+    model = ""
+    if recording.transcription_options:
+        try:
+            opts = json.loads(recording.transcription_options)
+            if isinstance(opts, dict):
+                model = str(opts.get("model") or "")
+        except (json.JSONDecodeError, ValueError):
+            model = ""
+
+    return {
+        "tags": sorted(tags),
+        "folder": folder,
+        "source": recording.source or "",
+        "model": model,
+        "duration": recording.duration,
+    }
 
 
 def _recording_with_tags(recording: Recording, session: Session) -> dict:
@@ -44,6 +103,8 @@ def _recording_with_tags(recording: Recording, session: Session) -> dict:
         "duration": recording.duration,
         "folder_id": recording.folder_id,
         "status": recording.status,
+        "status_detail": recording.status_detail,
+        "source": recording.source,
         "created_at": recording.created_at,
         "transcription_options": json.loads(recording.transcription_options or "{}"),
         "tags": tags,
@@ -111,13 +172,12 @@ async def update_recording(
 
 @router.delete("/api/recordings/{recording_id}")
 def delete_recording(recording_id: str, session: Session = Depends(get_session)) -> dict:
-    import state as _state
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")
 
     # Refuse if an active job is processing this recording
-    for job in _state.jobs.values():
+    for job in state.jobs.values():
         if job.get("recording_id") == recording_id and job.get("status") in (
             "queued", "transcribing", "diarizing", "loading_model", "translating"
         ):
@@ -131,6 +191,12 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
         session.delete(tr)
     for an in session.exec(select(Analysis).where(Analysis.recording_id == recording_id)).all():
         session.delete(an)
+    # A leftover chunk would be retrievable, and an answer could cite a
+    # recording that no longer opens.
+    for chunk in session.exec(
+        select(TranscriptChunk).where(TranscriptChunk.recording_id == recording_id)
+    ).all():
+        session.delete(chunk)
 
     session.delete(rec)
     session.commit()
@@ -148,9 +214,36 @@ def delete_recording(recording_id: str, session: Session = Depends(get_session))
     return {"ok": True}
 
 
+@router.post("/api/recordings/{recording_id}/retry")
+def retry_recording(recording_id: str) -> dict:
+    """Transcribe an existing recording again.
+
+    Until now a failed transcription was a dead end: the audio was still on
+    disk, but the only way to try again was to delete the recording and
+    re-import the file. This reuses the stored options, so a retry runs with the
+    same model, language and diarization settings as the original attempt.
+    """
+
+    with new_session() as session:
+        rec = session.get(Recording, recording_id)
+        if not rec:
+            raise HTTPException(404, "Recording not found")
+        status = rec.status
+
+    if status not in RETRYABLE_STATUSES:
+        raise HTTPException(409, f"This recording is {status}; wait for it to finish first.")
+
+    try:
+        job_id = requeue_recording(recording_id)
+    except RequeueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    submit(job_id)
+    return {"ok": True, "job_id": job_id, "recording_id": recording_id}
+
+
 @router.get("/api/recordings/{recording_id}/audio")
 def get_recording_audio(recording_id: str, session: Session = Depends(get_session)):
-    from storage import get_recording_audio_path
 
     rec = session.get(Recording, recording_id)
     if not rec:
@@ -178,7 +271,12 @@ def get_recording_transcript(recording_id: str, session: Session = Depends(get_s
 
 
 @router.get("/api/recordings/{recording_id}/export/{fmt}")
-def export_recording(recording_id: str, fmt: str, session: Session = Depends(get_session)):
+def export_recording(
+    recording_id: str,
+    fmt: str,
+    wikilinks: bool = False,
+    session: Session = Depends(get_session),
+):
     rec = session.get(Recording, recording_id)
     if not rec:
         raise HTTPException(404, "Recording not found")
@@ -197,32 +295,28 @@ def export_recording(recording_id: str, fmt: str, session: Session = Depends(get
     title = rec.alias or filename
     date_str = datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d")
 
-    formatters = {
-        "json": (_format_json, "application/json", "json"),
-        "srt": (_format_srt, "text/plain", "srt"),
-        "txt": (_format_txt, "text/plain", "txt"),
-    }
-    if fmt == "md":
-        content = _format_md(result, title=title, date=date_str)
-        return StreamingResponse(
-            iter([content.encode("utf-8")]),
-            media_type="text/markdown",
-            headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
+    try:
+        content, media_type, ext = render_export(
+            fmt,
+            result,
+            title=title,
+            date=date_str,
+            meta=_export_meta(rec, session),
+            wikilinks=wikilinks,
         )
-    if fmt not in formatters:
-        raise HTTPException(400, f"Unknown format: {fmt}. Use json, srt, txt, or md.")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    fn, media_type, ext = formatters[fmt]
-    content = fn(result)
     return StreamingResponse(
-        iter([content.encode("utf-8")]),
+        iter([content]),
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(f"{filename}.{ext}")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.{ext}")},
     )
 
 
 class BulkExportRequest(BaseModel):
     ids: list[str]
+    wikilinks: bool = False
 
 
 @router.post("/api/recordings/bulk-export/md")
@@ -245,15 +339,16 @@ def bulk_export_md(body: BulkExportRequest, session: Session = Depends(get_sessi
             "title": rec.alias or Path(rec.filename).stem,
             "date": datetime.datetime.fromtimestamp(rec.created_at).strftime("%Y-%m-%d"),
             "result": result,
+            "meta": _export_meta(rec, session),
         })
     if not recordings:
         raise HTTPException(404, "No valid transcripts found for provided IDs")
-    content = _format_md_bulk(recordings)
+    content = format_md_bulk(recordings, wikilinks=body.wikilinks)
     filename = "transcripts" if len(recordings) > 1 else recordings[0]["title"]
     return StreamingResponse(
         iter([content.encode("utf-8")]),
         media_type="text/markdown",
-        headers={"Content-Disposition": _content_disposition(f"{filename}.md")},
+        headers={"Content-Disposition": content_disposition_attachment(f"{filename}.md")},
     )
 
 
@@ -282,6 +377,7 @@ async def edit_segment(recording_id: str, segment_index: int, text: str = Form(.
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "segment_index": segment_index}
 
 
@@ -308,6 +404,7 @@ async def reset_segment(recording_id: str, segment_index: int, session: Session 
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "segment_index": segment_index, "text": seg["text"]}
 
 
@@ -335,6 +432,7 @@ async def rename_recording_speaker(
     tr.updated_at = time.time()
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "new_name": new_name}
 
 
@@ -386,4 +484,5 @@ async def assign_speaker(
 
     session.add(tr)
     session.commit()
+    _reindex_for_chat(recording_id, session)
     return {"ok": True, "speakers": speakers}

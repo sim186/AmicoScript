@@ -54,7 +54,7 @@ def test_sync_job_to_db_retries_then_succeeds(monkeypatch):
     monkeypatch.setattr(job_helpers, "new_session", _fake_new_session)
     monkeypatch.setattr(job_helpers.time, "sleep", lambda _s: None)
 
-    job_helpers._sync_job_to_db(job_id, retries=3)
+    job_helpers.sync_job_to_db(job_id, retries=3)
 
     assert attempts["count"] == 3
     assert final_session.committed is True

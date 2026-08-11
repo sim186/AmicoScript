@@ -35,6 +35,7 @@
       </a>
       <div class="flex items-center gap-3 sm:gap-6 text-sm text-gray-400">
         <a href="docs.html" class="hidden sm:block hover:text-white transition-colors">Docs</a>
+        <a href="api.html" class="hidden sm:block hover:text-white transition-colors">API</a>
         <a href="changelog.html" class="hidden sm:block hover:text-white transition-colors">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hidden sm:block hover:text-white transition-colors">GitHub</a>
         <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener"
@@ -263,6 +264,41 @@ python run.py</code></pre>
     </div>
   </section>
 
+  <!-- API -->
+  <section class="py-20 px-4 bg-gray-900/40">
+    <div class="max-w-5xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-3">Scriptable from the first minute</h2>
+      <p class="text-gray-400 text-center mb-10">
+        Every button in the UI is an HTTP endpoint. Drive transcription from a cron job, a Shortcut, or your own app.
+      </p>
+      <div class="grid md:grid-cols-2 gap-6 items-center">
+        <div>
+          <pre class="text-sm text-gray-300 bg-gray-950 border border-gray-800 rounded-xl p-4 overflow-x-auto"><code># start a job
+curl -F file=@meeting.m4a -F model=small \
+  http://localhost:8002/api/transcribe
+
+# follow it, then grab the Markdown
+curl http://localhost:8002/api/jobs/$ID/stream
+curl -O http://localhost:8002/api/jobs/$ID/export/md</code></pre>
+        </div>
+        <div>
+          <p class="text-gray-400 mb-4 leading-relaxed">
+            73 endpoints covering uploads and URL imports, live job progress over SSE, the transcript library,
+            full-text search, speaker edits, and LLM analyses — documented straight from the source, so the
+            reference never drifts from the build you are running.
+          </p>
+          <a href="api.html"
+            class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors">
+            Browse the API reference →
+          </a>
+          <p class="text-xs text-gray-500 mt-3">
+            Loopback requests need no credentials. Exposed installs authenticate with a bearer token.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA -->
   <section class="py-20 px-4 text-center">
     <div class="max-w-xl mx-auto">
@@ -294,6 +330,7 @@ python run.py</code></pre>
       </div>
       <div class="flex items-center gap-5">
         <a href="docs.html" class="hover:text-gray-300 transition-colors">Docs</a>
+        <a href="api.html" class="hover:text-gray-300 transition-colors">API</a>
         <a href="changelog.html" class="hover:text-gray-300 transition-colors">Changelog</a>
         <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
         <a href="https://t.me/amicoscript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">Telegram</a>

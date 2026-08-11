@@ -1,0 +1,219 @@
+# AmicoScript TUI
+
+Terminal interface for AmicoScript. Wraps the FastAPI backend over HTTP/SSE.
+
+## Screenshot
+
+![AmicoScript TUI welcome screen](../images/tui_welcome.png)
+
+## Install
+
+```bash
+pip install -r tui/requirements.txt
+```
+
+## Run
+
+```bash
+python -m tui                              # spawn local server, attach
+python -m tui --no-server                  # attach to already-running server
+python -m tui --api-url http://host:8002   # remote server
+```
+
+The TUI launches `run.py` as a subprocess if no backend responds at the API
+URL. The subprocess inherits `AMICOSCRIPT_NO_BROWSER=1` so it does not pop a
+browser window. On exit (Ctrl+C / `q` / `/quit`) the subprocess is terminated.
+
+## Keys
+
+The TUI is **modeless and palette-driven** — no tabs. Press `Space` to arm
+the leader; the status bar lists the available chords. Press `/` or
+`Ctrl+K` to open the unified fuzzy palette (commands + recordings + jobs).
+
+### Leader chords (Space + …)
+
+Available on the welcome screen and every full-screen view; the set
+varies per screen and is shown in the status bar when armed.
+
+| Chord | Action |
+|-------|--------|
+| `Space l` | Library |
+| `Space j` | Jobs |
+| `Space s` | Settings |
+| `Space h` | Back to welcome |
+| `Space ?` | Help |
+| `Space q` | Quit |
+
+On the welcome screen, bare `l` / `j` / `s` also jump directly.
+
+### Palette
+
+| Key | Action |
+|-----|--------|
+| `/` | Open palette pre-seeded with `/` (commands) |
+| `@` | Open palette pre-seeded with `@` (transcripts) |
+| `Ctrl+K` | Open palette empty (free fuzzy) |
+| `Ctrl+P` | Open palette pre-seeded with `/` (commands) |
+| `Tab` | Auto-complete the current command name; cycles if no match |
+| `↑` / `↓` / `Shift+Tab` | Move selection |
+| `Enter` | Activate highlighted entry |
+| `Escape` | Close |
+
+Free-text fuzzy matching ranks commands, recordings, and active jobs in
+one list. Leading `/` filters to commands only. Recent selections (MRU)
+rank higher on subsequent opens.
+
+**Sub-pickers.** After auto-completing certain commands the palette
+switches mode and filters a different source:
+
+| Trigger | Mode | Source | Enter action |
+|---------|------|--------|--------------|
+| `/library ` | library | recordings | open transcript |
+| `/folder ` | folder | folders | open library scoped to folder |
+| `/tag ` | tag | tags | open library scoped to tag |
+| `/analyze ` | analyze | recordings | choose analysis type, then queue |
+| `/models ` | model | Whisper models | set as default transcription model |
+| `/llm ` | llm_model | LLM models | set as default LLM model |
+| `@` | transcript | recordings | open transcript |
+
+### Library
+| Key | Action |
+|-----|--------|
+| `↑↓` / `j` `k` | Move row |
+| `g g` / `G` | Top / bottom |
+| `Enter` | Open recording (transcript screen) |
+| `r` | Refresh library |
+| `R` | Rename recording (prompt) |
+| `m` | Move recording to a folder (picker) |
+| `t` | Add / remove a tag on the recording (picker) |
+| `v` | Toggle multi-select on this row |
+| `x` | Bulk actions on selected rows — delete, export (combined markdown), move to folder, tag |
+| `Ctrl+R` | Transcribe the highlighted recording again (failed / interrupted / cancelled) |
+| `y` | Copy filename to clipboard |
+| `d` | Delete (prompt) |
+| `Escape` | Back |
+
+### Transcript
+| Key | Action |
+|-----|--------|
+| `↑↓` / `j` `k` | Move segment |
+| `Home`/`End` · `g g` / `G` | First / last segment |
+| `PageUp`/`PageDown` | Page through segments |
+| `n` / `N` | Next / previous speaker change |
+| `/` | Find in transcript — type text to jump to the first match, `Enter` cycles to the next; type a timestamp (`83`, `1:23`, `1:02:03`) to jump straight there |
+| `y` | Copy current segment |
+| `Y` | Copy full transcript |
+| `e` | Edit this segment's text (prompt) |
+| `Ctrl+R` | Reset this segment to its original (pre-edit) text |
+| `a` | Set the speaker on this segment only (prompt) |
+| `S` | Rename the selected segment's speaker everywhere in this transcript (prompt) |
+| `Space` | Play / pause |
+| `s` | Stop |
+| `Ctrl+A` | Run LLM analysis on this recording |
+| `Escape` / `q` | Close find if open, else back to library |
+
+### Job screen
+While transcribing, the log shows each segment's text as it's produced
+(streamed over the same SSE connection as progress), not just a generic
+"Transcribing... 00:12 / 05:30" line — so you can read along as it works
+instead of waiting for the job to finish.
+
+| Key | Action |
+|-----|--------|
+| `c` | Cancel job |
+| `Escape` / `q` | Back |
+
+### Global
+| Key | Action |
+|-----|--------|
+| `Space` | Arm leader chord |
+| `/` · `Ctrl+K` | Open palette |
+| `Ctrl+C` | Quit |
+
+## Slash Commands
+
+Press `/` to open the command palette.
+
+| Command | Action |
+|---------|--------|
+| `/help` | Show command reference |
+| `/transcribe <path>` | Upload file and transcribe |
+| `/transcribe-url <url>` | Download from URL and transcribe |
+| `/search <query>` | Full-text search across transcripts |
+| `/export <id> <fmt>` | Export transcript (json/srt/vtt/txt/md/csv) — saved to CWD |
+| `/cancel <job_id>` | Cancel running job |
+| `/delete <id>` | Delete recording |
+| `/retry <id>` | Transcribe a failed, cancelled or interrupted recording again |
+| `/rename <id> <name>` | Rename a recording |
+| `/move <id> [folder_id]` | Move a recording to a folder — opens a picker if `folder_id` omitted |
+| `/tag-toggle <id>` | Add / remove a tag on a recording (picker) |
+| `/library` | Open the recordings library (sub-picker after space) |
+| `/folder` | Pick a folder — or `new <name>` / `rename <id> <name>` / `delete <id>` |
+| `/tag` | Pick a tag — or `new <name>` / `rename <id> <name>` / `delete <id>` |
+| `/analyze` | Pick a recording and run summary / action_items / translate / custom |
+| `/models` | Pick a Whisper transcription model (sets as default) |
+| `/llm` | Pick an LLM model (sets as default) |
+| `/llm-providers` | List the supported backends — Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI, OpenRouter |
+| `/llm-detect` | Scan the usual ports for a running LLM server and offer to use it |
+| `/backup export [path]` | Save the whole library (recordings, transcripts, folders, tags) to a zip |
+| `/backup import <path> [overwrite]` | Restore a library bundle |
+| `/jobs` | Open the active-jobs list |
+| `/welcome` | Return to the welcome screen |
+| `/settings` | Open settings screen |
+| `/logs` | Show captured server logs |
+| `/quit` | Exit |
+
+## Connecting to a protected server
+
+AmicoScript refuses API calls from other machines until a password is set. On the
+same machine the TUI needs nothing. Pointing it at a remote instance — or running
+the backend with `AMICOSCRIPT_AUTH=always` — needs the API token from the app's
+Security panel:
+
+```bash
+export AMICOSCRIPT_API_TOKEN=…      # shown under Security once a password is set
+./tui.sh --api-url https://amico.example.com
+```
+
+Without it the TUI says so explicitly rather than reporting a bare `401`.
+
+## Status column
+
+| Mark | Meaning |
+|------|---------|
+| `● done` | Finished |
+| `⠸ proc` / `⠴ diariz` | Running |
+| `✗ error` | Failed — press `Ctrl+R` to try again |
+| `⚠ interrupt` | Stopped by an app restart; the audio is still there, `Ctrl+R` resumes it |
+| `⊘ cancelled` | Cancelled by you |
+
+A `◉` before the file name marks a captured meeting, `↗` a link import.
+
+## Drag & Drop
+
+Drag an audio/video file onto the terminal window — modern terminals
+(iTerm2, WezTerm, Kitty, Windows Terminal, GNOME Terminal) emit the path
+as a paste event. The TUI intercepts paths with audio extensions and
+auto-triggers `/transcribe`.
+
+Inside tmux you may need `set -g allow-passthrough on` for OSC 52
+clipboard writes to reach the host clipboard.
+
+## Clipboard
+
+Copy operations (`y`, `Y`) try `pyperclip` first, then fall back to
+OSC 52 escape sequences — so clipboard works over SSH.
+
+## Waveform
+
+Transcript screen renders a single-line unicode waveform of the audio
+using block characters `▁▂▃▄▅▆▇█`. Audio is fetched from
+`/api/recordings/{id}/audio` to a temp file, downsampled via numpy +
+soundfile, and discarded on screen exit.
+
+## Limitations (v1)
+
+- No multi-select across transcript segments (single segment via `y`, full
+  transcript via `Y`, and speaker-rename applies to a whole speaker at once
+  rather than an arbitrary selection of segments)
+- Folder/tag pickers not yet wired into library filtering UI

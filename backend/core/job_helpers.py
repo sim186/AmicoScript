@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 import state
+from core.jobs import OWNS_RECORDING_STATUS, JobType
 from db import new_session
 from models import Recording, Transcript
 from sqlalchemy.exc import SQLAlchemyError
@@ -18,15 +19,15 @@ from utils.logging_utils import get_logger
 logger = get_logger("amicoscript.worker")
 
 
-def _append_job_log(job_id: str, level: str, message: str) -> None:
+def append_job_log(job_id: str, level: str, message: str) -> None:
     """Append an in-memory log line and emit a structured logger event."""
     job = state.jobs.get(job_id)
     if not job:
         return
 
-    from collections import deque
-    if "logs" not in job or not isinstance(job["logs"], deque):
-        job["logs"] = deque(job.get("logs", []), maxlen=1000)
+    # core.jobs.create_job seeds this as a bounded deque, so there is nothing to
+    # check or convert here. Expired jobs carry a plain list, which appends fine
+    # and is never written to anyway.
     job["logs"].append({"ts": round(time.time(), 3), "level": level, "message": message})
 
     log_level = getattr(logging, level.upper(), None)
@@ -36,7 +37,7 @@ def _append_job_log(job_id: str, level: str, message: str) -> None:
         logger.info(message, extra={"job_id": job_id})
 
 
-def _push_event(
+def push_event(
     job_id: str,
     status: str,
     progress: float,
@@ -57,7 +58,7 @@ def _push_event(
     job["message"] = message
 
     level = "ERROR" if status == "error" else "INFO"
-    _append_job_log(job_id, level, f"{status}: {message}")
+    append_job_log(job_id, level, f"{status}: {message}")
 
     queue = job.get("sse_queue")
     if queue is None:
@@ -73,7 +74,7 @@ def _push_event(
             pass
 
 
-def _cleanup_job_temp_files(job: dict) -> None:
+def cleanup_job_temp_files(job: dict) -> None:
     """Delete all temporary files associated with a job."""
     for temp_fp in job.get("temp_files", []):
         if temp_fp and os.path.exists(temp_fp):
@@ -84,7 +85,7 @@ def _cleanup_job_temp_files(job: dict) -> None:
     job["temp_files"] = []
 
 
-def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
+def sync_job_to_db(job_id: str, retries: int = 3) -> None:
     """Persist final job state/result into SQLite with basic retry."""
     job = state.jobs.get(job_id)
     if not job:
@@ -102,7 +103,13 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
                 if not rec:
                     return
 
-                rec.status = job.get("status", rec.status)
+                # Only a transcription describes the recording. A failed or
+                # cancelled analysis or translation leaves the transcript
+                # intact, so writing its status here marked a perfectly good
+                # recording as failed — and offered to re-transcribe it.
+                if job.get("type", JobType.TRANSCRIBE) in OWNS_RECORDING_STATUS:
+                    rec.status = job.get("status", rec.status)
+
                 result = job.get("result")
                 if result:
                     rec.duration = result.get("duration")
@@ -131,6 +138,15 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
 
                 session.add(rec)
                 session.commit()
+
+                # Keep the chat index in step with the transcript that was
+                # just written. Never fatal: losing the index costs a search,
+                # losing this call would cost the transcription.
+                if result:
+                    # Deferred: library_index writes through this module's session.
+                    from core.library_index import index_recording_quietly
+
+                    index_recording_quietly(recording_id)
                 return
         except (SQLAlchemyError, OSError, RuntimeError, TypeError, ValueError):
             if attempt == retries:
@@ -142,11 +158,11 @@ def _sync_job_to_db(job_id: str, retries: int = 3) -> None:
             time.sleep(retry_delay * attempt)
 
 
-def _handle_job_error(job_id: str, exc: Exception) -> None:
+def handle_job_error(job_id: str, exc: Exception) -> None:
     """Centralized job error handling with traceback logging and DB sync."""
     job = state.jobs.get(job_id)
     if job is not None:
         job["error"] = str(exc)
     logger.exception("Job failed", extra={"job_id": job_id})
-    _push_event(job_id, "error", -1, str(exc))
-    _sync_job_to_db(job_id)
+    push_event(job_id, "error", -1, str(exc))
+    sync_job_to_db(job_id)

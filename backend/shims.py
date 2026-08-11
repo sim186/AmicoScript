@@ -10,9 +10,10 @@ This module injects a stdlib-only WAV loader into sys.modules *before*
 pyannote is imported, so neither torchcodec nor any torchaudio audio backend
 is ever needed for diarization.
 
-This works unconditionally because pipeline.py always normalises the
+This works unconditionally because core/diarization.py always normalises the
 diarization input to a mono 16 kHz 16-bit WAV file via
-_convert_audio_for_diarization() before passing it to pyannote.
+core.audio_utils.convert_audio_for_diarization() before passing it to
+pyannote.
 
 Call inject_torchcodec_shim() once (it is idempotent) before the first
 `from pyannote.audio import Pipeline` statement.
@@ -58,7 +59,7 @@ def _load_wav(source, frame_offset: int = 0, num_frames: int = -1):
         raise ValueError(
             f"shim _load_wav: expected 16-bit PCM (sample_width=2), "
             f"got sample_width={sample_width}. "
-            "Ensure _convert_audio_for_diarization produced -sample_fmt s16."
+            "Ensure convert_audio_for_diarization produced -sample_fmt s16."
         )
 
     # WAV files use little-endian 16-bit PCM by convention. On unusual

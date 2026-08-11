@@ -1,0 +1,133 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amicoscript"
+dynamic = ["version"]
+description = "Local-first transcription and speaker diarization with a desktop UI"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Simone Celestino" }]
+keywords = ["transcription", "whisper", "diarization", "speech-to-text", "local-first"]
+
+# Floor is 3.10 (the README's stated support). The ceiling is not caution about
+# our own code — it is faster-whisper's CTranslate2 wheels, which land for a new
+# CPython well after it ships. Without it `uv tool install` would happily pick
+# an interpreter that has no wheel and fail at the compile step.
+requires-python = ">=3.10,<3.14"
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+# Kept in step with backend/requirements.txt, which stays the source of truth
+# for Docker and development. Diarization is deliberately absent here for the
+# same reason it is absent there: transcription never imports torch.
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-multipart>=0.0.9",
+    "faster-whisper>=1.0.3",
+    "sse-starlette>=2.1.0",
+    "aiofiles>=23.2.1",
+    "pydantic>=2.7.1",
+    "requests>=2.31.0",
+    "sqlmodel>=0.0.18",
+    "huggingface_hub>=0.23.0,<1.0",
+    "yt-dlp>=2024.12.13",
+    # The native window. Markers match requirements-pyinstaller.txt: on Linux
+    # the webview backend is WebKitGTK via PyGObject, which pip cannot install,
+    # so Linux falls back to a browser tab. See docs/desktop-shell.md.
+    'pywebview>=5.3; sys_platform != "linux"',
+    'pythonnet>=3.0.3; sys_platform == "win32"',
+]
+
+[project.optional-dependencies]
+# The packaged .zip builds download torch on first use (backend/runtime_pack.py)
+# because a PyInstaller bundle has no interpreter to install into. A pip install
+# does, so here diarization is a plain extra and runtime_pack simply no-ops.
+#
+# NOTE: on Linux this resolves to PyPI's default torch, which is the CUDA build
+# and pulls in several GB of nvidia-* packages. backend/requirements-diarization.txt
+# points at the CPU index to avoid that; an extra cannot carry an index URL, so
+# CPU-only Linux users should install torch from that index first. README covers it.
+#
+# Ranges mirror backend/requirements-diarization.txt exactly, including its
+# open pyannote range, so a pip install lands where the packaged CPU runtime
+# does. Both currently resolve to pyannote 4.x. If those pins gain a ceiling,
+# this needs the same one.
+diarization = [
+    "pyannote.audio>=3.3.2",
+    "torch>=2.3.0",
+    "torchaudio>=2.3.0",
+]
+
+# The embedded meeting watcher: Windows-only, WASAPI loopback capture plus a
+# tray icon. Mirrors scripts/meeting_watcher/requirements.txt.
+watcher = [
+    'pyaudiowpatch>=0.2.12; sys_platform == "win32"',
+    'pycaw>=20240210; sys_platform == "win32"',
+    'comtypes>=1.2.0; sys_platform == "win32"',
+    'numpy>=1.24.0; sys_platform == "win32"',
+    'winotify>=1.1.0; sys_platform == "win32"',
+    'pystray>=0.19.4; sys_platform == "win32"',
+    'pillow>=10.0.0; sys_platform == "win32"',
+]
+
+[project.urls]
+Homepage = "https://github.com/sim186/AmicoScript"
+Repository = "https://github.com/sim186/AmicoScript"
+Changelog = "https://github.com/sim186/AmicoScript/blob/main/CHANGELOG.md"
+Issues = "https://github.com/sim186/AmicoScript/issues"
+
+[project.scripts]
+amicoscript = "amicoscript.cli:main"
+
+# One source of truth for the version: VERSION, which scripts/bump_version.py
+# already owns and the release tag is cut from.
+[tool.hatch.version]
+path = "VERSION"
+pattern = "^(?P<version>[^\\s]+)"
+
+# The wheel reproduces the repo's layout inside the package directory. run.py
+# and backend/main.py both resolve their siblings from `__file__`, so mirroring
+# the shape is what lets them run installed with no packaging-specific branches.
+[tool.hatch.build.targets.wheel]
+packages = ["amicoscript"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"backend" = "amicoscript/backend"
+"frontend" = "amicoscript/frontend"
+# Only the watcher: the frontend links /scripts/meeting_watcher/setup.bat for
+# download, and meeting_watcher_host.start() runs it. The rest of scripts/ is
+# build tooling that has no business being served over HTTP.
+"scripts/meeting_watcher" = "amicoscript/scripts/meeting_watcher"
+"run.py" = "amicoscript/_run.py"
+# run_windowed() reads BASE_DIR/"VERSION" for the window title, and BASE_DIR is
+# the backend directory.
+"VERSION" = "amicoscript/backend/VERSION"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/amicoscript",
+    "/backend",
+    "/frontend",
+    "/scripts",
+    "/tests",
+    "/run.py",
+    "/package.py",
+    "/VERSION",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]

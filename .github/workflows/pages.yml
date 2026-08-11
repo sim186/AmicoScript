@@ -3,7 +3,10 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['website/**']
+    # backend/** is here because website/api.html renders website/openapi.json,
+    # which is regenerated from the FastAPI routes below — a route change has to
+    # reach the published reference even when no file under website/ moved.
+    paths: ['website/**', 'backend/**', 'scripts/generate_openapi.py', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 jobs:
@@ -13,6 +16,26 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements.txt
+
+      # Only the transcription dependencies. The generator imports the app to
+      # read its routes; it never runs a startup hook, so diarization (torch,
+      # pyannote) is not needed to produce the schema.
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      # Regenerated rather than trusted: the committed copy keeps local previews
+      # working, but what gets published is built from the code being deployed.
+      - name: Generate OpenAPI schema
+        run: python scripts/generate_openapi.py
 
       - uses: peaceiris/actions-gh-pages@v4
         with:

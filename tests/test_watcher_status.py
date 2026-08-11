@@ -181,11 +181,11 @@ def test_set_meeting_capture_endpoint_persists_and_returns(monkeypatch, tmp_path
 
     out = asyncio.run(route.set_meeting_capture(enabled="true", token=TEST_TOKEN))
     assert out == {"ok": True, "enabled": True}
-    assert route_settings._get_meeting_capture_enabled() is True
+    assert route_settings.get_meeting_capture_enabled() is True
 
     out = asyncio.run(route.set_meeting_capture(enabled="0", token=TEST_TOKEN))
     assert out == {"ok": True, "enabled": False}
-    assert route_settings._get_meeting_capture_enabled() is False
+    assert route_settings.get_meeting_capture_enabled() is False
 
 
 def test_set_meeting_capture_rejects_bad_token(monkeypatch, tmp_path):
@@ -196,14 +196,14 @@ def test_set_meeting_capture_rejects_bad_token(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(route.set_meeting_capture(enabled="true", token="wrong"))
     assert exc.value.status_code == 403
-    assert route_settings._get_meeting_capture_enabled() is False
+    assert route_settings.get_meeting_capture_enabled() is False
 
 
 def test_get_settings_includes_meeting_capture_flag(monkeypatch, tmp_path):
     import settings as route_settings
     sf = tmp_path / "settings.json"
     monkeypatch.setattr(route_settings, "_settings_file", lambda: sf)
-    route_settings._set_meeting_capture_enabled(True)
+    route_settings.set_meeting_capture_enabled(True)
 
     data = route.get_settings()
     assert data["meeting_capture_enabled"] is True

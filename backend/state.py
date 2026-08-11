@@ -1,8 +1,8 @@
 """Shared mutable state for the AmicoScript backend.
 
-Centralising all globals here prevents circular imports between pipeline.py
-and main.py while keeping the worker thread and the FastAPI event loop
-decoupled.
+Centralising all globals here prevents circular imports between the core/
+worker modules and main.py while keeping the worker thread and the FastAPI
+event loop decoupled.
 """
 import asyncio
 import threading
@@ -24,6 +24,18 @@ _cached_model_name: Optional[str] = None
 _cached_model_device: Optional[str] = None
 _cached_model_key: Optional[tuple] = None
 _model_lock: threading.Lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Diarization pipeline cache + lock
+# ---------------------------------------------------------------------------
+# Separate from the Whisper cache and its lock: the two are loaded in the same
+# job, one after the other, and sharing a lock would serialise nothing useful
+# while risking a deadlock if either ever loads the other.
+
+_cached_diarization = None
+_cached_diarization_device: Optional[str] = None
+_cached_diarization_key: Optional[tuple] = None
+_diarization_lock: threading.Lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Background job queue — initialised in main.py startup (not at import time)

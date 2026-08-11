@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference — AmicoScript</title>
+  <meta name="description" content="Complete reference for the AmicoScript HTTP API — transcription jobs, library, search, analyses and LLM endpoints, generated from the OpenAPI schema." />
+  <link rel="icon" href="assets/logo.svg" />
+  <style>
+    /* The rest of the site is Tailwind from a CDN; this page is deliberately
+       plain CSS. Redoc renders one big component tree with its own styling
+       system, so there is almost nothing here for utility classes to attach to
+       — only the top bar, which is small enough to write by hand. */
+    :root {
+      --bg: #030712;         /* gray-950 */
+      --panel: #111827;      /* gray-900 */
+      --border: #1f2937;     /* gray-800 */
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --brand: #6366f1;
+      --nav-h: 3.5rem;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+    .site-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: var(--nav-h);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 0 1rem;
+      background: rgba(3, 7, 18, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-nav a { color: var(--muted); text-decoration: none; font-size: 0.875rem; transition: color 0.15s; }
+    .site-nav a:hover { color: #fff; }
+    .site-nav .brand { display: flex; align-items: center; gap: 0.5rem; color: #fff; font-weight: 600; font-size: 1rem; }
+    .site-nav .brand img { width: 1.75rem; height: 1.75rem; }
+    .site-nav .links { display: flex; align-items: center; gap: 1.25rem; }
+    .site-nav .links a.current { color: #fff; font-weight: 500; }
+    .site-nav .download {
+      padding: 0.375rem 0.75rem; background: var(--brand); color: #fff !important;
+      border-radius: 0.5rem; font-weight: 500;
+    }
+    .site-nav .download:hover { background: #4f46e5; }
+    @media (max-width: 640px) { .site-nav .links a.hide-sm { display: none; } }
+
+    #redoc { margin-top: var(--nav-h); }
+
+    /* Redoc's sidebar is a full-height sticky column; without this it slides
+       under the fixed site nav. */
+    .menu-content { top: var(--nav-h) !important; height: calc(100vh - var(--nav-h)) !important; }
+
+    #fallback {
+      display: none; max-width: 42rem; margin: 6rem auto; padding: 0 1.5rem;
+      line-height: 1.7; color: var(--muted);
+    }
+    #fallback h1 { color: #fff; font-size: 1.5rem; margin-bottom: 0.75rem; }
+    #fallback code, #fallback pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; color: #a5b4fc;
+    }
+    #fallback pre {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 0.75rem; padding: 1rem; overflow-x: auto; color: var(--text);
+    }
+    #fallback a { color: #818cf8; }
+    .loading { padding: 6rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.875rem; }
+  </style>
+  <script data-goatcounter="https://seamoce.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="index.html" class="brand">
+      <img src="assets/logo.svg" alt="" />
+      <span>AmicoScript</span>
+    </a>
+    <div class="links">
+      <a href="docs.html">Docs</a>
+      <!-- The current page: redundant on a phone, where the bar is tight. -->
+      <a href="api.html" class="current hide-sm">API</a>
+      <a href="changelog.html" class="hide-sm">Changelog</a>
+      <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hide-sm">GitHub</a>
+      <a href="https://github.com/sim186/AmicoScript/releases/latest" target="_blank" rel="noopener" class="download">Download</a>
+    </div>
+  </nav>
+
+  <div id="redoc"><p class="loading">Loading the API reference…</p></div>
+
+  <div id="fallback">
+    <h1>Could not load the API reference</h1>
+    <p>
+      This page renders <a href="openapi.json">openapi.json</a>, which the browser fetches over HTTP.
+      Opening the file straight from disk (<code>file://</code>) is blocked by the browser's
+      same-origin rules — serve the folder instead:
+    </p>
+    <pre><code>python -m http.server -d website 8080
+# then open http://localhost:8080/api.html</code></pre>
+    <p>
+      If you are seeing this on the published site, the schema may be missing from the deploy.
+      The reference is generated from the FastAPI app with
+      <code>python scripts/generate_openapi.py</code>; the running app also serves its own
+      copy at <code>http://localhost:8002/docs</code>.
+    </p>
+  </div>
+
+  <!-- Redoc 2.5.3 (MIT), vendored rather than loaded from a CDN so the reference
+       renders offline and cannot break when someone else's CDN does. Refresh with
+       scripts/update_redoc.py. Bundled third-party licences: assets/redoc.standalone.js.LICENSE.txt -->
+  <script src="assets/redoc.standalone.js"></script>
+  <script>
+    // Redoc has no dark preset — every colour it uses in dark mode is set here.
+    var theme = {
+      spacing: { unit: 5, sectionHorizontal: 40, sectionVertical: 40 },
+      breakpoints: { small: '50rem', medium: '85rem', large: '105rem' },
+      colors: {
+        primary: { main: '#818cf8' },
+        success: { main: '#34d399' },
+        warning: { main: '#fbbf24' },
+        error: { main: '#f87171' },
+        text: { primary: '#e5e7eb', secondary: '#9ca3af' },
+        border: { dark: '#1f2937', light: '#1f2937' },
+        http: {
+          get: '#38bdf8', post: '#34d399', put: '#fbbf24',
+          patch: '#f59e0b', delete: '#f87171', options: '#a78bfa',
+          basic: '#9ca3af', link: '#818cf8', head: '#c084fc'
+        },
+        responses: {
+          success: { color: '#34d399', backgroundColor: 'rgba(52,211,153,0.08)' },
+          error: { color: '#f87171', backgroundColor: 'rgba(248,113,113,0.08)' },
+          redirect: { color: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.08)' },
+          info: { color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.08)' }
+        }
+      },
+      typography: {
+        fontSize: '15px',
+        lineHeight: '1.6em',
+        fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+        headings: { fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', fontWeight: '700' },
+        code: {
+          fontSize: '13px',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          color: '#a5b4fc',
+          backgroundColor: 'rgba(99,102,241,0.1)',
+          wrap: true
+        },
+        links: { color: '#818cf8', visited: '#818cf8', hover: '#a5b4fc' }
+      },
+      sidebar: {
+        width: '270px',
+        backgroundColor: '#0b1120',
+        textColor: '#cbd5e1',
+        activeTextColor: '#a5b4fc',
+        groupItems: { textTransform: 'uppercase' },
+        arrow: { color: '#64748b' }
+      },
+      rightPanel: {
+        backgroundColor: '#0b1120',
+        textColor: '#e5e7eb',
+        width: '40%',
+        servers: {
+          overlay: { backgroundColor: '#111827', textColor: '#e5e7eb' },
+          url: { backgroundColor: '#0f172a' }
+        }
+      },
+      codeBlock: { backgroundColor: '#0f172a' },
+      schema: {
+        nestedBackground: '#0f172a',
+        typeNameColor: '#94a3b8',
+        typeTitleColor: '#cbd5e1',
+        requireLabelColor: '#f87171',
+        linesColor: '#334155'
+      },
+      fab: { backgroundColor: '#111827', color: '#e5e7eb' }
+    };
+
+    Redoc.init(
+      'openapi.json',
+      {
+        theme: theme,
+        scrollYOffset: 56,          // clear the fixed site nav when deep-linking
+        hideDownloadButton: false,
+        expandResponses: '200,201',
+        jsonSampleExpandLevel: 2,
+        pathInMiddlePanel: true,
+        sortTagsAlphabetically: false,
+        nativeScrollbars: false
+      },
+      document.getElementById('redoc'),
+      function (error) {
+        if (!error) return;
+        document.getElementById('redoc').style.display = 'none';
+        document.getElementById('fallback').style.display = 'block';
+        console.error('Redoc failed to load openapi.json:', error);
+      }
+    );
+  </script>
+
+</body>
+</html>

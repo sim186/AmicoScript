@@ -1,6 +1,7 @@
 """Settings endpoints."""
 
 import asyncio
+import os
 import platform
 import re
 import shutil
@@ -11,14 +12,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException
 
-from settings import (
-    _get_meeting_capture_enabled,
-    _get_transcription_defaults,
-    _load_settings,
-    _save_settings,
-    _set_meeting_capture_enabled,
-    _set_transcription_defaults,
-)
+import state
+
+# Reached through the module, not imported by name: several route handlers here
+# are named after the operation they expose (save_settings, get_settings) and
+# would otherwise shadow the store function they call.
+import settings
 
 router = APIRouter()
 
@@ -51,30 +50,52 @@ def _bundled_watcher_version() -> str:
         return ""
 
 
+# Sentinel the UI posts back for a masked secret it did not touch, so saving
+# an unrelated setting cannot overwrite a stored token with its own bullets.
+_UNCHANGED = "__unchanged__"
+
+
 def _to_bool(value: str) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _require_session_token(token: str) -> None:
-    import state
     if not getattr(state, "exit_token", "") or token != state.exit_token:
         raise HTTPException(403, "Invalid session token")
 
 
+def _mask_secret(value: str) -> str:
+    """Show that a secret exists without handing it back out.
+
+    GET /api/settings used to return the Hugging Face token in full. Even
+    behind authentication there is no reason to keep echoing a credential to
+    every client that asks — the UI only needs to know whether one is stored.
+    """
+    if not value:
+        return ""
+    return f"••••••••{value[-4:]}" if len(value) > 4 else "••••••••"
+
+
 @router.get("/api/settings")
 def get_settings() -> dict:
-    import state
-    settings = _load_settings()
-    defaults = _get_transcription_defaults()
+    stored = settings.load_settings()
+    defaults = settings.get_transcription_defaults()
+    ws = settings.get_whisper_settings()
+    hf_token = stored.get("hf_token", "")
     return {
-        "hf_token": settings.get("hf_token", ""),
+        "hf_token_set": bool(hf_token),
+        "hf_token_preview": _mask_secret(hf_token),
         "exit_token": getattr(state, "exit_token", ""),
-        "meeting_capture_enabled": _get_meeting_capture_enabled(),
+        "meeting_capture_enabled": settings.get_meeting_capture_enabled(),
+        "auto_summarize_meetings": settings.get_auto_summarize_meetings(),
         # Shared by the web UI and the meeting watcher so auto-captured
         # meetings use the same model / language / diarize as manual uploads.
         "default_model": defaults["default_model"],
         "default_language": defaults["default_language"],
         "default_diarize": defaults["default_diarize"],
+        "whisper_model": ws["whisper_model"],
+        "whisper_device": ws["whisper_device"],
+        "whisper_compute": ws["whisper_compute"],
     }
 
 
@@ -84,23 +105,38 @@ async def save_settings(
     model: str | None = Form(None),
     language: str | None = Form(None),
     diarize: str | None = Form(None),
+    whisper_model: str | None = Form(None),
+    whisper_device: str | None = Form(None),
+    whisper_compute: str | None = Form(None),
+    auto_summarize_meetings: str | None = Form(None),
 ) -> dict:
     """Persist HF token and/or transcription defaults.
 
     Fields are optional so the UI can save the HF token alone (existing
     behaviour) or push model/language/diarize without clearing the token.
     """
-    settings = _load_settings()
-    if hf_token is not None:
-        settings["hf_token"] = hf_token
-        _save_settings(settings)
+    stored = settings.load_settings()
+    if hf_token is not None and hf_token != _UNCHANGED:
+        stored["hf_token"] = hf_token
+        settings.save_settings(stored)
+    if auto_summarize_meetings is not None:
+        settings.set_auto_summarize_meetings(_to_bool(auto_summarize_meetings))
     if model is not None or language is not None or diarize is not None:
-        _set_transcription_defaults(
+        settings.set_transcription_defaults(
             model=model,
             language=language,
             diarize=_to_bool(diarize) if diarize is not None else None,
         )
-    return {"ok": True, **_get_transcription_defaults()}
+    # Any one of the three is enough to save. Gating on whisper_model meant a
+    # request that set only the device silently did nothing.
+    if whisper_model or whisper_device or whisper_compute:
+        ws = settings.get_whisper_settings()
+        settings.save_whisper_settings(
+            whisper_model or ws["whisper_model"],
+            whisper_device or ws["whisper_device"],
+            whisper_compute or ws["whisper_compute"],
+        )
+    return {"ok": True, **settings.get_transcription_defaults(), **settings.get_whisper_settings()}
 
 
 @router.post("/api/settings/meeting-capture")
@@ -112,7 +148,7 @@ async def set_meeting_capture(enabled: str = Form("false"), token: str = Form(""
     """
     _require_session_token(token)
     value = _to_bool(enabled)
-    _set_meeting_capture_enabled(value)
+    settings.set_meeting_capture_enabled(value)
     return {"ok": True, "enabled": value}
 
 
@@ -130,7 +166,6 @@ async def set_watcher_status(
     memory — see WATCHER_STATUS_TTL for the staleness rule.
     """
     _require_session_token(token)
-    import state
     is_recording = _to_bool(recording)
     prev = getattr(state, "watcher_status", None) or {}
     was_recording = bool(prev.get("recording")) and (time.time() - prev.get("ts", 0)) < WATCHER_STATUS_TTL
@@ -149,7 +184,6 @@ async def set_watcher_status(
 def get_watcher_status() -> dict:
     """Current watcher state for the web UI: whether it's installed/running
     (``alive``) and whether it's recording right now (``recording``)."""
-    import state
     st = getattr(state, "watcher_status", None) or {}
     ts = st.get("ts", 0)
     age = time.time() - ts
@@ -179,7 +213,6 @@ def _install_watcher_sync() -> dict:
     if not _WATCHER_SRC_DIR.exists():
         return {"ok": False, "error": "bundled watcher files not found"}
 
-    import os
     dest = Path(os.environ.get("LOCALAPPDATA", "")) / "AmicoScript" / "watcher"
     try:
         shutil.copytree(

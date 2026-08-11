@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from core.diarization import _assign_speaker
+from core.diarization import assign_speaker
 
 
 @dataclass
@@ -26,7 +26,7 @@ def test_assign_speaker_prefers_max_overlap() -> None:
         ]
     )
 
-    speaker = _assign_speaker(1.0, 2.0, diar)
+    speaker = assign_speaker(1.0, 2.0, diar)
 
     assert speaker == "SPEAKER_B"
 
@@ -39,6 +39,6 @@ def test_assign_speaker_falls_back_to_nearest_turn() -> None:
         ]
     )
 
-    speaker = _assign_speaker(5.0, 6.0, diar)
+    speaker = assign_speaker(5.0, 6.0, diar)
 
     assert speaker == "SPEAKER_NEAR"

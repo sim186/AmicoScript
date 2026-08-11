@@ -6,8 +6,8 @@ and includes API routers from backend/api/routes.
 
 import asyncio
 import os
+import secrets
 import sys
-import time
 from pathlib import Path
 
 # Must be set before torch is imported anywhere (even transitively).
@@ -36,25 +36,29 @@ _ensure_standard_streams()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlmodel import select
 
+import auth
+import config
+import meeting_watcher_host
+import releases
 import state
 from api.routes.analyses import router as analyses_router
+from api.routes.auth import router as auth_router
+from api.routes.backup import router as backup_router
 from api.routes.benchmark import router as benchmark_router
 from api.routes.folders_tags import router as folders_tags_router
 from api.routes.library import router as library_router
+from api.routes.library_chat import router as library_chat_router
 from api.routes.llm import router as llm_router
-from api.routes.releases import get_version
 from api.routes.releases import router as releases_router
+from api.routes.search import router as search_router
 from api.routes.settings import router as settings_router
 from api.routes.transcription import router as transcription_router
-from core.job_helpers import _cleanup_job_temp_files
-from core.transcription import _worker_loop_async
-from db import init_db, new_session
-from models import Recording
-from releases import _fetch_latest_release, _is_version_newer
+from core.job_lifecycle import cleanup_loop, recover_interrupted_jobs
+from core.transcription import worker_loop_async
+from db import init_db
 
 if hasattr(sys, "_MEIPASS"):
     BASE_DIR = Path(sys._MEIPASS)
@@ -71,7 +75,69 @@ if (BASE_DIR / "scripts").exists():
 else:
     SCRIPTS_DIR = BASE_DIR.parent / "scripts"
 
-app = FastAPI(title="AmicoScript")
+API_DESCRIPTION = """
+The HTTP API behind the AmicoScript desktop app, web UI, and TUI. Everything the
+interface can do — uploading audio, following a job, reading transcripts, running
+an LLM analysis — goes through the endpoints below, so a script can drive the same
+workflow the UI does.
+
+The server runs on your own machine (or your own Docker host). There is no hosted
+AmicoScript API: the base URL is wherever you started it, `http://localhost:8002`
+by default.
+
+### Authentication
+
+AmicoScript is local-first, so what a request needs depends on where it comes from
+and on the `AMICOSCRIPT_AUTH` mode (see `backend/auth.py`):
+
+* **Loopback requests** (`127.0.0.1`, `::1`) are served without credentials in the
+  default `auto` mode — the usual case for a desktop or local Docker install.
+* **Everything else** needs a session cookie from `POST /api/auth/login`, or the
+  API token in an `Authorization: Bearer <token>` header (`X-Amicoscript-Token` also
+  works). Non-loopback requests are refused with `503` until a password is set, so
+  exposing the app publicly fails closed rather than publishing your library.
+
+Retrieve the token for headless clients with `GET /api/auth/api-token` from the
+machine itself, or from the app's Security settings.
+
+```bash
+curl -H "Authorization: Bearer $AMICOSCRIPT_TOKEN" \\
+  https://amicoscript.example.com/api/library
+```
+
+### Streaming endpoints
+
+Job progress is delivered over Server-Sent Events rather than polling:
+`GET /api/jobs/{job_id}/stream` emits a JSON event per update until the job reaches
+`done`, `error`, or `cancelled`, with a heartbeat every 30s in between. OpenAPI has
+no vocabulary for an SSE stream, so it is documented below as an ordinary `GET` —
+read it with an EventSource/SSE client, not a single-shot request.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "Auth", "description": "Login, logout, session status, and the API token for headless clients."},
+    {"name": "Settings", "description": "Whisper defaults, device selection, Hugging Face token, and other stored app settings."},
+    {"name": "LLM", "description": "LLM provider configuration, connectivity tests, and model listing/pulling."},
+    {"name": "Analyses", "description": "Summaries, action items, translations, and custom prompts run against a transcript."},
+    {"name": "Releases", "description": "Version reporting and update checks against the GitHub releases feed."},
+    {"name": "Transcription", "description": "Uploads, URL imports, job control, progress streams, and result downloads."},
+    {"name": "Library", "description": "Stored recordings: listing, metadata, transcript edits, audio, and exports."},
+    {"name": "Library chat", "description": "Retrieval-augmented chat across the transcripts in your library."},
+    {"name": "Folders & tags", "description": "Organising recordings into folders and tags, including tag suggestions."},
+    {"name": "Search", "description": "Full-text search across transcripts, backed by SQLite FTS5."},
+    {"name": "Benchmark", "description": "Local speed benchmarks for the installed Whisper models and devices."},
+    {"name": "Backup", "description": "Export and restore the library as a portable backup bundle."},
+]
+
+app = FastAPI(
+    title="AmicoScript API",
+    version=releases.local_version() or "0.0.0",
+    description=API_DESCRIPTION,
+    openapi_tags=OPENAPI_TAGS,
+    license_info={"name": "MIT", "url": "https://github.com/sim186/AmicoScript/blob/main/LICENSE"},
+    contact={"name": "AmicoScript on GitHub", "url": "https://github.com/sim186/AmicoScript"},
+    servers=[{"url": "http://localhost:8002", "description": "Local install (default)"}],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,220 +151,91 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(settings_router)
-app.include_router(llm_router)
-app.include_router(analyses_router)
-app.include_router(releases_router)
-app.include_router(transcription_router)
-app.include_router(library_router)
-app.include_router(folders_tags_router)
-app.include_router(benchmark_router)
+# Paths reachable without a session. The auth routes handle their own rules,
+# and the release/version endpoints carry nothing private but are read by the
+# UI before login to render the update banner.
+AUTH_EXEMPT_PATHS = {
+    "/api/auth/status",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/password",
+    "/api/auth/api-token",
+    "/api/version",
+}
+
+
+@app.middleware("http")
+async def _require_auth(request, call_next):
+    """Gate the API on the rules in backend/auth.py.
+
+    Static assets stay public — the frontend has to load in order to show a
+    login form — but everything under /api and /scripts is checked.
+    """
+    path = request.url.path
+    if not (path.startswith("/api") or path.startswith("/scripts")):
+        return await call_next(request)
+    if path in AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+
+    decision = auth.evaluate_request(request)
+    if not decision.allowed:
+        return JSONResponse(
+            {"detail": decision.message, "code": decision.code},
+            status_code=decision.status_code,
+        )
+    return await call_next(request)
+
+
+# The tags are what group the endpoints in the generated reference
+# (website/api.html); they mirror the names declared in OPENAPI_TAGS above.
+app.include_router(auth_router, tags=["Auth"])
+app.include_router(settings_router, tags=["Settings"])
+app.include_router(llm_router, tags=["LLM"])
+app.include_router(analyses_router, tags=["Analyses"])
+app.include_router(releases_router, tags=["Releases"])
+app.include_router(transcription_router, tags=["Transcription"])
+app.include_router(library_router, tags=["Library"])
+app.include_router(library_chat_router, tags=["Library chat"])
+app.include_router(folders_tags_router, tags=["Folders & tags"])
+app.include_router(search_router, tags=["Search"])
+app.include_router(benchmark_router, tags=["Benchmark"])
+app.include_router(backup_router, tags=["Backup"])
 
 
 @app.on_event("startup")
 async def _startup() -> None:
-    import secrets
-    from config import ensure_storage_dirs
-    ensure_storage_dirs()
+    config.ensure_storage_dirs()
     state._init_queue()
     state.exit_token = secrets.token_hex(32)
     state.event_loop = asyncio.get_running_loop()
     init_db()
-    _recover_interrupted_jobs()
-    try:
-        app.state.local_version = _get_local_version() or ""
-    except Exception:
-        app.state.local_version = ""
-    asyncio.create_task(_worker_loop_async())
-    asyncio.create_task(_cleanup_loop())
-    try:
-        asyncio.create_task(_release_poller_loop())
-    except Exception:
-        pass
-    _maybe_start_embedded_watcher()
-
-
-# Handle to the embedded meeting watcher (thread + module), set by
-# _maybe_start_embedded_watcher so the shutdown hook can signal a clean stop
-# and let an in-progress capture finalize instead of being lost with the
-# daemon thread. None when the watcher isn't running (Docker / non-Windows).
-_watcher_thread = None
-_watcher_module = None
-
-
-def _watcher_output_dir() -> Path:
-    """User-writable folder for meeting captures (never Program Files)."""
-    try:
-        from config import STORAGE_ROOT
-        return Path(STORAGE_ROOT) / "meetings"
-    except Exception:
-        return Path.home() / "AmicoScript" / "meetings"
-
-
-def _maybe_start_external_watcher_task() -> None:
-    """Start the installed per-user watcher task, if setup.bat registered it."""
-    import platform
-    import subprocess
-
-    if platform.system() != "Windows":
-        return
-    task_name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
-    try:
-        proc = subprocess.run(
-            ["schtasks", "/Run", "/TN", task_name],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except Exception as exc:
-        print(f"External meeting watcher task could not be started ({exc}).")
-        return
-    if proc.returncode == 0:
-        print(f"External meeting watcher task started: {task_name}")
-    else:
-        msg = (proc.stderr or proc.stdout or "").strip()
-        print(f"External meeting watcher task not available: {task_name}. {msg}")
-
-
-def _maybe_start_embedded_watcher() -> None:
-    """Run the meeting watcher in-process on the native Windows host.
-
-    The watcher needs WASAPI/mic access, which only exists when AmicoScript runs
-    directly on the host (the PyInstaller build), not inside the Linux Docker
-    image. So we start it here only on Windows; Docker/other platforms fall back
-    to the external watcher (scripts/meeting_watcher). Override with
-    AMICOSCRIPT_EMBEDDED_WATCHER=on|off|auto (default auto).
-    """
-    import platform
-
-    mode = os.environ.get("AMICOSCRIPT_EMBEDDED_WATCHER", "auto").lower()
-    if mode in {"0", "off", "false", "no"}:
-        _maybe_start_external_watcher_task()
-        return
-    if mode == "auto" and platform.system() != "Windows":
-        return
-
-    watcher_dir = SCRIPTS_DIR / "meeting_watcher"
-    if watcher_dir.exists() and str(watcher_dir) not in sys.path:
-        sys.path.insert(0, str(watcher_dir))
-    os.environ.setdefault("AMICOSCRIPT_WATCHER_OUT", str(_watcher_output_dir()))
-    os.environ.setdefault("AMICOSCRIPT_URL", "http://127.0.0.1:8002")
-
-    def _run() -> None:
-        global _watcher_module
-        try:
-            import watcher  # noqa: imports pyaudiowpatch/pycaw — Windows-only
-        except Exception as exc:
-            # Audio deps not bundled, or not on a host that supports them.
-            print(f"Embedded meeting watcher unavailable ({exc}); "
-                  "use the external watcher (scripts/meeting_watcher) instead.")
-            if mode == "auto":
-                _maybe_start_external_watcher_task()
-            return
-        _watcher_module = watcher
-        print("Embedded meeting watcher started (enable via the UI toggle).")
-        watcher.run_embedded(base_url="http://127.0.0.1:8002")
-
-    import threading
-    global _watcher_thread
-    _watcher_thread = threading.Thread(target=_run, daemon=True, name="meeting-watcher")
-    _watcher_thread.start()
+    recover_interrupted_jobs()
+    _warn_if_exposed_without_password()
+    app.state.local_version = releases.local_version()
+    asyncio.create_task(worker_loop_async())
+    asyncio.create_task(cleanup_loop())
+    asyncio.create_task(releases.poll_latest_release(app))
+    meeting_watcher_host.start(SCRIPTS_DIR)
 
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
-    """Signal the embedded meeting watcher to stop so an in-progress capture
-    is finalized (WAV saved + transcription queued) before the process exits."""
-    mod = _watcher_module
-    if mod is None or not hasattr(mod, "stop_embedded"):
+    """Let an in-progress meeting capture finalize before the process exits."""
+    meeting_watcher_host.stop()
+
+
+def _warn_if_exposed_without_password() -> None:
+    """Print a loud warning when the app is bound beyond loopback unprotected."""
+    if not auth.is_enabled() or auth.password_is_set():
         return
-    try:
-        mod.stop_embedded()
-    except Exception:
+    host = os.environ.get("AMICOSCRIPT_HOST", "127.0.0.1")
+    if auth.is_loopback_host(host):
         return
-    # Give the watcher a moment to finalize a capture; don't block shutdown long.
-    if _watcher_thread is not None:
-        _watcher_thread.join(timeout=10)
-
-
-def _recover_interrupted_jobs() -> None:
-    try:
-        with new_session() as session:
-            interrupted = session.exec(
-                select(Recording).where(Recording.status.in_(["queued", "transcribing", "diarizing"]))
-            ).all()
-            for rec in interrupted:
-                rec.status = "error"
-                session.add(rec)
-            session.commit()
-    except Exception:
-        pass
-
-
-def _get_local_version() -> str:
-    try:
-        return get_version().get("version", "") or ""
-    except Exception:
-        return ""
-
-
-async def _release_poller_loop() -> None:
-    owner = os.environ.get("GITHUB_OWNER", "sim186")
-    repo = os.environ.get("GITHUB_REPO", "AmicoScript")
-    token = os.environ.get("GITHUB_TOKEN", "")
-    if not owner or not repo:
-        return
-
-    app.state.latest_release = {"tag_name": "", "html_url": "", "name": "", "body": ""}
-
-    while True:
-        try:
-            info = _fetch_latest_release(owner, repo, token or None)
-            if info and not info.get("error"):
-                tag = info.get("tag_name", "")
-                app.state.latest_release = {
-                    "tag_name": tag,
-                    "html_url": info.get("html_url", ""),
-                    "name": info.get("name", ""),
-                    "body": info.get("body", ""),
-                }
-                local = _get_local_version()
-                try:
-                    app.state.update_available = _is_version_newer(local, tag)
-                    app.state.local_version = local
-                except Exception:
-                    app.state.update_available = False
-            else:
-                app.state.latest_release = {"error": info.get("error", "unknown")}
-        except Exception:
-            pass
-        await asyncio.sleep(60 * 60 * 4)
-
-
-_ACTIVE_STATUSES = {"queued", "transcribing", "diarizing", "loading_model", "translating"}
-
-
-async def _cleanup_loop() -> None:
-    from config import STORAGE_ROOT
-
-    while True:
-        await asyncio.sleep(3600)
-        cutoff = time.time() - 3600
-        for job_id in list(state.jobs.keys()):
-            job = state.jobs[job_id]
-            if job.get("status") in _ACTIVE_STATUSES:
-                continue
-            if job.get("created_at", 0) < cutoff:
-                fp = job.get("file_path", "")
-                if fp and os.path.exists(fp):
-                    try:
-                        if not Path(fp).is_relative_to(STORAGE_ROOT):
-                            os.remove(fp)
-                    except OSError:
-                        pass
-                _cleanup_job_temp_files(job)
-                state.jobs.pop(job_id, None)
+    print(
+        f"\n  ⚠  AmicoScript is bound to {host} with no password set.\n"
+        "     Requests from outside this machine will be refused until you set\n"
+        "     one (in the app's Security settings, or via AMICOSCRIPT_PASSWORD).\n"
+    )
 
 
 if SCRIPTS_DIR.exists():

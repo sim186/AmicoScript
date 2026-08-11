@@ -44,12 +44,13 @@ AmicoScript keeps everything local.
 |---------|:-----------:|:----:|:--------:|:-------------:|:--------------------:|
 | Local-only (no cloud) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Speaker diarization | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Ollama / LLM integration** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Local LLM integration** (Ollama, LM Studio, Unsloth, …) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | URL import (7 platforms) | ✅ | YouTube only | ❌ | YouTube only | ❌ |
 | Batch processing | ✅ | ✅ | ❌ | ✅ | ✅ |
 | Desktop app (no Python needed) | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Docker support | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Web UI | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Library backup / import** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 *Comparison based on official READMEs as of April 2026. See something wrong? [Open a PR](https://github.com/sim186/AmicoScript/pulls).*
 
@@ -63,17 +64,32 @@ AmicoScript keeps everything local.
 - 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
-- 🤖 AI analysis (summary, action items, translation, custom prompts)
-- 🧠 LLM integration: configure local LLMs (Ollama or similar) from the UI
+- 🤖 AI analysis (summary, action items, translation, custom prompts) — long
+  recordings are summarised in parts and merged, never silently truncated
+- ✨ Optional automatic summary when a captured meeting ends
+- 🧠 LLM integration: pick Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM,
+  Jan or LocalAI from a list — or let AmicoScript find the one already running.
+  OpenRouter and other hosted providers are supported too, behind an explicit opt-in
 - 🗣️ Speaker diarization (who said what)
 - 🌍 Real-time translation to English
-- 🔍 Global search across transcripts
+- 🔍 Command palette (`Ctrl`/`⌘` + `K`) — one box that searches transcripts,
+  LLM summaries, names, tags and folders at once, and runs any command in the
+  app. A recording appears once, labelled with where it matched
+- 💬 Ask your library — a question answered from every transcript at once, with
+  citations that open the recording at the second it was said. Works on keyword
+  search out of the box; name an embedding model and it searches by meaning
 - 🗂️ Organize with folders and tags
+- ✨ Smart tagging — the LLM reads a transcript and proposes tags, reusing the
+  ones your library already has. Nothing is applied until you click it
 - 🏷️ Automatic platform tags for URL imports (for example: youtube, tiktok, instagram)
 - 📦 Bulk operations: move to folder, assign/remove tags, export, delete selected recordings
 - 🖱️ Multi-select with checkboxes, Ctrl+click (toggle), or Shift+click (range select)
 - ✏️ Edit individual segments
-- 📤 Export to JSON, SRT, TXT, Markdown
+- 📤 Export to JSON, SRT, WebVTT, TXT, Markdown, CSV — Markdown carries YAML
+  frontmatter (date, duration, speakers, tags, folder, model), so a transcript
+  dropped into Obsidian, Hugo or Jekyll arrives with its properties filled in
+- 💾 Export/import your whole library as one file — backup, or move between machines
+- 🔐 Password protection for network access (local use stays password-free)
 - ⌨️ Keyboard shortcuts for fast navigation
 - 🚀 For Mac, Windows, Docker, or local Python
 
@@ -100,6 +116,18 @@ docker compose up --build
 
 Then open: http://localhost:8002
 
+The default image is CPU-only. On a machine with an NVIDIA GPU and the
+[Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+installed, build the CUDA image instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+Either way the app picks its device itself, and every job logs which one it
+got — so if the GPU is not being used, the job log says so rather than just
+running slowly.
+
 #### Production deployment with HTTPS (Traefik)
 
 If you're running behind a [Traefik](https://traefik.io/) reverse proxy, use the production override:
@@ -112,14 +140,28 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 `docker-compose.prod.yml` adds Traefik labels and joins the Traefik Docker network. Traefik handles TLS termination and automatic Let's Encrypt certificates.
 
+> 🔐 **Set a password before exposing AmicoScript.** Requests from anywhere other
+> than the machine it runs on are refused until one exists — the app fails closed
+> rather than publishing your transcripts. Set `AMICOSCRIPT_PASSWORD` in `.env`,
+> or open the app on the host and use **Security → Set password**. Local use is
+> unaffected: on a laptop AmicoScript never asks for anything.
+>
+> If something else already guards the app (an SSO proxy, Traefik basic-auth),
+> set `AMICOSCRIPT_AUTH=off`. See [docs/doc.md](docs/doc.md#authentication).
+
 ---
 
 ### Local
 
 ```bash
 pip install -r backend/requirements.txt
+pip install -r backend/requirements-diarization.txt   # optional: speaker labels
 python run.py
 ```
+
+The second line is PyTorch and pyannote. Skip it and everything except speaker
+diarization works; from a source checkout nothing is downloaded on your behalf
+to make up the difference.
 
 `run.py` opens a native desktop window when `pywebview` is installed, and falls
 back to a system browser tab when it is not. Override with `AMICOSCRIPT_UI`:
@@ -134,16 +176,77 @@ On Linux the native window needs system WebKitGTK (`gir1.2-webkit2-4.1` +
 `python3-gi`); without it the app degrades to a browser tab. See
 [docs/desktop-shell.md](docs/desktop-shell.md).
 
+### Terminal (TUI)
+
+Prefer the keyboard? AmicoScript also ships a terminal interface — same
+backend, no browser needed.
+
+```bash
+./tui.sh      # macOS/Linux — installs TUI deps on first run, then launches
+tui.bat       # Windows
+```
+
+See [tui/README.md](tui/README.md) for keybindings and screenshots. The web
+UI's Help modal also has a one-click "Copy command" for this.
+
 ### Tests
 
 ```bash
 pytest -q
 ```
 
+## 📦 Install
+
+One command, identical on macOS, Windows and Linux:
+
+```bash
+uv tool install amicoscript
+amicoscript
+```
+
+`uv` fetches a suitable Python itself, so nothing needs to be installed first.
+([Don't have uv?](https://docs.astral.sh/uv/getting-started/installation/) —
+`pipx install amicoscript` works the same way.) To run it once without
+installing: `uvx amicoscript`.
+
+This is the recommended route, and not only for convenience: nothing here is a
+downloaded application, so neither Gatekeeper nor SmartScreen is involved. The
+zips below are unsigned and both will object to them.
+
+Speaker diarization is an optional extra, since transcription never needs
+torch:
+
+```bash
+uv tool install "amicoscript[diarization]"
+```
+
+On **Linux**, that pulls PyPI's default torch, which is the CUDA build and
+several GB of `nvidia-*` packages with it. For a CPU-only machine, name the CPU
+index — torch comes from there, everything else still comes from PyPI:
+
+```bash
+uv tool install "amicoscript[diarization]" \
+  --index https://download.pytorch.org/whl/cpu
+```
+
+Upgrade with `uv tool upgrade amicoscript`.
+
 ## 🏃🏼 Running from the installer
 In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
 
+There is one download per platform — no separate CPU and GPU builds. The app
+checks for an NVIDIA GPU on the machine it is running on and fetches the
+matching PyTorch runtime the first time a job needs one, which is the first
+time you ask for speaker diarization, or the first job on a GPU. Transcribing
+on a CPU-only machine downloads nothing. See
+[docs/runtime-pack.md](docs/runtime-pack.md) if you want to pin the choice or
+work offline.
+
 ### macOS: Running unsigned apps (Not disabling Gatekeeper)
+
+This applies to the downloaded `.app` only. `uv tool install amicoscript`
+(above) skips all of it — Gatekeeper gates downloaded applications, and a wheel
+installed into your own environment is not one.
 
 1. Download the latest release from the Releases page.
 2. Because the app is not signed by Apple, macOS will initially block it. Open System Settings → Privacy & Security and enable "App Store and identified developers" (allow apps downloaded from App Store and identified developers).
@@ -243,12 +346,29 @@ See full setup instructions in:
 
 New in 1.4: AmicoScript can call a local LLM to produce analyses from transcripts — summaries, action-item extraction, full translations, or custom-prompt runs. Key notes:
 
-- Configure the LLM base URL, model name, and optional API key from the app sidebar (`LLM Settings`). The default base URL is `http://localhost:11434` (Ollama-style API).
-- You can test the connection from the UI or via the backend endpoint `POST /api/llm/test-connection`.
-- List available models with `GET /api/llm/models` and trigger a model pull via `POST /api/llm/models/pull` (useful for Ollama pulls).
-- Per-recording analyses are created with `POST /api/recordings/{recording_id}/analyses` and queried with `GET /api/recordings/{recording_id}/analyses`.
+**Setting it up:** open **LLM Settings** in the sidebar and either pick your tool
+from the list — Ollama, LM Studio, Unsloth Studio, llama.cpp, vLLM, Jan, LocalAI,
+OpenRouter, or anything OpenAI-compatible — or press **Find running servers** and
+let AmicoScript scan for one. It fills in the address, tells you whether a key is
+needed and what it looks like, and offers the models that server already has.
 
-Docker tip: if your LLM runs outside the container, use `host.docker.internal` instead of `localhost` for the LLM base URL when running the app in Docker.
+- Paste the address in whatever form your tool showed it. `http://localhost:1234`,
+  `.../v1` and a full `.../v1/chat/completions` all work; AmicoScript normalises it
+  and tells you what it changed.
+- **Docker just works.** The compose file maps `host.docker.internal`, and
+  addresses typed as `localhost` are rewritten to it automatically, with a note
+  explaining why. Your LLM still has to listen beyond loopback
+  (`OLLAMA_HOST=0.0.0.0` for Ollama, "Serve on Local Network" for LM Studio).
+- **Hosted providers are opt-in.** Audio never leaves your machine, but a hosted
+  provider receives the transcript text. OpenRouter and any remote address are
+  gated behind a confirmation, and analyses refuse to run until you give it.
+- Test the connection from the UI or via `POST /api/llm/test-connection` — failures
+  say which tool is not running, whether the key is wrong, or whether the address
+  has a stray `/v1`.
+- Per-recording analyses: `POST /api/recordings/{recording_id}/analyses`,
+  `GET /api/recordings/{recording_id}/analyses`.
+
+See [docs/doc.md](docs/doc.md#which-backends-work) for the full provider table.
 
 ---
 
@@ -258,14 +378,18 @@ Full documentation (API, setup, details):
 
 [Documentation](docs/doc.md) · [Desktop shell (window, packaging, Tauri roadmap)](docs/desktop-shell.md)
 
+**[API reference](https://sim186.github.io/AmicoScript/api.html)** — every endpoint the UI uses,
+generated from the FastAPI routes with `python scripts/generate_openapi.py` and published with the
+site. A running install serves the same thing at `http://localhost:8002/docs`.
+
 ---
 
 ## 🏗️ Architecture (brief)
 
 - Backend: Python + FastAPI (`backend/main.py` + modular routers in `backend/api/routes/`)
-- Frontend: Single HTML (no build step)
-- Processing: Sequential background worker (`asyncio.Queue`) with structured logging
-- Storage: Local SQLite metadata + local managed recording files (with temp-file cleanup)
+- Frontend: plain ES modules in `frontend/js/`, loaded natively — still no build step
+- Processing: downloads run concurrently, model inference stays serialized; interrupted jobs are requeued on restart
+- Storage: local SQLite metadata (versioned migrations) + managed recording files, exportable as a single bundle
 
 ---
 
@@ -274,9 +398,9 @@ Full documentation (API, setup, details):
 See [docs/ROADMAP.md](docs/ROADMAP.md) for full priority breakdown.
 
 **Currently planned:**
-- Manual speaker identification (rename speakers)
+- Speaker library — recognise recurring voices across recordings
+- Chat with your library (semantic search + Q&A over all transcripts)
 - AI-powered smart tagging
-- Official website & docs
 
 ---
 

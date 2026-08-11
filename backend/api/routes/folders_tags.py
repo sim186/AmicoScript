@@ -1,14 +1,20 @@
-"""Folder, tag, and search endpoints."""
+"""Folder and tag endpoints."""
 
 import os
 import threading
 import time
 from pathlib import Path
 
+import state
+from core.analysis import LLMError
+from core.tagging import suggest_tags
 from db import get_session
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from llm_providers import refusal_reason
 from models import Analysis, Folder, Recording, RecordingTag, Tag, Transcript
+from settings import get_llm_settings
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 router = APIRouter()
@@ -175,9 +181,25 @@ def list_tags(folder_id: str = "", session: Session = Depends(get_session)) -> l
 async def create_tag(name: str = Form(...), color_code: str = Form("#6c63ff"), session: Session = Depends(get_session)) -> dict:
     if color_code and color_code.lower() not in ALLOWED_COLORS:
         raise HTTPException(400, "Invalid color_code")
+
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, "A tag name is required")
+
+    # Tag names are unique. Creating one that exists used to hit the database
+    # constraint and surface as a 500 with no explanation in the UI.
+    existing = session.exec(select(Tag).where(Tag.name == name)).first()
+    if existing is not None:
+        raise HTTPException(409, f"A tag called '{name}' already exists.")
+
     tag = Tag(name=name, color_code=color_code)
     session.add(tag)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        # Lost a race with a concurrent create; report it the same way.
+        session.rollback()
+        raise HTTPException(409, f"A tag called '{name}' already exists.") from exc
     session.refresh(tag)
     return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
 
@@ -193,13 +215,21 @@ async def update_tag(
     if not tag:
         raise HTTPException(404, "Tag not found")
     if name:
+        name = name.strip()
+        clash = session.exec(select(Tag).where(Tag.name == name, Tag.id != tag_id)).first()
+        if clash is not None:
+            raise HTTPException(409, f"A tag called '{name}' already exists.")
         tag.name = name
     if color_code:
         if color_code and color_code.lower() not in ALLOWED_COLORS:
             raise HTTPException(400, "Invalid color_code")
         tag.color_code = color_code
     session.add(tag)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(409, f"A tag called '{tag.name}' already exists.") from exc
     session.refresh(tag)
     return {"id": tag.id, "name": tag.name, "color_code": tag.color_code}
 
@@ -229,6 +259,52 @@ def add_recording_tag(recording_id: str, tag_id: str, session: Session = Depends
     return {"ok": True}
 
 
+@router.post("/api/recordings/{recording_id}/suggest-tags")
+def suggest_recording_tags(recording_id: str, session: Session = Depends(get_session)) -> dict:
+    """Ask the LLM for tags for this recording. Applies nothing.
+
+    Runs synchronously rather than as a queued analysis job: the output is a
+    handful of words, and a suggestion the user has to come back for later is
+    one they will not use.
+    """
+
+    if not session.get(Recording, recording_id):
+        raise HTTPException(404, "Recording not found")
+    transcript = session.exec(
+        select(Transcript).where(Transcript.recording_id == recording_id)
+    ).first()
+    if not transcript or not transcript.full_text.strip():
+        raise HTTPException(404, "Transcript not found — complete transcription first")
+
+    cfg = get_llm_settings()
+    refusal = refusal_reason(cfg)
+    if refusal:
+        raise HTTPException(400, refusal)
+
+    all_tags = {t.id: t.name for t in session.exec(select(Tag)).all()}
+    applied_ids = {
+        lnk.tag_id
+        for lnk in session.exec(
+            select(RecordingTag).where(RecordingTag.recording_id == recording_id)
+        ).all()
+    }
+    applied = [all_tags[i] for i in applied_ids if i in all_tags]
+
+    try:
+        names = suggest_tags(transcript.full_text, list(all_tags.values()), applied, cfg)
+    except LLMError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:  # transport, timeout, bad status — all read the same
+        raise HTTPException(502, f"The model could not be reached: {exc}") from exc
+
+    by_name = {name.casefold(): tag_id for tag_id, name in all_tags.items()}
+    return {
+        "suggestions": [
+            {"name": name, "tag_id": by_name.get(name.casefold())} for name in names
+        ]
+    }
+
+
 @router.delete("/api/recordings/{recording_id}/tags/{tag_id}")
 def remove_recording_tag(recording_id: str, tag_id: str, session: Session = Depends(get_session)) -> dict:
     link = session.get(RecordingTag, (recording_id, tag_id))
@@ -238,109 +314,8 @@ def remove_recording_tag(recording_id: str, tag_id: str, session: Session = Depe
     return {"ok": True}
 
 
-@router.get("/api/search")
-def search_library(q: str = "", limit: int = 20, offset: int = 0, session: Session = Depends(get_session)) -> list:
-    if not q.strip():
-        return []
-
-    from sqlalchemy import text as _text
-    from sqlalchemy.exc import OperationalError
-
-    safe_limit = min(limit, 100)
-
-    # Escape LIKE wildcards so % and _ in the query are treated literally
-    q_like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-
-    try:
-        fts_rows = session.exec(
-            _text(
-                """
-                SELECT t.recording_id,
-                       snippet(transcript_fts, 0, '<mark>', '</mark>', '…', 20) AS snippet
-                FROM transcript_fts
-                JOIN transcript t ON transcript_fts.rowid = t.rowid
-                WHERE transcript_fts MATCH :q
-                ORDER BY rank
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"q": q, "lim": safe_limit, "off": offset},
-        ).all()
-
-        meta_rows = session.exec(
-            _text(
-                """
-                SELECT DISTINCT r.id as recording_id,
-                       CASE
-                         WHEN f.name LIKE :ql ESCAPE '\\' THEN 'Folder: ' || f.name
-                         WHEN t.name LIKE :ql ESCAPE '\\' THEN 'Tag: ' || t.name
-                         ELSE 'Title: ' || r.filename
-                       END as snippet
-                FROM recording r
-                LEFT JOIN folder f ON r.folder_id = f.id
-                LEFT JOIN recordingtag rt ON r.id = rt.recording_id
-                LEFT JOIN tag t ON rt.tag_id = t.id
-                WHERE r.filename LIKE :ql ESCAPE '\\'
-                   OR f.name LIKE :ql ESCAPE '\\'
-                   OR t.name LIKE :ql ESCAPE '\\'
-                ORDER BY r.filename
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"ql": q_like, "lim": safe_limit, "off": offset},
-        ).all()
-
-        fts_ids = {r.recording_id: r.snippet for r in fts_rows}
-        ordered = list(fts_rows)
-        for r in meta_rows:
-            if r.recording_id not in fts_ids:
-                ordered.append(r)
-        rows = ordered[:safe_limit]
-    except OperationalError:
-        rows = session.exec(
-            _text(
-                """
-                SELECT DISTINCT r.id AS recording_id,
-                       CASE
-                         WHEN f.name LIKE :ql ESCAPE '\\' THEN 'Folder: ' || f.name
-                         WHEN t.name LIKE :ql ESCAPE '\\' THEN 'Tag: ' || t.name
-                         WHEN r.filename LIKE :ql ESCAPE '\\' THEN 'Title: ' || r.filename
-                         ELSE COALESCE(substr(tr.full_text, 1, 100), 'Metadata match')
-                       END AS snippet
-                FROM recording r
-                LEFT JOIN transcript tr ON r.id = tr.recording_id
-                LEFT JOIN folder f ON r.folder_id = f.id
-                LEFT JOIN recordingtag rt ON r.id = rt.recording_id
-                LEFT JOIN tag t ON rt.tag_id = t.id
-                WHERE r.filename LIKE :ql ESCAPE '\\'
-                   OR tr.full_text LIKE :ql ESCAPE '\\'
-                   OR f.name LIKE :ql ESCAPE '\\'
-                   OR t.name LIKE :ql ESCAPE '\\'
-                ORDER BY r.filename
-                LIMIT :lim OFFSET :off
-                """
-            ),
-            params={"ql": q_like, "lim": safe_limit, "off": offset},
-        ).all()
-
-    results = []
-    for row in rows:
-        rec = session.get(Recording, row.recording_id)
-        if rec:
-            results.append(
-                {
-                    "recording_id": row.recording_id,
-                    "filename": rec.filename,
-                    "duration": rec.duration,
-                    "snippet": row.snippet,
-                }
-            )
-    return results
-
-
 @router.post("/api/exit")
 async def api_exit(request: Request, token: str = ""):
-    import state as _state
     try:
         client_host = request.client.host if request.client else ""
     except Exception:
@@ -350,7 +325,7 @@ async def api_exit(request: Request, token: str = ""):
         return {"status": "ignored"}
 
     # Require the per-session CSRF token generated at startup
-    if not _state.exit_token or token != _state.exit_token:
+    if not state.exit_token or token != state.exit_token:
         return {"status": "ignored"}
 
     def _delayed_exit() -> None:

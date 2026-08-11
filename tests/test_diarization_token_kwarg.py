@@ -41,6 +41,18 @@ def _install_fake_pyannote(monkeypatch, accepted_kwarg: str, captured: dict) -> 
     monkeypatch.setitem(sys.modules, "pyannote", fake_pkg)
     monkeypatch.setitem(sys.modules, "pyannote.audio", fake_module)
 
+    # torch as well as pyannote: the diarization phase now checks that the
+    # whole stack is importable before it starts, and refuses to run when it is
+    # not — the packaged app downloads torch on demand, so "missing" is a state
+    # it has to handle rather than assume away. A fake pyannote without a fake
+    # torch is a half-installed machine, which is not what this test is about.
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: False, empty_cache=lambda: None)
+    torch.device = lambda spec: f"device({spec})"
+    # inject_torch_load_shim wraps torch.load, and this test lets it run.
+    torch.load = lambda *_, **__: None
+    monkeypatch.setitem(sys.modules, "torch", torch)
+
 
 @pytest.mark.parametrize("accepted_kwarg", ["token", "use_auth_token"])
 def test_run_diarization_uses_supported_kwarg(monkeypatch, accepted_kwarg) -> None:
@@ -50,10 +62,10 @@ def test_run_diarization_uses_supported_kwarg(monkeypatch, accepted_kwarg) -> No
     from core import diarization
 
     monkeypatch.setattr(diarization, "inject_torchcodec_shim", lambda: None)
-    monkeypatch.setattr(diarization, "_push_event", lambda *a, **k: None)
-    monkeypatch.setattr(diarization, "_append_job_log", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "push_event", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "append_job_log", lambda *a, **k: None)
     monkeypatch.setattr(
-        diarization, "_convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
+        diarization, "convert_audio_for_diarization", lambda *a, **k: "/tmp/fake.wav"
     )
 
     segments = [{"start": 0.0, "end": 5.0, "text": "hi", "speaker": ""}]
@@ -62,7 +74,7 @@ def test_run_diarization_uses_supported_kwarg(monkeypatch, accepted_kwarg) -> No
         "file_path": "/tmp/whatever.mp3",
     }
 
-    speakers = diarization._run_diarization_phase("job-1", segments, job)
+    speakers = diarization.run_diarization_phase("job-1", segments, job)
 
     assert captured["kwarg"] == accepted_kwarg
     assert captured["value"] == "hf_abc123"
@@ -74,9 +86,9 @@ def test_run_diarization_skipped_without_token(monkeypatch) -> None:
     from core import diarization
 
     pushes = []
-    monkeypatch.setattr(diarization, "_push_event", lambda *a, **k: pushes.append(a))
-    monkeypatch.setattr(diarization, "_append_job_log", lambda *a, **k: None)
+    monkeypatch.setattr(diarization, "push_event", lambda *a, **k: pushes.append(a))
+    monkeypatch.setattr(diarization, "append_job_log", lambda *a, **k: None)
 
     job = {"options": {"diarize": True, "hf_token": ""}, "file_path": "/tmp/x"}
-    assert diarization._run_diarization_phase("job-2", [], job) == []
+    assert diarization.run_diarization_phase("job-2", [], job) == []
     assert any("warning" in tup for tup in pushes)

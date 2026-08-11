@@ -1,0 +1,56 @@
+# CUDA build. The CPU image (Dockerfile) stays the default; this one is only
+# worth building on a machine with an NVIDIA GPU and the container toolkit.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+#
+# The base image supplies cuDNN as well as CUDA: faster-whisper transcribes
+# through CTranslate2, which needs cuBLAS *and* cuDNN, and a plain `cuda-runtime`
+# tag carries only the former — which fails at the first transcription rather
+# than at build time.
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# python3.11 to match the CPU image and the release builds.
+# ffmpeg: required by faster-whisper to decode mp3/m4a/ogg/flac
+# libsndfile1: required by pyannote.audio
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    ffmpeg \
+    libsndfile1 \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements-diarization-cu121.txt /tmp/requirements-diarization-cu121.txt
+
+# requirements-diarization-cu121.txt carries the cu121 extra index, so torch
+# arrives CUDA-linked rather than as the CPU wheel the other image installs.
+# Both files are installed: a container carries its whole stack, unlike the
+# packaged app, which downloads this half on first use (backend/runtime_pack.py).
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python -m pip install --no-cache-dir -r /tmp/requirements-diarization-cu121.txt
+
+COPY backend/ backend/
+COPY frontend/ frontend/
+COPY scripts/ scripts/
+COPY VERSION /app/VERSION
+
+RUN mkdir -p backend/uploads
+
+ENV PYTHONPATH=/app/backend
+
+EXPOSE 8002
+
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
