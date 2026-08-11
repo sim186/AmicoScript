@@ -678,7 +678,7 @@
       "url": "https://github.com/sim186/AmicoScript/blob/main/LICENSE"
     },
     "title": "AmicoScript API",
-    "version": "1.16.0"
+    "version": "1.17.1"
   },
   "openapi": "3.1.0",
   "paths": {
