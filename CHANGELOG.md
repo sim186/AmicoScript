@@ -8,6 +8,9 @@ Keep a Changelog format.
 
 
 
+## [1.17.1] - 2026-08-11
+- No change details provided.
+
 ## [1.17.0] - 2026-08-11
 ### 📖 A published API reference that cannot go stale
 
