@@ -17,5 +17,6 @@
 --extra-index-url https://pypi.org/simple
 
 pyannote.audio>=3.3.2
+omegaconf>=2.1.1
 torch>=2.3.0
 torchaudio>=2.3.0

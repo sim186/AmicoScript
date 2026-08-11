@@ -105,11 +105,22 @@ def main(argv: list[str]) -> None:
     update_changelog(new, entry)
     print(f"Bumped {current} -> {new}")
 
+    # Regenerate the OpenAPI schema so the committed file always matches the
+    # new version — no manual step to forget.
+    openapi_generator = ROOT / "scripts" / "generate_openapi.py"
+    subprocess.run(
+        [sys.executable, str(openapi_generator)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    print("Regenerated website/openapi.json")
+
     tag_name = f"v{new}"
 
     # 2. Git Commit (Removed [skip ci] to ensure CI triggers on the tag)
     if args.commit:
-        run_git(["add", "VERSION", "CHANGELOG.md"])
+        run_git(["add", "VERSION", "CHANGELOG.md", "website/openapi.json"])
         run_git(["commit", "-m", f"Release {tag_name}"])
         print(f"Committed: Release {tag_name}")
 

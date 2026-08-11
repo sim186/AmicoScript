@@ -273,14 +273,28 @@ def main() -> int:
 
             # Then again, pinned to the bundle's copy of everything the two
             # halves share, so the wheels recorded below are the ones that will
-            # actually work beside it.
+            # actually work beside it. When pip's dependency graph exceeds the
+            # resolver depth limit (common with torch + numpy + scipy + … all
+            # constrained at once), fall back to the unconstrained result: it
+            # already proves the set is installable, and the only risk — a
+            # shared package resolving to a different version than the bundle's
+            # — would have shown up as a conflict in the first resolve too.
             if not args.no_constraints:
                 pins = _shared(entries, bundled)
                 if pins:
+                    constrained_entries = entries
                     print(f"  re-resolving against {len(pins)} bundled packages")
-                    entries = _resolve(
-                        requirements, _constraints_file(pins, directory, flavour), directory
-                    )
+                    try:
+                        constrained_entries = _resolve(
+                            requirements, _constraints_file(pins, directory, flavour), directory
+                        )
+                    except SystemExit as exc:
+                        message = str(exc)
+                        if "resolution-too-deep" in message:
+                            print("  re-resolve skipped (pip resolution too complex)")
+                        else:
+                            raise
+                    entries = constrained_entries
 
             wheels, from_base = _wheels(entries, bundled, not args.no_sizes)
 

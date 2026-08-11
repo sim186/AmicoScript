@@ -6,5 +6,7 @@ services:
   audioscript:
     ports:
       - "8002:8002"
+    environment:
+      - AMICOSCRIPT_AUTH=off
     volumes:
       - ./frontend:/app/frontend:ro
