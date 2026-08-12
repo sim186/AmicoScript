@@ -30,7 +30,7 @@ answer the question itself.
 build time                          first use
 ──────────                          ─────────
 generate_runtime_manifest.py        gpu_probe.has_nvidia_gpu()
-  pip install --dry-run --report      ├─ yes → cu121 wheels
+  pip install --dry-run --report      ├─ yes → cu126 wheels
   ↓                                   └─ no  → cpu wheels
 runtime_manifest.json               runtime_pack.ensure()
   (URLs + sha256, per flavour)        download, verify, unpack
@@ -106,7 +106,7 @@ build for reasons that have nothing to do with the pack.
 | Variable | Effect |
 | --- | --- |
 | `AMICO_GPU=0` / `=1` | Overrides GPU detection. `0` is the escape hatch for a machine whose driver is present but broken |
-| `AMICO_RUNTIME_FLAVOUR=cpu` / `=cu121` | Forces a flavour regardless of what the probe found |
+| `AMICO_RUNTIME_FLAVOUR=cpu` / `=cu126` | Forces a flavour regardless of what the probe found |
 | `AMICO_CACHE_DIR` | Where packs are stored; shared with the Whisper and pyannote model caches |
 | `AMICO_RUNTIME_MANIFEST` | Path to a manifest, overriding the one in the bundle |
 

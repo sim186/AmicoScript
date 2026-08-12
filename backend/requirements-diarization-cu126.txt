@@ -7,12 +7,22 @@
 # transitive dependency that a future torch release could drop. On Windows the
 # torch wheel carries the same DLLs inside torch/lib, and no nvidia-* wheel
 # exists, hence the markers.
---extra-index-url https://download.pytorch.org/whl/cu121
+#
+# cu126, not cu121. pyannote.audio 4 requires torch>=2.8 and the cu121 index
+# stops at 2.5.1 — it was never going to get another release — so the CUDA
+# flavour could not resolve at all and took the whole release build down with
+# it. Of the indexes that do carry a new enough torch, cu126 is the one whose
+# newest torch matches PyPI's (2.13.0). That matters here: pip merges the
+# candidates from both indexes and picks the highest version, and a local
+# version tag sorts *above* the plain release it decorates, so 2.13.0+cu126
+# wins on its own without a ceiling pinning it there. cu128 would need one, and
+# a ceiling is a thing to forget. It also asks less of the driver than cu128.
+--extra-index-url https://download.pytorch.org/whl/cu126
 
-pyannote.audio>=3.3.2
-omegaconf>=2.1.1
-torch>=2.3.0,<2.7.0
-torchaudio>=2.3.0,<2.7.0
+# See requirements-diarization.txt for both floors.
+pyannote.audio>=4.0.7
+torch>=2.8.0
+torchaudio>=2.8.0
 
 nvidia-cublas-cu12; sys_platform == "linux"
 nvidia-cudnn-cu12; sys_platform == "linux"

@@ -96,35 +96,41 @@ even after the files are deleted.
 A `workflow_dispatch` run with `publish` off builds and checks the wheel
 without uploading anything, the same way it dry-runs the platform bundles.
 
-## Blocker: no tag can publish until diarization resolves
+## Resolved: the diarization resolve that blocked every tag
 
-This is not a wheel problem — the `wheel` job passes — but it stops the whole
-workflow, because `release` needs `build` and `pypi` needs `release`.
+Kept because the wrong diagnosis is an easy one to arrive at twice.
 
-`pyannote.audio` 4.0 requires `torch>=2.8`. The cu121 index has nothing newer
-than the 2.6 line and never will, so `generate_runtime_manifest.py` fails with
-`ResolutionImpossible` on Linux and Windows before PyInstaller ever runs. macOS
-is unaffected: it resolves no CUDA flavour.
+Between v1.16 and v1.17.1 no tag could publish. `wheel` passed; `build` failed
+in `Resolve the runtime pack manifest` on **all three** runners — macOS
+included, which is what should have ruled out the first theory, since macOS
+resolves no CUDA flavour at all. The error was `resolution-too-deep`, not
+`ResolutionImpossible`, and it came from the *second* resolve in
+`generate_runtime_manifest.py` — the one constrained to the bundle's versions.
+The log makes that easy to misread: the SystemExit goes to stderr and the
+progress lines to buffered stdout, so `re-resolving against 20 bundled
+packages` prints *after* the failure it preceded.
 
-What has been ruled out, so nobody repeats it:
+Three separate causes, all now fixed:
 
-- **Capping `pyannote.audio<4` in the cu121 file.** Does not fix it. Same
-  `Cannot install pyannote.audio` failure.
-- **Capping it in `requirements-diarization.txt` too.** Makes it worse — breaks
-  the CPU resolve, which is otherwise green, and takes macOS down with it.
-- **Adding a matching `torch<2.7` ceiling to the CPU file.** No effect.
-- **The omegaconf metadata warnings in the log.** Noise. Only 2.1.0 is invalid;
-  pip skips it and picks 2.3.1 fine.
+- **pyannote 3.x is unreachable under `--only-binary=:all:`.** It requires
+  `omegaconf`, which pins `antlr4-python3-runtime==4.9.*`, which PyPI ships as
+  an sdist and nothing else. Every 3.x candidate is a dead end pip can only
+  discover by walking the whole 3.x tree. (So the omegaconf warnings in the log
+  were not noise after all — though naming `omegaconf` as a direct requirement
+  makes it strictly worse, turning the depth blowup into a hard
+  `ResolutionImpossible`.)
+- **Even 4.0.0-4.0.7 was too much choice.** Those releases pin `torchcodec` and
+  the `opentelemetry-*` set differently from each other, so each one pip tried
+  pulled a different subtree. Flooring at `>=4.0.7` takes the constrained
+  resolve from "exceeds the depth limit after four minutes" to under a minute,
+  honouring every bundle pin — `huggingface-hub 0.36.2`, `protobuf 7.35.1`,
+  `numpy 2.4.6` and the rest.
+- **cu121 genuinely could not satisfy pyannote 4.** That index stops at torch
+  2.5.1. The CUDA flavour is cu126 now; see
+  `backend/requirements-diarization-cu126.txt` for why that index and not cu128.
 
-None of it reproduces outside CI. With pip 26.2.1 and the exact 44 bundled pins
-the build resolves against, `pyannote.audio>=3.3.2,<4` plus `torch>=2.3.0,<2.7.0`
-resolves cleanly on PyPI to pyannote 3.4.0, omegaconf 2.3.1, torch 2.6.0 and
-torchaudio 2.6.0. The untested variable is the PyTorch index as the *primary*
-index (`--index-url`), which is what both diarization files use and what a
-sandbox without `download.pytorch.org` access cannot exercise. Diagnosing this
-needs a machine that can reach that index.
-
-The likely real fix is forward, not backward: move the CUDA flavour off cu121
-to cu126/cu128, let both runtimes take pyannote 4.x — the CPU one already
-does — and update `backend/core/diarization.py` for the 4.x API. Note that CPU
-and CUDA machines are on different pyannote majors until then.
+`scripts/generate_runtime_manifest.py` also no longer treats a depth failure as
+fatal on its own: it falls back to the unconstrained resolve and checks the
+shared packages against the bundle directly (`_agree`). A manifest whose numpy
+differs from the one the app imports still fails the build, loudly, but a
+resolver that merely ran out of patience no longer does.

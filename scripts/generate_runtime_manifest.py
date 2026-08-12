@@ -45,11 +45,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FLAVOURS = {
     "linux": {
         "cpu": "backend/requirements-diarization.txt",
-        "cu121": "backend/requirements-diarization-cu121.txt",
+        "cu126": "backend/requirements-diarization-cu126.txt",
     },
     "win32": {
         "cpu": "backend/requirements-diarization.txt",
-        "cu121": "backend/requirements-diarization-cu121.txt",
+        "cu126": "backend/requirements-diarization-cu126.txt",
     },
     "darwin": {
         "cpu": "backend/requirements-diarization.txt",
@@ -120,6 +120,32 @@ def _shared(entries: list[dict], bundled: dict[str, str]) -> dict[str, str]:
         )
         if name in bundled
     }
+
+
+def _agree(entries: list[dict], bundled: dict[str, str], requirements: Path) -> None:
+    """Fail unless every shared package resolved to the version the bundle carries.
+
+    The fallback for a resolve pip cannot finish. ``_wheels`` drops shared
+    packages from the manifest on the grounds that the bundle already supplies
+    them; that is only true if the versions match, and without the constraints
+    file nothing has checked. Comparing the resolve's answer against the bundle
+    is the same question the pins asked, minus pip's ability to negotiate.
+    """
+    disagree = []
+    for entry in entries:
+        metadata = entry.get("metadata") or {}
+        name = _normalize(metadata.get("name") or "")
+        version = metadata.get("version") or ""
+        if name in bundled and version and version != bundled[name]:
+            disagree.append(f"  {name}: pack wants {version}, bundle carries {bundled[name]}")
+
+    if disagree:
+        raise SystemExit(
+            f"{requirements.name} disagrees with the bundle about "
+            f"{len(disagree)} shared package(s):\n" + "\n".join(sorted(disagree)) + "\n"
+            "Only the bundle's copy is importable at runtime, so this would "
+            "break diarization on a user's machine. Fix the pins."
+        )
 
 
 def _resolve(requirements: Path, constraints: Path | None, directory: Path) -> list[dict]:
@@ -273,28 +299,32 @@ def main() -> int:
 
             # Then again, pinned to the bundle's copy of everything the two
             # halves share, so the wheels recorded below are the ones that will
-            # actually work beside it. When pip's dependency graph exceeds the
-            # resolver depth limit (common with torch + numpy + scipy + … all
-            # constrained at once), fall back to the unconstrained result: it
-            # already proves the set is installable, and the only risk — a
-            # shared package resolving to a different version than the bundle's
-            # — would have shown up as a conflict in the first resolve too.
+            # actually work beside it.
+            #
+            # That second resolve can exceed pip's backtracking depth limit —
+            # torch, pyannote and their trees offer it far too many candidate
+            # combinations once anything is pinned. When it does, fall back to
+            # the unconstrained result and check the shared packages by hand:
+            # the only thing the pins were there to catch is a shared package
+            # landing on a version the bundle does not have, and _agree() sees
+            # that directly. What is lost is pip's chance to *work around* such
+            # a disagreement by moving a pack-only package; that would need a
+            # resolve, and the resolve is what just failed. So it fails loudly
+            # instead of writing a manifest whose numpy differs from the one
+            # the app will import.
             if not args.no_constraints:
                 pins = _shared(entries, bundled)
                 if pins:
-                    constrained_entries = entries
                     print(f"  re-resolving against {len(pins)} bundled packages")
                     try:
-                        constrained_entries = _resolve(
+                        entries = _resolve(
                             requirements, _constraints_file(pins, directory, flavour), directory
                         )
                     except SystemExit as exc:
-                        message = str(exc)
-                        if "resolution-too-deep" in message:
-                            print("  re-resolve skipped (pip resolution too complex)")
-                        else:
+                        if "resolution-too-deep" not in str(exc):
                             raise
-                    entries = constrained_entries
+                        print("  re-resolve too deep for pip; checking shared versions instead")
+                        _agree(entries, bundled, requirements)
 
             wheels, from_base = _wheels(entries, bundled, not args.no_sizes)
 

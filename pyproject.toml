@@ -62,14 +62,14 @@ dependencies = [
 # points at the CPU index to avoid that; an extra cannot carry an index URL, so
 # CPU-only Linux users should install torch from that index first. README covers it.
 #
-# Ranges mirror backend/requirements-diarization.txt exactly, including its
-# open pyannote range, so a pip install lands where the packaged CPU runtime
-# does. Both currently resolve to pyannote 4.x. If those pins gain a ceiling,
-# this needs the same one.
+# Floors mirror backend/requirements-diarization.txt exactly, so a pip install
+# lands where the packaged CPU runtime does. Read that file before changing
+# them: the pyannote floor in particular is a point release for resolver
+# reasons, not a whim, and moving it needs to happen in both places at once.
 diarization = [
-    "pyannote.audio>=3.3.2",
-    "torch>=2.3.0",
-    "torchaudio>=2.3.0",
+    "pyannote.audio>=4.0.7",
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
 ]
 
 # The embedded meeting watcher: Windows-only, WASAPI loopback capture plus a

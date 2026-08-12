@@ -32,15 +32,15 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
     ln -sf /usr/bin/python3.11 /usr/bin/python3
 
 COPY backend/requirements.txt /tmp/requirements.txt
-COPY backend/requirements-diarization-cu121.txt /tmp/requirements-diarization-cu121.txt
+COPY backend/requirements-diarization-cu126.txt /tmp/requirements-diarization-cu126.txt
 
-# requirements-diarization-cu121.txt carries the cu121 extra index, so torch
+# requirements-diarization-cu126.txt carries the cu126 extra index, so torch
 # arrives CUDA-linked rather than as the CPU wheel the other image installs.
 # Both files are installed: a container carries its whole stack, unlike the
 # packaged app, which downloads this half on first use (backend/runtime_pack.py).
 RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /tmp/requirements.txt && \
-    python -m pip install --no-cache-dir -r /tmp/requirements-diarization-cu121.txt
+    python -m pip install --no-cache-dir -r /tmp/requirements-diarization-cu126.txt
 
 COPY backend/ backend/
 COPY frontend/ frontend/

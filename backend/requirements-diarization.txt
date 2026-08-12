@@ -16,7 +16,26 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 
-pyannote.audio>=3.3.2
-omegaconf>=2.1.1
-torch>=2.3.0
-torchaudio>=2.3.0
+# 4.0.7 and up, not 3.3.2. Three reasons, and only the first is about features:
+# DIARIZATION_MODEL is speaker-diarization-community-1, which is a 4.x model.
+#
+# Then the resolver. pyannote.audio 3.x depends on omegaconf, which pins
+# antlr4-python3-runtime==4.9.*, which PyPI publishes as an sdist only.
+# scripts/generate_runtime_manifest.py resolves with --only-binary=:all:, so
+# every 3.x candidate is a dead end — and pip only learns that by backtracking
+# through the whole 3.x tree.
+#
+# And the point release, which is the part that looks arbitrary and is not.
+# Even across 4.0.0-4.0.7 alone pip exhausted its depth budget once the
+# bundle's versions were applied as constraints: the 4.0.x releases disagree
+# about how tightly they pin torchcodec and the opentelemetry set, so each one
+# pip tries drags a different subtree behind it. Pinned to a single release the
+# same resolve finishes in seconds and honours every bundle pin. Raise this
+# floor when moving to a newer pyannote rather than widening it.
+pyannote.audio>=4.0.7
+# Floors, not preferences. pyannote 4 already requires torch>=2.8, so nothing
+# below that can be installed anyway — but left unsaid, pip discovers it by
+# trying every 2.3-to-2.7 torch against every torchaudio, and that search is
+# what exhausts the resolver's depth budget once the bundle's pins are applied.
+torch>=2.8.0
+torchaudio>=2.8.0

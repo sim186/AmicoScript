@@ -131,12 +131,12 @@ def test_a_missing_stack_with_no_manifest_says_so(monkeypatch):
 
 
 def test_a_gpu_machine_gets_the_cuda_wheels():
-    manifest = {"variants": {"cpu": {}, "cu121": {}}}
-    assert runtime_pack.select_variant(manifest, prefer_cuda=True) == "cu121"
+    manifest = {"variants": {"cpu": {}, "cu126": {}}}
+    assert runtime_pack.select_variant(manifest, prefer_cuda=True) == "cu126"
 
 
 def test_a_cpu_machine_gets_the_cpu_wheels():
-    manifest = {"variants": {"cpu": {}, "cu121": {}}}
+    manifest = {"variants": {"cpu": {}, "cu126": {}}}
     assert runtime_pack.select_variant(manifest, prefer_cuda=False) == "cpu"
 
 
@@ -148,7 +148,7 @@ def test_a_gpu_machine_on_macos_still_gets_the_cpu_wheels():
 
 def test_the_environment_can_pin_the_flavour(monkeypatch):
     monkeypatch.setenv("AMICO_RUNTIME_FLAVOUR", "cpu")
-    manifest = {"variants": {"cpu": {}, "cu121": {}}}
+    manifest = {"variants": {"cpu": {}, "cu126": {}}}
     assert runtime_pack.select_variant(manifest, prefer_cuda=True) == "cpu"
 
 
@@ -156,8 +156,8 @@ def test_the_probe_decides_when_nothing_is_pinned(monkeypatch):
     import gpu_probe
 
     monkeypatch.setattr(gpu_probe, "has_nvidia_gpu", lambda refresh=False: True)
-    manifest = {"variants": {"cpu": {}, "cu121": {}}}
-    assert runtime_pack.select_variant(manifest) == "cu121"
+    manifest = {"variants": {"cpu": {}, "cu126": {}}}
+    assert runtime_pack.select_variant(manifest) == "cu126"
 
 
 # --- naming the install ------------------------------------------------------
