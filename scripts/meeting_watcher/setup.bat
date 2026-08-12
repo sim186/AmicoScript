@@ -35,8 +35,12 @@ if not exist "%SRC%watcher.py" (
   set "SRC=%LOCALAPPDATA%\AmicoScript\watcher\"
   echo Fetching watcher files from %AMICO_URL% ...
   if not exist "!SRC!" mkdir "!SRC!"
-  for %%F in (watcher.py requirements.txt install-windows.ps1 uninstall-windows.ps1 diag.py logo.ico) do (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%AMICO_URL%/scripts/meeting_watcher/%%F' -OutFile '!SRC!%%F' } catch { exit 1 }"
+  if not exist "!SRC!watcher_platform" mkdir "!SRC!watcher_platform"
+  REM watcher.py imports watcher_platform\ for detection and capture, so the
+  REM package files are as mandatory as watcher.py itself — a copy without them
+  REM starts and then fails on its first import.
+  for %%F in (watcher.py requirements.txt install-windows.ps1 uninstall-windows.ps1 diag.py logo.ico watcher_platform/__init__.py watcher_platform/windows.py) do (
+    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%AMICO_URL%/scripts/meeting_watcher/%%F' -OutFile ('!SRC!' + ('%%F' -replace '/','\')) } catch { exit 1 }"
     if errorlevel 1 (
       echo ERROR: could not download %%F from %AMICO_URL%.
       echo Make sure AmicoScript is running, then re-run this file.

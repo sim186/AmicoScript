@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException
 
 import state
+from llm_providers import in_container as _in_container
 
 # Reached through the module, not imported by name: several route handlers here
 # are named after the operation they expose (save_settings, get_settings) and
@@ -157,6 +158,7 @@ async def set_watcher_status(
     recording: str = Form("false"),
     app: str = Form(""),
     version: str = Form(""),
+    unsupported: str = Form(""),
     token: str = Form(""),
 ) -> dict:
     """Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).
@@ -164,6 +166,11 @@ async def set_watcher_status(
     The watcher posts ``recording=true`` when a capture starts and again
     periodically while it runs, then ``recording=false`` on stop. Stored only in
     memory — see WATCHER_STATUS_TTL for the staleness rule.
+
+    ``unsupported`` carries the reason a running watcher cannot actually
+    capture — an old macOS, a missing audio stack, a permission the OS will not
+    prompt for. It heartbeats like the rest so the sidebar can say "running, but
+    it will not record" instead of the reassuring plain "running".
     """
     _require_session_token(token)
     is_recording = _to_bool(recording)
@@ -174,16 +181,51 @@ async def set_watcher_status(
         "recording": is_recording,
         "app": (app or "").strip(),
         "version": (version or "").strip(),
+        "unsupported": (unsupported or "").strip(),
         "ts": time.time(),
         "started_at": started_at,
     }
     return {"ok": True}
 
 
+# Which installer this host's users need, and how they are meant to run it.
+# Keyed by the *browser's* platform, because in the Docker case the machine that
+# needs the helper is the one holding the browser, not the one running the app.
+WATCHER_INSTALLERS = {
+    "windows": {
+        "file": "setup.bat",
+        "hint": "Double-click setup.bat.",
+    },
+    "macos": {
+        "file": "setup.command",
+        # A browser download is neither executable nor un-quarantined, so
+        # "double-click it" is advice that does not work on macOS.
+        "hint": "Open Terminal and run:  bash ~/Downloads/setup.command",
+    },
+    "linux": {
+        "file": "setup.sh",
+        "hint": "Open a terminal and run:  bash ~/Downloads/setup.sh",
+    },
+}
+
+_PLATFORM_KEYS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}
+
+
+def _host_platform() -> str:
+    return _PLATFORM_KEYS.get(platform.system(), "")
+
+
 @router.get("/api/watcher/status")
 def get_watcher_status() -> dict:
     """Current watcher state for the web UI: whether it's installed/running
-    (``alive``) and whether it's recording right now (``recording``)."""
+    (``alive``), whether it's recording right now (``recording``), and what this
+    host can do about it.
+
+    The capability fields exist so the frontend stops guessing from the user
+    agent. Whether the *backend* can install a helper is a fact about the
+    machine this process runs on, which the browser cannot see — a Mac browser
+    pointed at a Linux container would guess wrong in both directions.
+    """
     st = getattr(state, "watcher_status", None) or {}
     ts = st.get("ts", 0)
     age = time.time() - ts
@@ -191,6 +233,7 @@ def get_watcher_status() -> dict:
     fresh = bool(st.get("recording")) and age < WATCHER_STATUS_TTL
     installed_version = st.get("version", "") if alive else ""
     current_version = _bundled_watcher_version()
+    host = _host_platform()
     return {
         "alive": alive,
         "recording": fresh,
@@ -199,34 +242,81 @@ def get_watcher_status() -> dict:
         "installed_version": installed_version,
         "current_version": current_version,
         "update_available": bool(installed_version and current_version and installed_version != current_version),
+        "unsupported": st.get("unsupported", "") if alive else "",
+        "host_platform": host,
+        "host_can_install": bool(host) and not _in_container(),
+        "installers": {
+            key: {
+                "url": f"/scripts/meeting_watcher/{spec['file']}",
+                "name": spec["file"],
+                "hint": spec["hint"],
+            }
+            for key, spec in WATCHER_INSTALLERS.items()
+        },
     }
 
 
+def _watcher_install_dir() -> Path | None:
+    """Per-user, writable, and conventional for the platform."""
+    system = platform.system()
+    if system == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA", "")) / "AmicoScript" / "watcher"
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "AmicoScript" / "watcher"
+    if system == "Linux":
+        data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+        return Path(data_home) / "amicoscript" / "watcher"
+    return None
+
+
+def _watcher_install_command(dest: Path) -> list[str] | None:
+    system = platform.system()
+    if system == "Windows":
+        return ["powershell", "-ExecutionPolicy", "Bypass", "-NoProfile",
+                "-File", str(dest / "install-windows.ps1")]
+    if system == "Darwin":
+        return ["/bin/bash", str(dest / "install-macos.sh")]
+    if system == "Linux":
+        return ["/bin/bash", str(dest / "install-linux.sh")]
+    return None
+
+
+# Creating a virtualenv and pip-installing numpy into it from cold takes well
+# over the minute a bare PowerShell re-registration needs.
+_INSTALL_TIMEOUT = 300
+
+
 def _install_watcher_sync() -> dict:
-    """Copy the bundled watcher into %LOCALAPPDATA%\\AmicoScript\\watcher and
-    (re)register it, mirroring what setup.bat does by hand. Windows-only — the
-    app may itself run elsewhere (e.g. in Docker) while the browser/host it
-    needs to install onto is this machine, so callers must treat a platform
-    mismatch as "use the manual setup.bat download instead", not an error."""
-    if platform.system() != "Windows":
-        return {"ok": False, "error": "not_windows"}
+    """Copy the bundled watcher into a per-user directory and (re)register it,
+    mirroring what the platform's setup script does by hand.
+
+    Only works when the backend runs on the machine that needs the helper: the
+    app may itself be elsewhere (e.g. in Docker) while the browser's host is
+    the target, so callers must treat a platform mismatch as "offer the manual
+    installer download instead", not as an error."""
+    dest = _watcher_install_dir()
+    command = _watcher_install_command(dest) if dest else None
+    if dest is None or command is None:
+        return {"ok": False, "error": "unsupported_host", "platform": platform.system()}
+    if _in_container():
+        # A container can copy the files and run the script, and none of it
+        # reaches the audio devices the user actually has.
+        return {"ok": False, "error": "unsupported_host", "platform": "container"}
     if not _WATCHER_SRC_DIR.exists():
         return {"ok": False, "error": "bundled watcher files not found"}
 
-    dest = Path(os.environ.get("LOCALAPPDATA", "")) / "AmicoScript" / "watcher"
     try:
         shutil.copytree(
             _WATCHER_SRC_DIR, dest, dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns("meetings", "__pycache__", "*.pyc"),
+            ignore=shutil.ignore_patterns("meetings", "__pycache__", "*.pyc", ".venv"),
         )
     except Exception as exc:
         return {"ok": False, "error": f"copy failed: {exc}"}
 
-    installer = dest / "install-windows.ps1"
     try:
         proc = subprocess.run(
-            ["powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File", str(installer)],
-            cwd=str(dest), capture_output=True, text=True, timeout=60,
+            command, cwd=str(dest), capture_output=True, text=True,
+            timeout=_INSTALL_TIMEOUT,
         )
     except Exception as exc:
         return {"ok": False, "error": f"install failed: {exc}"}
@@ -238,8 +328,8 @@ def _install_watcher_sync() -> dict:
 @router.post("/api/watcher/install")
 async def install_watcher(token: str = Form("")) -> dict:
     """Install/update the external watcher on this host, triggered from the
-    UI instead of the user manually running setup.bat. Only works when the
-    backend itself runs on the target Windows host (not e.g. in Docker) —
+    UI instead of the user running the setup script by hand. Only works when
+    the backend itself runs on the target machine (not e.g. in Docker) —
     see _install_watcher_sync."""
     _require_session_token(token)
     return await asyncio.to_thread(_install_watcher_sync)

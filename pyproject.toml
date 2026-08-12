@@ -72,13 +72,16 @@ diarization = [
     "torchaudio>=2.8.0",
 ]
 
-# The embedded meeting watcher: Windows-only, WASAPI loopback capture plus a
-# tray icon. Mirrors scripts/meeting_watcher/requirements.txt.
+# The embedded meeting watcher. Mirrors scripts/meeting_watcher/requirements.txt.
+# Only Windows needs third-party audio packages: the macOS backend reaches Core
+# Audio through ctypes and the Linux one shells out to pactl/parec, so both are
+# covered by numpy alone. The tray icon is Windows-only too — see
+# watcher_platform.tray_supported().
 watcher = [
+    "numpy>=1.24.0",
     'pyaudiowpatch>=0.2.12; sys_platform == "win32"',
     'pycaw>=20240210; sys_platform == "win32"',
     'comtypes>=1.2.0; sys_platform == "win32"',
-    'numpy>=1.24.0; sys_platform == "win32"',
     'winotify>=1.1.0; sys_platform == "win32"',
     'pystray>=0.19.4; sys_platform == "win32"',
     'pillow>=10.0.0; sys_platform == "win32"',
@@ -108,7 +111,7 @@ packages = ["amicoscript"]
 [tool.hatch.build.targets.wheel.force-include]
 "backend" = "amicoscript/backend"
 "frontend" = "amicoscript/frontend"
-# Only the watcher: the frontend links /scripts/meeting_watcher/setup.bat for
+# Only the watcher: the frontend links /scripts/meeting_watcher/setup.* for
 # download, and meeting_watcher_host.start() runs it. The rest of scripts/ is
 # build tooling that has no business being served over HTTP.
 "scripts/meeting_watcher" = "amicoscript/scripts/meeting_watcher"

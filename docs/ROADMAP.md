@@ -15,8 +15,17 @@ The live roadmap is tracked on the **[GitHub Project board](https://github.com/u
 **Tier 2 — Polish & ecosystem**
 - Tauri desktop shell — phase 2 of [docs/desktop-shell.md](desktop-shell.md);
   the pywebview window is phase 1 and is already shipped
+- Meeting watcher, remaining gaps — a macOS menu-bar item (pystray's Darwin
+  backend needs the main thread, so the watcher currently runs without one);
+  Developer ID signing, so the macOS audio permission survives an app update
+  instead of being re-requested on every new build; detection on bare-ALSA
+  Linux hosts with neither PulseAudio nor PipeWire
 
 ### Shipped
+
+- Cross-platform meeting auto-capture — call detection and recording on macOS
+  (Core Audio process taps, 14.2+) and Linux (PulseAudio/PipeWire), alongside
+  the existing Windows WASAPI support, behind one shared watcher loop
 
 - Unified global search & command palette — `Ctrl`/`⌘` + `K` searches
   transcripts, LLM summaries, names, tags and folders in one box, and runs any

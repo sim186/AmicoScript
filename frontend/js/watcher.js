@@ -22,12 +22,26 @@ let _watcherRecordingSince = 0;
 
 let _watcherTimerHandle = null;
 
-function _isWindowsHost() {
+// Which OS the *browser* is on. Only ever used to pick which installer to
+// offer for download — the machine that needs the helper is the one holding
+// the browser. Whether the backend can install it itself is a different
+// question, and only the server can answer that (see d.host_can_install):
+// with the app in Docker the two are different machines.
+function _browserPlatform() {
+  let p = '';
   try {
-    const p = (navigator.userAgentData && navigator.userAgentData.platform)
+    p = (navigator.userAgentData && navigator.userAgentData.platform)
       || navigator.platform || navigator.userAgent || '';
-    return /win/i.test(p);
-  } catch (_) { return true; }
+  } catch (_) { return ''; }
+  if (/win/i.test(p)) return 'windows';
+  if (/mac|iphone|ipad/i.test(p)) return 'macos';
+  if (/linux|x11|cros/i.test(p)) return 'linux';
+  return '';
+}
+
+function _installerFor(d) {
+  const installers = d.installers || {};
+  return installers[_browserPlatform()] || null;
 }
 
 function _formatElapsed(seconds) {
@@ -95,22 +109,43 @@ function _setWatcherUI(d) {
   }
 
   // Sidebar helper-status line + download link.
-  const canInstall = _isWindowsHost();
+  const installer = _installerFor(d);
+  const canInstall = !!(d.host_can_install || installer);
   const line = document.getElementById('watcher-state-line');
   if (line) {
-    if (d.alive) {
+    if (d.alive && d.unsupported) {
+      // Running, heartbeating, and unable to record a thing. Saying only
+      // "Helper running" here would be the most misleading state in the UI.
+      line.textContent = `● Helper running — ${d.unsupported}`;
+      line.className = 'text-[10px] leading-tight text-amber-600';
+    } else if (d.alive) {
       line.textContent = d.recording ? '● Helper running — recording' : '● Helper running';
       line.className = 'text-[10px] leading-tight text-emerald-600';
     } else if (canInstall) {
       line.textContent = '● Helper not running';
       line.className = 'text-[10px] leading-tight text-amber-600';
     } else {
-      line.textContent = '● Helper not running — meeting capture is Windows-only for now';
+      line.textContent = '● Helper not running — no setup available for this system';
       line.className = 'text-[10px] leading-tight text-slate-400';
     }
   }
   const link = document.getElementById('watcher-setup-link');
-  if (link) link.classList.toggle('hidden', !!d.alive || !canInstall);
+  if (link) {
+    if (installer) {
+      link.href = installer.url;
+      link.setAttribute('download', installer.name);
+      link.textContent = `Set it up (${installer.name})`;
+      link.title = installer.hint || '';
+    }
+    link.classList.toggle('hidden', !!d.alive || !installer);
+  }
+  const onboardLink = document.getElementById('watcher-onboard-setup');
+  if (onboardLink && installer) {
+    onboardLink.href = installer.url;
+    onboardLink.setAttribute('download', installer.name);
+  }
+  const hint = document.getElementById('watcher-onboard-hint');
+  if (hint && installer) hint.textContent = installer.hint || '';
 
   // First-run onboarding banner: ask once; auto-hide as soon as the helper
   // is alive; stay hidden if the user dismissed it or can't run the setup.
@@ -165,7 +200,7 @@ function initWatcherOnboarding() {
     if (banner) banner.classList.add('hidden');
     if (steps) steps.classList.add('hidden');
   });
-  // The link downloads setup.bat natively; just reveal the next-step hint.
+  // The link downloads the setup script natively; just reveal the next step.
   if (setup) setup.addEventListener('click', () => { if (steps) steps.classList.remove('hidden'); });
 }
 
@@ -198,9 +233,12 @@ function initWatcherUpdateBanner() {
         setTimeout(refreshRecordingChip, 2000);
       } else {
         if (text) {
-          text.textContent = data.error === 'not_windows'
-            ? "Can't auto-update from here — download and run setup.bat on this PC instead."
-            : `Auto-update failed (${data.error || 'unknown error'}) — try setup.bat instead.`;
+          // The backend may be on a different machine entirely (Docker), in
+          // which case there is nothing for it to update — the user's own
+          // computer is the one holding the helper.
+          text.textContent = data.error === 'unsupported_host'
+            ? "Can't auto-update from here — download and run the setup script on this computer instead."
+            : `Auto-update failed (${data.error || 'unknown error'}) — try the setup script instead.`;
         }
         const onboardBanner = document.getElementById('watcher-onboard-banner');
         if (onboardBanner) onboardBanner.classList.remove('hidden');
