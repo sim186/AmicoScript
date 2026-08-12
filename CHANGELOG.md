@@ -5,7 +5,46 @@ This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
 ## [Unreleased]
+### 📞 Meeting auto-capture on macOS and Linux
 
+The meeting watcher — notice a call, record it, drop the transcript in your
+library — was Windows-only. It now runs on all three desktops.
+
+Detection and capture moved behind a platform seam (`watcher_platform/`), so
+the debounce loop, the app allowlists, the mic heuristic, the resampling mixer
+and the upload are one shared implementation and only the audio layer differs:
+
+- **macOS 14.2+** — call detection reads Core Audio's process list, and system
+  audio is captured with a Core Audio *process tap* in a private aggregate
+  device. No virtual audio device to install, and no new Python dependency: the
+  backend talks to Core Audio through `ctypes`. Autostart is a launchd
+  LaunchAgent (`setup.command`).
+- **Linux** — detection parses `pactl -f json list sink-inputs source-outputs`,
+  which both PulseAudio and `pipewire-pulse` serve, and capture is a `parec`
+  subprocess on the default sink's monitor. Autostart is a systemd `--user`
+  unit (`setup.sh`), falling back to XDG autostart.
+
+**macOS records silence without permission, and says so.** When system-audio
+consent is missing, macOS does not fail the call — it creates the tap, clocks
+it, and delivers nothing but zeros while every API reports success. The watcher
+treats an all-silent tap as an error: it logs it, notifies once, and reports it
+in its heartbeat, so the sidebar reads *"Helper running — no system audio was
+captured…"* rather than a reassuring green *"Helper running"*. The packaged
+`.app` now carries the `NSMicrophoneUsageDescription` and
+`NSAudioCaptureUsageDescription` keys that let macOS prompt for it at all.
+
+Also in this change:
+
+- The frontend no longer guesses the host OS from the user agent. `GET
+  /api/watcher/status` reports `host_platform`, `host_can_install` and the
+  per-OS installer to offer — the browser cannot see which machine the backend
+  runs on, and with the app in Docker they are different machines.
+- `auto` mode for the embedded watcher now means "any desktop OS, unless we are
+  in a container", instead of "Windows".
+- The embedded watcher honours `AMICOSCRIPT_URL`; it previously hardcoded port
+  8002 and would heartbeat at whatever else was listening there.
+- Fixed a latent bug in the app-name prettifier: `"slack".lstrip("ms-")` strips
+  any leading `m`/`s`/`-`, so Slack was displayed as "Lack".
 
 
 ## [1.17.1] - 2026-08-11

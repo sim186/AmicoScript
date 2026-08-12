@@ -3,6 +3,8 @@
 This used to be a hundred lines inside main.py's startup path, where the only
 way to exercise the decision was to boot the whole app on Windows.
 """
+import types
+
 import pytest
 
 import meeting_watcher_host as host
@@ -19,12 +21,51 @@ def test_an_explicit_on_runs_in_process_whatever_the_host(mode):
     assert host.wants_embedded(mode) is True
 
 
-def test_auto_follows_the_platform(monkeypatch):
-    monkeypatch.setattr(host.platform, "system", lambda: "Windows")
+@pytest.mark.parametrize("system", ["Windows", "Darwin", "Linux"])
+def test_auto_runs_in_process_on_a_desktop(monkeypatch, system):
+    monkeypatch.setattr(host.platform, "system", lambda: system)
+    monkeypatch.setattr(host, "_in_container", lambda: False)
     assert host.wants_embedded("auto") is True
-    # No WASAPI inside the Linux image, so the external watcher is the fallback.
+
+
+def test_auto_never_runs_in_process_inside_a_container(monkeypatch):
+    """The Docker image is Linux, and a Linux desktop is not — the container has
+    no audio access at all, so the host's own watcher is the only option."""
     monkeypatch.setattr(host.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(host, "_in_container", lambda: True)
     assert host.wants_embedded("auto") is False
+
+
+def test_auto_declines_a_platform_with_no_backend(monkeypatch):
+    monkeypatch.setattr(host.platform, "system", lambda: "Haiku")
+    monkeypatch.setattr(host, "_in_container", lambda: False)
+    assert host.wants_embedded("auto") is False
+
+
+@pytest.mark.parametrize("system, expected", [
+    ("Windows", "schtasks"),
+    ("Darwin", "launchctl"),
+    ("Linux", "systemctl"),
+])
+def test_the_external_watcher_is_started_the_platform_s_own_way(monkeypatch, system, expected):
+    monkeypatch.setattr(host.platform, "system", lambda: system)
+    seen = {}
+
+    def _fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(host.subprocess, "run", _fake_run)
+    host._start_external_task()
+    assert seen["argv"][0] == expected
+
+
+def test_starting_the_external_watcher_is_a_no_op_where_there_is_none(monkeypatch):
+    monkeypatch.setattr(host.platform, "system", lambda: "Haiku")
+    called = []
+    monkeypatch.setattr(host.subprocess, "run", lambda *a, **k: called.append(a))
+    host._start_external_task()
+    assert called == []
 
 
 def test_the_mode_is_read_from_the_environment(monkeypatch):
@@ -35,9 +76,9 @@ def test_the_mode_is_read_from_the_environment(monkeypatch):
 
 
 def test_auto_on_a_host_without_audio_starts_nothing(monkeypatch, tmp_path):
-    """"auto" means "if this host can"; it must not go poking at schtasks."""
+    """"auto" means "if this host can"; it must not go poking at login tasks."""
     monkeypatch.setenv("AMICOSCRIPT_EMBEDDED_WATCHER", "auto")
-    monkeypatch.setattr(host.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(host.platform, "system", lambda: "Haiku")
     started = []
     monkeypatch.setattr(host, "_start_external_task", lambda: started.append(True))
 

@@ -1,11 +1,11 @@
 """Starting and stopping the meeting watcher that captures calls.
 
 There are two of them, and which one runs is a property of the host rather than
-a setting. The embedded watcher runs in this process and needs WASAPI/mic
-access, which only exists when AmicoScript runs directly on Windows — the
-PyInstaller build. Inside the Linux Docker image there is no such access, so
-the app falls back to the external watcher registered as a scheduled task by
-setup.bat.
+a setting. The embedded watcher runs in this process and needs the host's audio
+APIs, which exist whenever AmicoScript runs directly on a desktop — the
+PyInstaller build, or `python run.py`. Inside a container there is no audio
+access at all, so the app falls back to the external watcher that the platform's
+setup script registered as a login task on the host.
 
 ``AMICOSCRIPT_EMBEDDED_WATCHER=on|off|auto`` (default auto) overrides the
 choice. Lives here rather than in main.py because none of it is app wiring:
@@ -22,11 +22,16 @@ import threading
 from pathlib import Path
 
 import config
+from llm_providers import in_container as _in_container
 from utils.logging_utils import get_logger
 
 logger = get_logger("amicoscript.watcher")
 
-LOCAL_URL = "http://127.0.0.1:8002"
+# Where the embedded watcher posts its heartbeat and uploads. Overridable
+# because the watcher already treats AMICOSCRIPT_URL as the address of the app:
+# pinning it here meant an app served on any other port got a watcher talking
+# to whatever else happened to be on 8002.
+LOCAL_URL = os.environ.get("AMICOSCRIPT_URL", "").rstrip("/") or "http://127.0.0.1:8002"
 
 # Set by start() so stop() can signal a clean shutdown and let an in-progress
 # capture finalize, rather than losing it with the daemon thread. Both stay
@@ -43,14 +48,39 @@ def output_dir() -> Path:
         return Path.home() / "AmicoScript" / "meetings"
 
 
+MAC_AGENT_LABEL = "org.amico.AmicoScript.watcher"
+LINUX_UNIT = "amicoscript-watcher.service"
+
+
+def _external_task_command() -> tuple[str, list[str]] | None:
+    """(name, argv) that starts this host's installed watcher, or None.
+
+    Each platform's setup script registers the watcher with its own login-task
+    system, so "start it" is a different command on each — but the shape is the
+    same: a short, non-interactive command that succeeds if the task exists.
+    """
+    system = platform.system()
+    if system == "Windows":
+        name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
+        return name, ["schtasks", "/Run", "/TN", name]
+    if system == "Darwin":
+        label = os.environ.get("AMICOSCRIPT_WATCHER_LABEL", MAC_AGENT_LABEL)
+        return label, ["launchctl", "kickstart", f"gui/{os.getuid()}/{label}"]
+    if system == "Linux":
+        unit = os.environ.get("AMICOSCRIPT_WATCHER_UNIT", LINUX_UNIT)
+        return unit, ["systemctl", "--user", "start", unit]
+    return None
+
+
 def _start_external_task() -> None:
-    """Start the installed per-user watcher task, if setup.bat registered it."""
-    if platform.system() != "Windows":
+    """Start the installed per-user watcher task, if a setup script registered it."""
+    command = _external_task_command()
+    if command is None:
         return
-    task_name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
+    task_name, argv = command
     try:
         proc = subprocess.run(
-            ["schtasks", "/Run", "/TN", task_name],
+            argv,
             capture_output=True,
             text=True,
             timeout=5,
@@ -73,12 +103,21 @@ def _embedded_mode() -> str:
 
 
 def wants_embedded(mode: str | None = None) -> bool:
-    """Whether the in-process watcher should be attempted on this host."""
+    """Whether the in-process watcher should be attempted on this host.
+
+    "auto" means "if this host can": every desktop OS has a backend now, so the
+    question is no longer which OS but whether this process can reach the
+    machine's audio at all. It cannot from inside a container — the Docker image
+    is Linux, and a Linux desktop is not — which is the one distinction that
+    matters here.
+    """
     mode = _embedded_mode() if mode is None else mode
     if mode in {"0", "off", "false", "no"}:
         return False
     if mode == "auto":
-        return platform.system() == "Windows"
+        if platform.system() not in {"Windows", "Darwin", "Linux"}:
+            return False
+        return not _in_container()
     return True
 
 

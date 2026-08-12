@@ -13,6 +13,44 @@ def _add_data_arg(src: str, dest: str) -> str:
     """
     return f"--add-data={src}{os.pathsep}{dest}"
 
+MACOS_USAGE_DESCRIPTIONS = {
+    # Shown in the macOS permission dialogs. Both are required for meeting
+    # auto-capture: the microphone for the user's own voice, the audio-capture
+    # one for the remote participants (a Core Audio process tap).
+    'NSMicrophoneUsageDescription':
+        'AmicoScript records your microphone during a call so your side of the '
+        'meeting appears in the transcript. Recording only happens while you '
+        'have Meeting auto-capture switched on.',
+    'NSAudioCaptureUsageDescription':
+        "AmicoScript records this computer's audio during a call so the other "
+        'participants appear in the transcript. Everything is transcribed '
+        'locally and nothing is uploaded.',
+}
+
+
+def _patch_macos_info_plist(app_path: str) -> None:
+    """Add the audio usage descriptions to the built .app's Info.plist.
+
+    Loud on failure rather than silent: without these keys the app builds,
+    runs, and records nothing but silence, which is the exact failure this is
+    here to prevent.
+    """
+    import plistlib
+
+    plist_path = os.path.join(app_path, 'Contents', 'Info.plist')
+    try:
+        with open(plist_path, 'rb') as fh:
+            plist = plistlib.load(fh)
+        plist.update(MACOS_USAGE_DESCRIPTIONS)
+        with open(plist_path, 'wb') as fh:
+            plistlib.dump(plist, fh)
+        print('Added microphone/audio-capture usage descriptions to Info.plist.')
+    except Exception as exc:
+        print(f'WARNING: could not patch {plist_path} ({exc}). Meeting '
+              'auto-capture will record silence on macOS until the '
+              'NSAudioCaptureUsageDescription key is present.')
+
+
 def build():
     """Build the one bundle. There is no CPU/GPU split any more.
 
@@ -142,12 +180,19 @@ def build():
             print('WARNING: pywebview not installed — the build will open the UI '
                   'in a system browser instead of a native window. Run '
                   '"pip install -r requirements-pyinstaller.txt" first.')
-        # Embedded meeting watcher (Windows native build only): bundle the
-        # watcher module + its Windows-only audio deps if they're installed in
-        # the build env. Minimal/Docker builds skip this and stay lean.
-        if is_windows and _importlib_util.find_spec('pyaudiowpatch') is not None:
+        # Embedded meeting watcher. watcher.py picks its platform backend with a
+        # dynamic importlib call, which PyInstaller's static analysis cannot
+        # see, so the package has to be collected explicitly. The backends' own
+        # dependencies are per-OS and optional: a build without them still ships
+        # a watcher that heartbeats and reports why it cannot capture.
+        watcher_deps_ok = True
+        if is_windows:
+            watcher_deps_ok = _importlib_util.find_spec('pyaudiowpatch') is not None
+        if watcher_deps_ok:
             args.append('--paths=scripts/meeting_watcher')
             args.append('--hidden-import=watcher')
+            args.append('--collect-submodules=watcher_platform')
+        if is_windows and watcher_deps_ok:
             args.append('--hidden-import=pyaudiowpatch')
             if _importlib_util.find_spec('pycaw') is not None:
                 args.append('--collect-submodules=pycaw')
@@ -159,7 +204,8 @@ def build():
             if _importlib_util.find_spec('winotify') is not None:
                 args.append('--collect-all=winotify')
             # Tray icon: the embedded watcher's only always-visible recording
-            # indicator once the browser tab is closed.
+            # indicator once the browser tab is closed. Windows-only — see
+            # watcher_platform.tray_supported().
             if _importlib_util.find_spec('pystray') is not None:
                 args.append('--collect-submodules=pystray')
             if _importlib_util.find_spec('PIL') is not None:
@@ -277,6 +323,13 @@ VSVersionInfo(
     if is_macos:
         app_path = os.path.join(dist, 'AmicoScript.app')
         print(f"Output available in: {app_path}")
+
+        # Meeting capture needs two TCC usage descriptions in the bundle, and
+        # without them macOS never even prompts — it hands the app a working,
+        # permanently silent audio tap instead. PyInstaller only accepts
+        # info_plist from a .spec and this builds from CLI args, so patch the
+        # generated plist here.
+        _patch_macos_info_plist(app_path)
 
         # Ensure executables inside the .app are executable (fixes Finder 'prohibitory' icon)
         contents_mac_os = os.path.join(app_path, 'Contents', 'MacOS')

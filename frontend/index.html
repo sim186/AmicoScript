@@ -1615,8 +1615,10 @@
       </div>
 
       <!-- Meeting auto-capture onboarding: shown once, until the host watcher
-           is running. The app runs in Docker and can't install the helper on
-           the host itself, so it offers a one-click setup.bat instead. -->
+           is running. The app can't always install the helper on the host
+           itself (in Docker it isn't even the same machine), so it offers the
+           setup script for download instead. The href and the instructions are
+           filled in per-OS by watcher.js from GET /api/watcher/status. -->
       <div id="watcher-onboard-banner"
         class="hidden bg-brand-muted/30 border-b border-brand/20 text-slate-700 px-4 py-3 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
@@ -1625,7 +1627,7 @@
           </svg>
           <div class="text-sm min-w-0">
             <span class="font-semibold">Auto-record &amp; transcribe your meetings?</span>
-            <span class="text-slate-500">One-time setup installs a small background helper on this PC.</span>
+            <span class="text-slate-500">One-time setup installs a small background helper on this computer.</span>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -1636,19 +1638,20 @@
         </div>
       </div>
 
-      <!-- Setup steps, revealed after clicking "Set it up". -->
+      <!-- Setup steps, revealed after clicking "Set it up". The hint is filled
+           in per-OS by watcher.js: only Windows can be double-clicked, since a
+           downloaded shell script is neither executable nor un-quarantined. -->
       <div id="watcher-onboard-steps"
         class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 text-sm">
-        Downloaded <code>setup.bat</code> — <strong>double-click it</strong> (in Downloads, or run
-        <code>scripts\meeting_watcher\setup.bat</code> from the project). It installs the helper and
-        starts it; this bar disappears automatically once it's running.
+        Setup script downloaded. <span id="watcher-onboard-hint" class="font-semibold">Run it to finish.</span>
+        It installs the helper and starts it; this bar disappears automatically once it's running.
       </div>
 
       <!-- Meeting-watcher update banner: shown when the installed helper's
            heartbeat version is older than the one bundled with this running
            app. "Update now" asks the backend to reinstall in place; if that
-           fails (e.g. backend runs in Docker, not on this Windows host) we
-           fall back to the manual setup.bat download. -->
+           fails (e.g. backend runs in Docker, not on the user's own machine)
+           we fall back to the manual setup-script download. -->
       <div id="watcher-update-banner"
         class="hidden bg-amber-50 border-b border-amber-100 text-amber-800 px-4 py-3 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">

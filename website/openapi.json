@@ -371,6 +371,11 @@
             "title": "Token",
             "type": "string"
           },
+          "unsupported": {
+            "default": "",
+            "title": "Unsupported",
+            "type": "string"
+          },
           "version": {
             "default": "",
             "title": "Version",
@@ -3596,7 +3601,7 @@
     },
     "/api/watcher/install": {
       "post": {
-        "description": "Install/update the external watcher on this host, triggered from the\nUI instead of the user manually running setup.bat. Only works when the\nbackend itself runs on the target Windows host (not e.g. in Docker) —\nsee _install_watcher_sync.",
+        "description": "Install/update the external watcher on this host, triggered from the\nUI instead of the user running the setup script by hand. Only works when\nthe backend itself runs on the target machine (not e.g. in Docker) —\nsee _install_watcher_sync.",
         "operationId": "install_watcher_api_watcher_install_post",
         "requestBody": {
           "content": {
@@ -3639,7 +3644,7 @@
     },
     "/api/watcher/status": {
       "get": {
-        "description": "Current watcher state for the web UI: whether it's installed/running\n(``alive``) and whether it's recording right now (``recording``).",
+        "description": "Current watcher state for the web UI: whether it's installed/running\n(``alive``), whether it's recording right now (``recording``), and what this\nhost can do about it.\n\nThe capability fields exist so the frontend stops guessing from the user\nagent. Whether the *backend* can install a helper is a fact about the\nmachine this process runs on, which the browser cannot see — a Mac browser\npointed at a Linux container would guess wrong in both directions.",
         "operationId": "get_watcher_status_api_watcher_status_get",
         "responses": {
           "200": {
@@ -3661,7 +3666,7 @@
         ]
       },
       "post": {
-        "description": "Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).\n\nThe watcher posts ``recording=true`` when a capture starts and again\nperiodically while it runs, then ``recording=false`` on stop. Stored only in\nmemory — see WATCHER_STATUS_TTL for the staleness rule.",
+        "description": "Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).\n\nThe watcher posts ``recording=true`` when a capture starts and again\nperiodically while it runs, then ``recording=false`` on stop. Stored only in\nmemory — see WATCHER_STATUS_TTL for the staleness rule.\n\n``unsupported`` carries the reason a running watcher cannot actually\ncapture — an old macOS, a missing audio stack, a permission the OS will not\nprompt for. It heartbeats like the rest so the sidebar can say \"running, but\nit will not record\" instead of the reassuring plain \"running\".",
         "operationId": "set_watcher_status_api_watcher_status_post",
         "requestBody": {
           "content": {

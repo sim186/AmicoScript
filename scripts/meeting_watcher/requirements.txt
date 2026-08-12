@@ -1,8 +1,18 @@
-pyaudiowpatch>=0.2.12
-pycaw>=20240210
-comtypes>=1.2.0
+# Meeting-watcher dependencies. One file for every OS: pip resolves the markers,
+# so setup.bat / setup.command / setup.sh all just run
+#   pip install -r requirements.txt
+#
+# macOS and Linux need nothing platform-specific here — the macOS backend talks
+# to Core Audio through ctypes, and the Linux one shells out to pactl/parec.
 requests>=2.31.0
 numpy>=1.24.0
-winotify>=1.1.0
-pystray>=0.19.4
-pillow>=10.0.0
+
+# Windows: WASAPI loopback capture, audio-session detection, toasts, tray icon.
+# The tray is Windows-only (see watcher_platform.tray_supported), so pystray and
+# pillow are marked too.
+pyaudiowpatch>=0.2.12 ; sys_platform == "win32"
+pycaw>=20240210 ; sys_platform == "win32"
+comtypes>=1.2.0 ; sys_platform == "win32"
+winotify>=1.1.0 ; sys_platform == "win32"
+pystray>=0.19.4 ; sys_platform == "win32"
+pillow>=10.0.0 ; sys_platform == "win32"

@@ -155,17 +155,16 @@ def _watcher_status() -> dict:
 
 
 def _check_meeting_watcher(output_tail: deque[str]) -> None:
-    """Windows only: verify the embedded meeting watcher survived packaging.
+    """Verify the embedded meeting watcher survived packaging.
 
     This regressed silently once already — the release build didn't install the
     watcher's dependencies, package.py's find_spec check quietly skipped it, and
     the shipped app ran fine with meeting auto-capture simply dead. So assert on
     it here rather than trusting the build.
     """
-    if not sys.platform.startswith("win"):
-        return
-
-    # Hard check: the bundled scripts/ tree. Pure filesystem read, can't flake.
+    # Hard check: the bundled scripts/ tree. Pure filesystem read, can't flake,
+    # and true on every platform — scripts/ is always bundled, so a missing
+    # watcher.py is a packaging bug wherever it shows up.
     status = _watcher_status()
     if not status.get("current_version"):
         raise RuntimeError(
@@ -173,6 +172,11 @@ def _check_meeting_watcher(output_tail: deque[str]) -> None:
             "(/api/watcher/status returned an empty current_version). "
             "Check the --add-data=scripts argument in package.py."
         )
+
+    # The heartbeat check below needs the watcher thread to have actually
+    # started, which only happens on a host with a backend.
+    if not (sys.platform.startswith("win") or sys.platform == "darwin"):
+        return
 
     # Soft check: the watcher thread actually importing and heartbeating. Not
     # fatal because a CI runner's audio stack is not a user's machine, but a

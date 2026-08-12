@@ -30,8 +30,17 @@ REQUIRED = [
     # run_windowed() reads this for the window title.
     f"{PKG}/backend/VERSION",
     f"{PKG}/frontend/index.html",
-    # The frontend links this for download; meeting_watcher_host.start() runs it.
+    # The frontend links these for download; meeting_watcher_host.start() runs
+    # whichever matches the host.
     f"{PKG}/scripts/meeting_watcher/setup.bat",
+    f"{PKG}/scripts/meeting_watcher/setup.command",
+    f"{PKG}/scripts/meeting_watcher/setup.sh",
+    # watcher.py imports its platform backend from here — without the package it
+    # starts and dies on the first import.
+    f"{PKG}/scripts/meeting_watcher/watcher_platform/__init__.py",
+    f"{PKG}/scripts/meeting_watcher/watcher_platform/windows.py",
+    f"{PKG}/scripts/meeting_watcher/watcher_platform/macos.py",
+    f"{PKG}/scripts/meeting_watcher/watcher_platform/linux.py",
 ]
 
 

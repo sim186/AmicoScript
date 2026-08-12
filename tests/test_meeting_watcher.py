@@ -38,23 +38,60 @@ class _ImmediateThread:
         return False
 
 
+class _FakeSession:
+    """A capture session that records nothing — the loop tests never mix audio."""
+
+    def __init__(self, sources):
+        self.sources = sources
+        self.started = False
+        self.stopped = False
+
+    def start(self):
+        self.started = True
+
+    def stop(self):
+        self.stopped = True
+
+
+def _fake_backend_module(monkeypatch, name="fake_watcher_backend"):
+    """Register an importable backend so watcher.py needs no real audio stack.
+
+    The platform backends are the only part of the watcher that cannot run on
+    a CI box; everything the tests below care about — detection decisions, the
+    debounce loop, uploads — lives above that seam.
+    """
+    module = types.ModuleType(name)
+    module.speaking = set()
+    module.listening = set()
+    module.sessions = []
+
+    class _Backend:
+        name = "fake"
+
+        def speaking_procs(self):
+            return set(module.speaking)
+
+        def listening_procs(self):
+            return None if module.listening is None else set(module.listening)
+
+        def open_session(self, mix_mic, out_dir):
+            session = _FakeSession([])
+            module.sessions.append(session)
+            return session
+
+    module.create_backend = _Backend
+    monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setenv("AMICOSCRIPT_WATCHER_BACKEND", name)
+    return module
+
+
 def _load_watcher(monkeypatch, tmp_path):
-    """Load watcher.py with Windows/audio-only imports stubbed out."""
+    """Load watcher.py against a fake platform backend and stubbed numpy/requests."""
     root = Path(__file__).resolve().parents[1]
     watcher_path = root / "scripts" / "meeting_watcher" / "watcher.py"
     monkeypatch.setenv("AMICOSCRIPT_WATCHER_OUT", str(tmp_path))
 
-    pycaw_pkg = types.ModuleType("pycaw")
-    pycaw_pkg.__path__ = []
-    pycaw_mod = types.ModuleType("pycaw.pycaw")
-    pycaw_mod.AudioUtilities = object()
-    monkeypatch.setitem(sys.modules, "pycaw", pycaw_pkg)
-    monkeypatch.setitem(sys.modules, "pycaw.pycaw", pycaw_mod)
-    monkeypatch.setitem(
-        sys.modules,
-        "pyaudiowpatch",
-        types.SimpleNamespace(paWASAPI=0, paInt16=8, PyAudio=lambda: object()),
-    )
+    _fake_backend_module(monkeypatch)
     monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
     monkeypatch.setitem(
         sys.modules,

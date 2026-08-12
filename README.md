@@ -60,7 +60,7 @@ AmicoScript keeps everything local.
 
 - 🎧 Transcribe audio and video (MP3, WAV, M4A, OGG, FLAC, AAC, MP4, MOV, MKV)
 - 🎙️ Record directly from your microphone (with pause support)
-- 📞 Auto-record meetings (Windows, beta) — detects Teams/Zoom/Meet/WhatsApp calls and transcribes them automatically
+- 📞 Auto-record meetings (Windows, macOS, Linux — beta) — detects Teams/Zoom/Meet/WhatsApp calls and transcribes them automatically
 - 🔗 Import directly from video URLs (YouTube, TikTok, Instagram, Facebook, X, Vimeo, Twitch)
 - 📚 Batch process multiple files at once
 - 🧠 Whisper models (tiny → large-v3)
@@ -298,40 +298,53 @@ Your files will now be seamlessly processed on the cloud GPU, but saved and mana
 
 ---
 
-## 📞 Optional: Automatic Meeting Recording (Windows, beta)
+## 📞 Optional: Automatic Meeting Recording (beta)
 
 AmicoScript can notice when you are in a call, record it, and hand the audio to
 the normal transcription queue when the call ends — so a meeting turns into a
 searchable transcript without you touching anything.
 
-Detection is entirely local: it inspects which processes hold active Windows
-audio sessions. No meeting APIs, no calendar access, nothing leaves your machine.
-It recognises dedicated meeting apps (Teams, Zoom, Webex, GoToMeeting, Whereby,
-RingCentral) whenever they play audio, and catches browser meetings such as
-Google Meet plus chat-app calls (WhatsApp, Telegram, Signal, Slack, Discord) by
-spotting any app using your microphone and speakers at the same time.
+Detection is entirely local: it inspects which processes are holding your
+speakers and microphone. No meeting APIs, no calendar access, nothing leaves
+your machine. It recognises dedicated meeting apps (Teams, Zoom, Webex,
+GoToMeeting, Whereby, RingCentral) whenever they play audio, and catches browser
+meetings such as Google Meet plus chat-app calls (WhatsApp, Telegram, Signal,
+Slack, Discord) by spotting any app using your microphone and speakers at the
+same time.
 
 **Turning it on:** open the sidebar → **Meeting auto-capture** → *Auto-record
 meetings*. Nothing is ever recorded until you flip that switch.
 
-- **Windows app:** the helper is built in. Just use the toggle.
+- **Packaged app:** the helper is built in. Just use the toggle.
 - **Docker / running from source:** the app cannot reach your host's audio, so a
-  small background helper is installed separately. A banner offers a one-click
-  `setup.bat`, or run `scripts\meeting_watcher\setup.bat` yourself. No admin
-  rights needed. See [scripts/meeting_watcher/README.md](scripts/meeting_watcher/README.md).
+  small background helper is installed separately. A banner offers the right
+  one-click installer for your system (`setup.bat`, `setup.command` or
+  `setup.sh`). No admin rights needed.
+  See [scripts/meeting_watcher/README.md](scripts/meeting_watcher/README.md).
+
+| | Supported | Needs |
+|---|---|---|
+| Windows | ✅ | nothing extra |
+| macOS | ✅ | **macOS 14.2+**, and one permission you must grant by hand — see below |
+| Linux | ✅ | `pactl`/`parec` (`pulseaudio-utils`); PulseAudio or PipeWire |
 
 While a meeting is being captured you get a red **Recording** chip with a live
-timer in the app, a coloured tray icon (right-click to pause), and desktop
-notifications when recording starts and stops. Recordings shorter than 15
+timer in the app, desktop notifications when recording starts and stops, and on
+Windows a coloured tray icon (right-click to pause). Recordings shorter than 15
 seconds are discarded as false triggers. Meetings are transcribed with the same
 model, language and diarization settings shown in your sidebar.
+
+> **macOS permission.** Recording the computer's audio needs *Screen & System
+> Audio Recording* consent. When it is missing macOS does not refuse — it hands
+> back a **silent** recording while reporting success. AmicoScript detects that
+> and says so in the sidebar rather than filing an empty meeting, but you have
+> to grant it yourself in System Settings. The packaged app prompts for it; a
+> watcher started from a terminal or a login agent does not. Details in the
+> [watcher README](scripts/meeting_watcher/README.md#the-permission-and-why-it-is-unusual).
 
 > ⚠️ **Recording a conversation may require the consent of everyone involved and
 > may be restricted by your employer's policy or local law. Make sure you are
 > allowed to record before enabling this.**
-
-macOS and Linux are not supported yet — the capture and detection layers are
-Windows-specific.
 
 ---
 

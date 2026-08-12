@@ -2,21 +2,27 @@
 
 Local-only (no MS Graph / cloud APIs). Detects an in-progress call from any
 conferencing or chat app -- Teams, Zoom, Webex, Google Meet, WhatsApp,
-Telegram, Signal, Slack, Discord, etc. -- via two signals (pycaw): a dedicated
-meeting app playing audio, or any app on the mic AND speaker at once (catches
-browser meetings and chat-app voice/video calls). Captures the meeting
-audio via WASAPI loopback + your microphone (pyaudiowpatch), then submits the
-WAV to the normal AmicoScript transcription queue.
+Telegram, Signal, Slack, Discord, etc. -- via two signals: a dedicated meeting
+app playing audio, or any app on the mic AND speaker at once (catches browser
+meetings and chat-app voice/video calls). Captures the meeting audio (the
+system output the remote party comes out of, plus your microphone), then
+submits the WAV to the normal AmicoScript transcription queue.
+
+This module holds everything that is the same on every operating system: the
+debounce loop, the detection decision, the HTTP driver, and the mixer that
+resamples the captured streams into one mono 16 kHz WAV. Reading the audio
+state and opening the capture streams is the job of a platform backend in
+``watcher_platform`` (Windows: pycaw + WASAPI loopback; macOS: Core Audio
+process taps; Linux: PulseAudio/PipeWire).
 
 Usage:
     python watcher.py                # uses defaults below / env vars
     AMICOSCRIPT_URL=http://localhost:8002 python watcher.py
 
 Requirements: see requirements.txt
-    pip install pyaudiowpatch pycaw comtypes requests numpy
 
 Notes / caveats:
-  * Loopback records *all* system audio (notifications, music) -- keep other
+  * Capture records *all* system audio (notifications, music) -- keep other
     audio quiet during a call.
   * "In a call" is inferred from sustained audio activity. A long notification
     sound could trigger a false start; tune the debounce constants. Refine
@@ -35,14 +41,29 @@ import wave
 import threading
 import datetime as dt
 import math
-import tempfile
-from dataclasses import dataclass
 from pathlib import Path
+
+# The backends live next to this file. Standalone runs execute watcher.py by
+# path, so its own directory is not necessarily importable — the host app adds
+# it for embedded mode, and PyInstaller resolves the package out of the archive
+# where this insert is a harmless no-op.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import numpy as np
 import requests
-import pyaudiowpatch as pyaudio
-from pycaw.pycaw import AudioUtilities
+
+try:
+    import watcher_platform
+except ImportError as _exc:  # pragma: no cover - a broken install, not a code path
+    # An installed copy updated by an older setup script has the new watcher.py
+    # and none of its backends. Say so in the terms the user can act on rather
+    # than leaving a bare ImportError in the log.
+    raise ImportError(
+        f"{_exc}. The installed meeting watcher is incomplete — re-run its setup "
+        "script, or use 'Update now' in the AmicoScript sidebar."
+    ) from _exc
 
 # --------------------------------------------------------------------------- #
 # Config (override via environment variables)
@@ -81,7 +102,7 @@ HTTP = _Http()
 # watcher apart from the one bundled with the running app (see
 # backend/api/routes/settings.py:_bundled_watcher_version, read via regex —
 # do not rename this constant without updating that pattern).
-WATCHER_VERSION = "3"
+WATCHER_VERSION = "4"
 
 
 def _default_output_dir() -> Path:
@@ -131,29 +152,27 @@ def _env_set(var: str, default: str) -> set[str]:
 
 
 # Meeting-app detection -------------------------------------------------------
+# Process names differ per OS ("ms-teams.exe" / "Microsoft Teams" /
+# "teams-for-linux"), and so does what belongs on the blocklist, so the defaults
+# come from the platform table in watcher_platform. Env vars still override.
+_APP_DEFAULTS = watcher_platform.app_defaults()
 # CALL_APPS (render-only): dedicated meeting clients where the app playing audio
 # is itself a reliable "in a call" signal. Matched as substrings of the process
 # name of any app holding an active *speaker* session.
-CALL_APPS = _env_set(
-    "AMICOSCRIPT_CALL_APPS",
-    "teams,zoom,webex,gotomeeting,bluejeans,whereby,ringcentral",
-)
+CALL_APPS = _env_set("AMICOSCRIPT_CALL_APPS", _APP_DEFAULTS["call"])
 # CHAT_APPS (mic + speaker required): apps that ALSO play non-call audio (voice
 # notes, video clips, notification chimes). Triggering on the speaker alone
 # would false-fire on every voice-note playback, so these are only detected when
 # the app is on the mic AND the speaker at once (the heuristic below). Covers
 # WhatsApp, Telegram, Signal, Messenger, Slack huddles, Discord.
-CHAT_APPS = _env_set(
-    "AMICOSCRIPT_CHAT_APPS",
-    "whatsapp,telegram,signal,messenger,slack,discord",
-)
+CHAT_APPS = _env_set("AMICOSCRIPT_CHAT_APPS", _APP_DEFAULTS["chat"])
 KNOWN_APPS = CALL_APPS | CHAT_APPS  # for labelling only
 # Blocklist: never treat these as a meeting even under the heuristic (e.g. media
 # players). Keep browsers OUT of this list — they host web meetings.
-BLOCK_APPS = _env_set("AMICOSCRIPT_BLOCK_APPS", "spotify,vlc,wmplayer")
+BLOCK_APPS = _env_set("AMICOSCRIPT_BLOCK_APPS", _APP_DEFAULTS["block"])
 # Heuristic: any app capturing the mic AND playing audio at once == a 2-way
 # call, regardless of name. Catches browser meetings (Google Meet) and all the
-# CHAT_APPS above. Requires mic-session enumeration (see _capture_sessions).
+# CHAT_APPS above. Requires the backend to report mic activity.
 USE_MIC_HEURISTIC = os.environ.get("AMICOSCRIPT_MIC_HEURISTIC", "true").lower() in {"1", "true", "yes", "on"}
 
 CHUNK = 1024
@@ -162,19 +181,18 @@ CHUNK = 1024
 # a 2 h meeting drops from ~700 MB to ~230 MB with no loss of usable signal,
 # and the backend's ffmpeg pass gets correspondingly cheaper.
 OUT_RATE = 16000
-AUDIO_SESSION_STATE_ACTIVE = 1  # AudioSessionStateActive
-EDATAFLOW_RENDER = 0            # EDataFlow.eRender (speakers)
-EDATAFLOW_CAPTURE = 1           # EDataFlow.eCapture (microphone)
-EROLE_MULTIMEDIA = 1            # ERole.eMultimedia
-EROLE_COMMUNICATIONS = 2        # ERole.eCommunications
-# Calls often route audio to the *communications* default device,
-# which can differ from the *multimedia* default. Scan both so either is seen.
-DEVICE_ROLES = (EROLE_MULTIMEDIA, EROLE_COMMUNICATIONS)
 _heuristic_warned = False
-# Our own loopback + mic streams register Active sessions under this process on
-# BOTH the render and capture endpoints. Excluding our PID stops the watcher
-# from detecting *itself* as a never-ending call once capture starts.
-_OWN_PID = os.getpid()
+_health_warned = False
+# Last capture's verdict, kept so the heartbeat can keep reporting a broken
+# setup for as long as it stays broken rather than only at the moment it is
+# noticed. Cleared by the next healthy capture.
+_health_problem = ""
+
+# The platform backend, resolved on first use so that importing this module
+# never depends on an audio stack being present (the tests, the packaged app on
+# a host without the optional deps, and `--help`-style runs all rely on that).
+_BACKEND = None
+_BACKEND_ERROR = ""
 
 # Tray state, shared between the watch loop (writer) and the tray UI (reader).
 _EMBEDDED = False                      # True when run inside the native app
@@ -205,35 +223,50 @@ def log(msg: str) -> None:
         pass
 
 
-try:
-    from winotify import Notification
-    _NOTIFY_OK = True
-except Exception:  # winotify optional; fall back to log-only
-    _NOTIFY_OK = False
+watcher_platform.set_logger(log)
+
+
+def backend():
+    """The platform backend, or None when this host has none.
+
+    Resolved once, lazily. A missing backend is survivable: the loop keeps
+    heartbeating so the web UI can report the helper as running-but-unable
+    rather than silently absent.
+    """
+    global _BACKEND, _BACKEND_ERROR
+    if _BACKEND is None and not _BACKEND_ERROR:
+        _BACKEND, _BACKEND_ERROR = watcher_platform.get_backend()
+    return _BACKEND
+
 
 try:
     import pystray
     from PIL import Image, ImageDraw
-    _TRAY_OK = True
+    _TRAY_IMPORTS_OK = True
 except Exception:  # pystray/Pillow optional; fall back to headless
-    _TRAY_OK = False
+    _TRAY_IMPORTS_OK = False
+
+# Windows-only for now: pystray's macOS backend wants NSApplication on the main
+# thread and its Linux one a GTK loop, neither of which a watcher thread or a
+# launchd/systemd service has.
+_TRAY_OK = _TRAY_IMPORTS_OK and watcher_platform.tray_supported()
 
 
 def _logo_path() -> str | None:
-    """Path to the AmicoScript .ico, used for the notification toasts.
+    """Path to the AmicoScript icon, used for the notification toasts.
 
-    Checked next to this file first (deployed/standalone layout — setup.bat
-    downloads logo.ico alongside watcher.py), then the repo's images/ dir
-    (running from source), then the PyInstaller bundle: frozen into the app
+    Checked next to this file first (deployed/standalone layout — the setup
+    script downloads the icon alongside watcher.py), then the repo's images/
+    dir (running from source), then the PyInstaller bundle: frozen into the app
     this module lives in the PYZ archive, so __file__ points at _MEIPASS and
     the icon is only reachable through the bundled scripts/ data tree."""
-    candidates = [
-        Path(__file__).parent / "logo.ico",
-        Path(__file__).parent.parent.parent / "images" / "logo.ico",
-    ]
+    here = Path(__file__).parent
+    names = ("logo.ico", "logo.png")
+    candidates = [here / n for n in names]
+    candidates += [here.parent.parent / "images" / n for n in names]
     meipass = getattr(sys, "_MEIPASS", "")
     if meipass:
-        candidates.append(Path(meipass) / "scripts" / "meeting_watcher" / "logo.ico")
+        candidates += [Path(meipass) / "scripts" / "meeting_watcher" / n for n in names]
     for c in candidates:
         if c.exists():
             return str(c)
@@ -244,17 +277,9 @@ _LOGO_PATH = _logo_path()
 
 
 def notify(title: str, message: str) -> None:
-    """Show a Windows desktop toast (no-op if winotify unavailable)."""
+    """Show a desktop notification (no-op where the host has no notifier)."""
     log(f"NOTIFY: {title} — {message}")
-    if not _NOTIFY_OK:
-        return
-    try:
-        kwargs = {"app_id": "AmicoScript", "title": title, "msg": message}
-        if _LOGO_PATH:
-            kwargs["icon"] = _LOGO_PATH
-        Notification(**kwargs).show()
-    except Exception as exc:
-        log(f"WARN: toast failed: {exc}")
+    watcher_platform.notify(title, message, _LOGO_PATH)
 
 
 def _acquire_instance_lock() -> bool:
@@ -325,92 +350,41 @@ def _release_instance_lock() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Meeting detection (pycaw) -- app-agnostic
+# Meeting detection -- app-agnostic, backend supplies the raw audio state
 # --------------------------------------------------------------------------- #
-def _active_procs(sessions) -> set[str]:
-    """Lowercase process names that own an *active* session in `sessions`."""
-    procs: set[str] = set()
-    for s in sessions or ():
-        try:
-            if s.State != AUDIO_SESSION_STATE_ACTIVE or not s.Process:
-                continue
-            if s.Process.pid == _OWN_PID:  # skip the watcher's own capture streams
-                continue
-            name = (s.Process.name() or "").lower()
-        except Exception:
-            continue
-        if name:
-            procs.add(name)
-    return procs
-
-
-def _endpoint_sessions(flow: int, role: int):
-    """AudioSession list for a default endpoint (flow + role), or None on failure.
-
-    pycaw's GetAllSessions only covers the default multimedia render endpoint, so
-    we reach into the COM API to inspect any (flow, role) endpoint — crucially the
-    *communications* devices where call apps actually route audio. Wrapped
-    defensively: any failure returns None so callers can skip gracefully.
-    """
+def _speaking_procs() -> set[str]:
+    """Lowercase names of processes currently playing audio."""
+    be = backend()
+    if be is None:
+        return set()
     try:
-        import comtypes
-        from pycaw.api.audiopolicy import IAudioSessionControl2, IAudioSessionManager2
-        from pycaw.api.mmdeviceapi import IMMDeviceEnumerator
-        from pycaw.constants import CLSID_MMDeviceEnumerator
-        from pycaw.utils import AudioSession
+        return be.speaking_procs()
+    except Exception as exc:
+        log(f"WARN: could not read speaker activity: {exc}")
+        return set()
 
-        enumerator = comtypes.CoCreateInstance(
-            CLSID_MMDeviceEnumerator, IMMDeviceEnumerator, comtypes.CLSCTX_INPROC_SERVER
-        )
-        dev = enumerator.GetDefaultAudioEndpoint(flow, role)
-        mgr = dev.Activate(IAudioSessionManager2._iid_, comtypes.CLSCTX_ALL, None)
-        mgr = mgr.QueryInterface(IAudioSessionManager2)
-        enum = mgr.GetSessionEnumerator()
-        return [
-            AudioSession(enum.GetSession(i).QueryInterface(IAudioSessionControl2))
-            for i in range(enum.GetCount())
-        ]
-    except Exception:
+
+def _listening_procs() -> set[str] | None:
+    """Same for the mic, or None when this host cannot tell (heuristic off)."""
+    be = backend()
+    if be is None:
+        return None
+    try:
+        return be.listening_procs()
+    except Exception as exc:
+        log(f"WARN: could not read microphone activity: {exc}")
         return None
 
 
-def _speaking_procs() -> set[str]:
-    """Active speaker procs across the multimedia AND communications render devices."""
-    procs: set[str] = set()
-    seen = False
-    for role in DEVICE_ROLES:
-        sess = _endpoint_sessions(EDATAFLOW_RENDER, role)
-        if sess is not None:
-            seen = True
-            procs |= _active_procs(sess)
-    if not seen:
-        # COM render enumeration unavailable — fall back to pycaw's default helper.
-        try:
-            procs |= _active_procs(AudioUtilities.GetAllSessions())
-        except Exception:
-            pass
-    return procs
-
-
-def _listening_procs():
-    """Active mic procs across both render-role mic devices, or None if unavailable."""
-    procs: set[str] = set()
-    seen = False
-    for role in DEVICE_ROLES:
-        sess = _endpoint_sessions(EDATAFLOW_CAPTURE, role)
-        if sess is not None:
-            seen = True
-            procs |= _active_procs(sess)
-    return procs if seen else None
-
-
 def _pretty_app(proc_name: str) -> str:
-    """Map process names like zoom.exe or ms-teams.exe to readable labels."""
+    """Readable label from a process name: zoom.exe, Microsoft Teams, zoom.us."""
     low = proc_name.lower()
     for known in KNOWN_APPS:
         if known in low:
             return known.capitalize()
-    base = low.removesuffix(".exe").lstrip("ms-")
+    base = low.removesuffix(".exe").removesuffix(".app")
+    if base.startswith("ms-"):
+        base = base[3:]
     return base.capitalize() or proc_name
 
 
@@ -431,7 +405,7 @@ def call_in_progress() -> tuple[bool, str]:
         listening = _listening_procs()
         if listening is None:
             if not _heuristic_warned:
-                log("WARN: mic-heuristic unavailable on this pycaw build — allowlist only")
+                log("WARN: mic-heuristic unavailable on this host — allowlist only")
                 _heuristic_warned = True
         else:
             both = {
@@ -445,74 +419,7 @@ def call_in_progress() -> tuple[bool, str]:
 
 
 # --------------------------------------------------------------------------- #
-# Device resolution — map default endpoints (both roles) to capturable devices
-# --------------------------------------------------------------------------- #
-def _endpoint_id(flow: int, role: int):
-    """Windows device ID string of a default endpoint, or None."""
-    try:
-        import comtypes
-        from pycaw.api.mmdeviceapi import IMMDeviceEnumerator
-        from pycaw.constants import CLSID_MMDeviceEnumerator
-
-        en = comtypes.CoCreateInstance(
-            CLSID_MMDeviceEnumerator, IMMDeviceEnumerator, comtypes.CLSCTX_INPROC_SERVER
-        )
-        return en.GetDefaultAudioEndpoint(flow, role).GetId()
-    except Exception:
-        return None
-
-
-def _all_device_names() -> dict[str, str]:
-    """id -> FriendlyName for every audio device. Expensive (COM enumeration of
-    every device incl. disconnected ones) — callers should fetch this *once*
-    and reuse it for both render and capture lookups, not once per flow."""
-    id_to_name: dict[str, str] = {}
-    try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # pycaw warns on unreadable props
-            devices = AudioUtilities.GetAllDevices()
-        for d in devices:
-            try:
-                if d.id and getattr(d, "FriendlyName", None):
-                    id_to_name[d.id] = d.FriendlyName
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return id_to_name
-
-
-def _default_device_names(flow: int, id_to_name: dict[str, str]) -> set[str]:
-    """Friendly names of the default devices for `flow` across all roles.
-
-    Calls route to the *communications* default, which may be a different
-    physical device than the *multimedia* default, so we return both and record
-    each — otherwise the remote party is captured from the wrong (silent) device.
-    """
-    names: set[str] = set()
-    for role in DEVICE_ROLES:
-        did = _endpoint_id(flow, role)
-        if did and id_to_name.get(did):
-            names.add(id_to_name[did])
-    return names
-
-
-def _norm_name(s: str) -> str:
-    """Lowercase, drop the loopback suffix + non-ASCII (umlauts encode
-    differently across the pycaw/pyaudio APIs), collapse whitespace."""
-    s = (s or "").lower().replace("[loopback]", "")
-    s = "".join(c for c in s if c.isascii())
-    return " ".join(s.split())
-
-
-def _names_match(a: str, b: str) -> bool:
-    a, b = _norm_name(a), _norm_name(b)
-    return bool(a) and bool(b) and (a in b or b in a)
-
-
-# --------------------------------------------------------------------------- #
-# Audio capture (pyaudiowpatch WASAPI loopback + mic)
+# Audio mixing — the backend records the streams, this mixes them into one WAV
 # --------------------------------------------------------------------------- #
 _AA_KERNELS: dict = {}
 
@@ -538,140 +445,47 @@ def _antialias_kernel(ratio: float):
     return kernel
 
 
-@dataclass
-class _Source:
-    info: dict
-    path: Path
-    thread: threading.Thread | None = None
-
-
 class Capture:
-    """Records WASAPI loopback from every default *render* device (multimedia AND
-    communications) plus every default *mic*, each in its own thread, then mixes
-    everything to one mono 16-bit WAV on stop().
+    """One recording: the platform backend opens the streams, this mixes them.
 
-    Recording both device roles is what makes calls work when the communications
-    default (where call apps often route audio) differs from the multimedia
-    default — otherwise the remote party is captured from the wrong device."""
+    The backend decides *what* gets recorded — on Windows that is WASAPI
+    loopback from every default render device (multimedia AND communications,
+    because calls often route to the latter) plus every default mic. Whatever
+    it opens arrives here as raw int16 files, which stop() resamples and mixes
+    into a single mono 16 kHz WAV.
+    """
 
     def __init__(self, mix_mic: bool = True):
         self.mix_mic = mix_mic
-        self._stop = threading.Event()
-        self._pa = pyaudio.PyAudio()
-        self._sources: list[_Source] = []
-        id_to_name = _all_device_names()  # one COM enumeration, reused below
-        loop_infos = self._loopback_infos(id_to_name)
-        if not loop_infos:
-            self._pa.terminate()
-            raise RuntimeError("No WASAPI loopback device found")
-        for info in loop_infos:
-            self._sources.append(_Source(info=info, path=self._new_raw_path()))
-        if mix_mic:
-            for info in self._mic_infos(id_to_name):
-                self._sources.append(_Source(info=info, path=self._new_raw_path()))
-        log("Capture devices: " + ", ".join(s.info["name"] for s in self._sources))
-
-    @staticmethod
-    def _new_raw_path() -> Path:
+        be = backend()
+        if be is None:
+            raise RuntimeError(_BACKEND_ERROR or "no meeting-watcher backend on this host")
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix="capture-", suffix=".raw", dir=str(OUTPUT_DIR))
-        os.close(fd)
-        return Path(name)
-
-    @staticmethod
-    def _rate(info: dict) -> int:
-        return int(float(info.get("defaultSampleRate") or 16000))
-
-    @staticmethod
-    def _channels(info: dict) -> int:
-        return max(1, int(info.get("maxInputChannels") or 2))
-
-    def _default_loopback(self) -> dict:
-        wasapi = self._pa.get_host_api_info_by_type(pyaudio.paWASAPI)
-        spk = self._pa.get_device_info_by_index(wasapi["defaultOutputDevice"])
-        if not spk.get("isLoopbackDevice"):
-            for lb in self._pa.get_loopback_device_info_generator():
-                if spk["name"] in lb["name"]:
-                    return lb
-            raise RuntimeError("No WASAPI loopback device found for default speakers")
-        return spk
-
-    def _default_input(self) -> dict | None:
-        try:
-            wasapi = self._pa.get_host_api_info_by_type(pyaudio.paWASAPI)
-            return self._pa.get_device_info_by_index(wasapi["defaultInputDevice"])
-        except Exception:
-            log("WARN: no default microphone found -- recording loopback only")
-            return None
-
-    def _loopback_infos(self, id_to_name: dict[str, str]) -> list[dict]:
-        """Loopback devices for the default render endpoints across both roles."""
-        want = _default_device_names(EDATAFLOW_RENDER, id_to_name)
-        loopbacks = list(self._pa.get_loopback_device_info_generator())
-        chosen: dict[int, dict] = {}
-        for nm in want:
-            for lb in loopbacks:
-                if _names_match(nm, lb["name"]):
-                    chosen[lb["index"]] = lb
-                    break
-        if not chosen:  # fall back to the multimedia default speaker loopback
-            try:
-                d = self._default_loopback()
-                chosen[d["index"]] = d
-            except Exception:
-                pass
-        return list(chosen.values())
-
-    def _mic_infos(self, id_to_name: dict[str, str]) -> list[dict]:
-        """WASAPI mic devices for the default capture endpoints across both roles."""
-        want = _default_device_names(EDATAFLOW_CAPTURE, id_to_name)
-        wasapi = self._pa.get_host_api_info_by_type(pyaudio.paWASAPI)
-        cand = []
-        for i in range(self._pa.get_device_count()):
-            info = self._pa.get_device_info_by_index(i)
-            if (info.get("hostApi") == wasapi["index"]
-                    and int(info.get("maxInputChannels", 0)) > 0
-                    and not info.get("isLoopbackDevice")):
-                cand.append(info)
-        chosen: dict[int, dict] = {}
-        for nm in want:
-            for info in cand:
-                if _names_match(nm, info["name"]):
-                    chosen[info["index"]] = info
-                    break
-        if not chosen:  # fall back to the multimedia default mic
-            d = self._default_input()
-            if d:
-                chosen[d["index"]] = d
-        return list(chosen.values())
-
-    def _record(self, source: _Source) -> None:
-        info = source.info
-        try:
-            stream = self._pa.open(
-                format=pyaudio.paInt16,
-                channels=self._channels(info),
-                rate=self._rate(info),
-                frames_per_buffer=CHUNK,
-                input=True,
-                input_device_index=info["index"],
-            )
-        except Exception as exc:
-            log(f"WARN: cannot open {info.get('name')}: {exc}")
-            return
-        try:
-            with open(source.path, "ab", buffering=1024 * 1024) as raw:
-                while not self._stop.is_set():
-                    raw.write(stream.read(CHUNK, exception_on_overflow=False))
-        finally:
-            stream.stop_stream()
-            stream.close()
+        self._session = be.open_session(mix_mic=mix_mic, out_dir=OUTPUT_DIR)
+        self._sources = list(self._session.sources)
+        if not self._sources:
+            self._session.stop()
+            raise RuntimeError("backend opened no capture sources")
+        log("Capture devices: " + ", ".join(s.name for s in self._sources))
 
     def start(self) -> None:
-        for source in self._sources:
-            t = threading.Thread(target=self._record, args=(source,), daemon=True)
-            source.thread = t
-            t.start()
+        self._session.start()
+
+    def health(self) -> str:
+        """Backend's verdict on the finished capture: "" if it looks sound.
+
+        Some capture failures are silent rather than loud — macOS hands back a
+        working but empty system-audio tap when permission is missing — so a
+        backend gets to say "this recording is not what it should be" even
+        though nothing raised.
+        """
+        check = getattr(self._session, "health", None)
+        if check is None:
+            return ""
+        try:
+            return check() or ""
+        except Exception:
+            return ""
 
     @staticmethod
     def _bytes_to_mono(raw: bytes, channels: int) -> np.ndarray:
@@ -733,8 +547,7 @@ class Capture:
     def _source_stats(self) -> list[dict]:
         stats = []
         for source in self._sources:
-            channels = self._channels(source.info)
-            rate = self._rate(source.info)
+            channels = max(1, int(source.channels))
             bytes_per_frame = channels * 2
             try:
                 size = source.path.stat().st_size
@@ -745,7 +558,7 @@ class Capture:
                 stats.append({
                     "source": source,
                     "channels": channels,
-                    "rate": rate,
+                    "rate": int(source.rate),
                     "bytes_per_frame": bytes_per_frame,
                     "frames": frames,
                 })
@@ -753,14 +566,12 @@ class Capture:
 
     def stop(self, out_path: Path) -> float:
         """Stop recording, write mixed WAV to out_path, return duration seconds."""
-        self._stop.set()
-        stuck = False
-        for source in self._sources:
-            if source.thread is None:
-                continue
-            source.thread.join(timeout=5)
-            if source.thread.is_alive():
-                stuck = True
+        try:
+            self._session.stop()
+        except Exception as exc:
+            # The bytes are already on disk; a device that would not release is
+            # not a reason to lose the meeting.
+            log(f"WARN: capture teardown failed (ignored): {exc}")
 
         stats = self._source_stats()
         rate = OUT_RATE
@@ -795,17 +606,6 @@ class Capture:
                 except Exception:
                     pass
 
-        if stuck:
-            # A capture thread didn't exit in time (blocked in stream.read on a
-            # device that went away mid-call). Tearing down PyAudio with a
-            # stream still open has crashed the whole process — leak this
-            # PyAudio instance instead of risking that, the WAV is already safe.
-            log("WARN: a capture thread did not stop cleanly — skipping PyAudio teardown to avoid a crash")
-        else:
-            try:
-                self._pa.terminate()
-            except Exception as exc:
-                log(f"WARN: PyAudio teardown failed (ignored): {exc}")
         return duration
 
 
@@ -886,6 +686,28 @@ def capture_enabled() -> bool:
     return value
 
 
+def unsupported_reason() -> str:
+    """Why a running watcher will not actually record, or "" if it will.
+
+    Three shapes of the same problem, worth distinguishing to the user: no
+    backend at all, a backend whose OS is too old to capture, and a backend
+    that captured and got nothing but silence back. All of them leave a watcher
+    that is alive and heartbeating, which is exactly why the UI needs told.
+    """
+    if _health_problem:
+        return _health_problem
+    be = backend()
+    if be is None:
+        return _BACKEND_ERROR
+    check = getattr(be, "capture_blocked", None)
+    if callable(check):
+        try:
+            return check() or ""
+        except Exception:
+            return ""
+    return ""
+
+
 def report_status(recording: bool, app: str = "") -> None:
     """Tell AmicoScript whether we're recording, so the web UI can show a chip.
 
@@ -897,6 +719,7 @@ def report_status(recording: bool, app: str = "") -> None:
             "recording": "true" if recording else "false",
             "app": app,
             "version": WATCHER_VERSION,
+            "unsupported": unsupported_reason(),
             "token": server_token(),
         }
         resp = HTTP.post(
@@ -966,6 +789,29 @@ def _cleanup_orphan_raw() -> None:
         log(f"Cleaned up {removed} orphaned capture scratch file(s)")
 
 
+def _report_capture_health(capture: "Capture") -> None:
+    """Surface a capture that succeeded mechanically but produced no audio.
+
+    Notified once per watcher run, not once per meeting: it is a configuration
+    problem that stays broken until the user fixes it, and a toast after every
+    call would be nagging rather than informing. The log line is written every
+    time, because that is the record someone debugging will read.
+    """
+    global _health_warned, _health_problem
+    # getattr, not capture.health(): Capture is the seam the tests and the
+    # embedded host substitute, and a stand-in without a health report should
+    # mean "nothing to say", not an AttributeError mid-finalize.
+    check = getattr(capture, "health", None)
+    problem = check() if callable(check) else ""
+    _health_problem = problem
+    if not problem:
+        return
+    log(f"WARN: {problem}")
+    if not _health_warned:
+        _health_warned = True
+        notify("Meeting capture is missing permission", problem)
+
+
 def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None:
     """Stop a capture, save the WAV, and kick off transcription if long enough."""
     stamp = (started_at or dt.datetime.now()).strftime("%Y%m%d_%H%M%S")
@@ -976,6 +822,7 @@ def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None
     except Exception as exc:
         log(f"ERROR stopping capture: {exc}")
         duration = 0.0
+    _report_capture_health(capture)
     if duration >= MIN_MEETING_SECONDS:
         log(f"Captured {duration:.0f}s -> {wav_path.name}")
         notify("Recording stopped", f"{duration / 60:.0f} min captured — transcribing…")
@@ -1080,7 +927,12 @@ def _start_tray() -> None:
     if os.environ.get("AMICOSCRIPT_TRAY", "true").lower() not in {"1", "true", "yes", "on"}:
         return
     if not _TRAY_OK:
-        log("Tray icon unavailable (pip install pystray pillow) — running headless")
+        # Two different situations, and telling a Mac user to pip-install
+        # pystray would send them after something that cannot work there.
+        if not watcher_platform.tray_supported():
+            log("No tray icon on this platform — the web UI's recording chip is the indicator")
+        else:
+            log("Tray icon unavailable (pip install pystray pillow) — running headless")
         return
     try:
         _tray_icon = pystray.Icon(
@@ -1127,6 +979,13 @@ def _tray_refresh(force: bool = False) -> None:
 # --------------------------------------------------------------------------- #
 def _main_loop() -> None:
     log(f"Meeting watcher v{WATCHER_VERSION} started. AmicoScript = {BASE_URL}")
+    be = backend()
+    if be is None:
+        # Keep running: the heartbeat is how the web UI learns the helper is
+        # installed, and saying "cannot capture, here is why" beats vanishing.
+        log(f"ERROR: {_BACKEND_ERROR} — detection and capture are disabled")
+    else:
+        log(f"Platform backend: {be.name}")
     pinned = ", ".join(
         f"{k}={v}" for k, v in (
             ("model", WHISPER_MODEL), ("language", LANGUAGE), ("diarize", DIARIZE),
@@ -1140,7 +999,7 @@ def _main_loop() -> None:
     if CHAT_APPS and not USE_MIC_HEURISTIC:
         log("WARN: chat apps (WhatsApp/Telegram/…) need the mic heuristic — it is OFF")
     log("Enable/disable via the 'Meeting auto-capture' toggle in the AmicoScript sidebar.")
-    log(f"Desktop toasts: {'on' if _NOTIFY_OK else 'OFF (pip install winotify)'}")
+    log(f"Desktop notifications: {'on' if watcher_platform.notify_supported() else 'off'}")
     try:
         HTTP.get(f"{BASE_URL}/api/jobs", timeout=5)
     except Exception:
