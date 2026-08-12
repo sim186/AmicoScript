@@ -5,6 +5,10 @@ This project adheres to Semantic Versioning (https://semver.org/) and the
 Keep a Changelog format.
 
 ## [Unreleased]
+
+
+
+## [1.18.0] - 2026-08-12
 ### 📞 Meeting auto-capture on macOS and Linux
 
 The meeting watcher — notice a call, record it, drop the transcript in your
@@ -45,7 +49,7 @@ Also in this change:
   8002 and would heartbeat at whatever else was listening there.
 - Fixed a latent bug in the app-name prettifier: `"slack".lstrip("ms-")` strips
   any leading `m`/`s`/`-`, so Slack was displayed as "Lack".
-
+- No change details provided.
 
 ## [1.17.1] - 2026-08-11
 - No change details provided.
