@@ -8,6 +8,37 @@ Keep a Changelog format.
 
 
 
+## [1.18.1] - 2026-08-15
+### 🤖 Unified AI Assistant hub
+
+Replaced the scattered LLM interfaces (AI Analysis slide-over in the transcript
+tab + Library Chat inline form in the library tab) with a single **floating AI
+Assistant hub** accessible from any tab.
+
+- `frontend/js/ai-hub.js` — new panel with chat-style UI, mode tabs
+  (Analyze / Chat), shared message stream, citation chips with jump-to-
+  timestamp.
+- The hub builds its own DOM dynamically (fixed bottom-right trigger + overlay
+  panel) so it works across all tabs without tab-specific markup.
+
+### 🔧 Fixes and improvements
+
+- **LLM connection indicator** — auto-test on page load shows a persistent dot:
+  green = connected, amber = error, grey = unreachable. No need to click
+  "Test Connection" to know if Ollama is up.
+- **Console overlap fix** — AI hub trigger and panel now float above the console
+  bar (z-index 60) using `calc(var(--console-h, 36px) + …)` for positioning.
+- **macOS dock icon** for `uv` installs — `images/` is now included in the wheel,
+  and `run.py` discovers icons in multiple paths (repo, installed package).
+- **Auto-install meeting watcher** — when the user toggles "Meeting auto-capture"
+  ON and no watcher is running, the backend runs the platform install script
+  automatically. No more manual `setup.command`/`setup.bat`.
+- **Tests pipeline** — removed orphaned `library-chat.js` and regenerated
+  `website/openapi.json` to match the updated meeting-capture endpoint.
+- **Build** — removed redundant per-file icon entries in `force-include` that
+  caused hatchling duplicate-path errors during wheel build.
+
+
 ## [1.18.0] - 2026-08-12
 ### 📞 Meeting auto-capture on macOS and Linux
 
