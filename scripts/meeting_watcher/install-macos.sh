@@ -14,6 +14,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 VENV="$DIR/.venv"
 LOG_DIR="${AMICOSCRIPT_WATCHER_OUT:-$HOME/.amicoscript/data/meetings}"
+PORT="${AMICOSCRIPT_PORT:-8002}"
 
 if [ ! -f "$DIR/watcher.py" ]; then
   echo "ERROR: watcher.py not found next to this installer ($DIR)." >&2
@@ -65,6 +66,11 @@ cat > "$PLIST" <<PLIST_EOF
     </dict>
     <key>ProcessType</key>
     <string>Background</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AMICOSCRIPT_PORT</key>
+        <string>$PORT</string>
+    </dict>
     <key>StandardOutPath</key>
     <string>$LOG_DIR/watcher.out.log</string>
     <key>StandardErrorPath</key>

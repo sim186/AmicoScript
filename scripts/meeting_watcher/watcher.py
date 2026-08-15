@@ -68,7 +68,8 @@ except ImportError as _exc:  # pragma: no cover - a broken install, not a code p
 # --------------------------------------------------------------------------- #
 # Config (override via environment variables)
 # --------------------------------------------------------------------------- #
-BASE_URL = os.environ.get("AMICOSCRIPT_URL", "http://localhost:8002").rstrip("/")
+_DEFAULT_PORT = os.environ.get("AMICOSCRIPT_PORT", "8002")
+BASE_URL = os.environ.get("AMICOSCRIPT_URL", f"http://127.0.0.1:{_DEFAULT_PORT}").rstrip("/")
 
 class _Http:
     """Every backend call goes through here, so auth is applied in one place.

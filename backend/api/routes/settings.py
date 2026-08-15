@@ -158,7 +158,11 @@ async def set_meeting_capture(enabled: str = Form("false"), token: str = Form(""
     started = False
     if value:
         import meeting_watcher_host
-        if meeting_watcher_host._module is None and not meeting_watcher_host.is_external_installed():
+        # Re-run the install whenever enabling. It is idempotent and rewrites
+        # the launchd/systemd task so the watcher tracks the current
+        # AMICOSCRIPT_PORT — otherwise a previously-installed watcher keeps
+        # heartbeating to a stale port after the app moves.
+        if meeting_watcher_host._module is None:
             installed = meeting_watcher_host.install_external()
         if installed or meeting_watcher_host.is_external_installed():
             meeting_watcher_host._start_external_task()
