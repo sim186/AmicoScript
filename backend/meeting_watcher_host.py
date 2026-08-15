@@ -31,7 +31,8 @@ logger = get_logger("amicoscript.watcher")
 # because the watcher already treats AMICOSCRIPT_URL as the address of the app:
 # pinning it here meant an app served on any other port got a watcher talking
 # to whatever else happened to be on 8002.
-LOCAL_URL = os.environ.get("AMICOSCRIPT_URL", "").rstrip("/") or "http://127.0.0.1:8002"
+_AMICO_PORT = os.environ.get("AMICOSCRIPT_PORT", "8002")
+LOCAL_URL = os.environ.get("AMICOSCRIPT_URL", "").rstrip("/") or f"http://127.0.0.1:{_AMICO_PORT}"
 
 # Set by start() so stop() can signal a clean shutdown and let an in-progress
 # capture finalize, rather than losing it with the daemon thread. Both stay

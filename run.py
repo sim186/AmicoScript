@@ -219,7 +219,7 @@ def main() -> int:
 
     # Start server
     host = "127.0.0.1"
-    port = 8002
+    port = int(os.environ.get("AMICOSCRIPT_PORT", "8002"))
     url = f"http://{host}:{port}"
 
     print(f"Starting AmicoScript at {url}...")
