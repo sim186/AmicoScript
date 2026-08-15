@@ -172,6 +172,21 @@ def run_windowed(url: str, host: str, port: int) -> int:
     except Exception:
         pass
 
+    # macOS: when running via uv/pip (no .app bundle), set the dock icon so the
+    # app appears in the Dock and Cmd-Tab with the proper AmicoScript logo.
+    if sys.platform == "darwin":
+        try:
+            from AppKit import NSImage, NSApplication
+            icon_dir = BASE_DIR.parent / "images"
+            icon_candidates = sorted(icon_dir.glob("*.icns"))
+            if icon_candidates:
+                app = NSApplication.sharedApplication()
+                image = NSImage.alloc().initWithContentsOfFile_(str(icon_candidates[0]))
+                if image:
+                    app.setApplicationIconImage_(image)
+        except Exception:
+            pass
+
     try:
         webview.create_window(
             f"AmicoScript {version}".strip(),
