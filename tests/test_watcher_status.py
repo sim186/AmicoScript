@@ -181,15 +181,27 @@ def test_set_meeting_capture_endpoint_persists_and_returns(monkeypatch, tmp_path
     # a distinct module object from ``backend.settings``. Patch the one the
     # route actually calls so the persist round-trips to the same file.
     import settings as route_settings
+    import meeting_watcher_host
     sf = tmp_path / "settings.json"
     monkeypatch.setattr(route_settings, "_settings_file", lambda: sf)
 
+    # Mock the watcher install/start so the test does not touch the real system.
+    monkeypatch.setattr(meeting_watcher_host, "is_external_installed", lambda: False)
+    monkeypatch.setattr(meeting_watcher_host, "install_external", lambda _=None: True)
+    monkeypatch.setattr(meeting_watcher_host, "_start_external_task", lambda: None)
+
     out = asyncio.run(route.set_meeting_capture(enabled="true", token=TEST_TOKEN))
-    assert out == {"ok": True, "enabled": True}
+    assert out["ok"] is True
+    assert out["enabled"] is True
+    assert out["installed"] is True
+    assert out["started"] is True
     assert route_settings.get_meeting_capture_enabled() is True
 
     out = asyncio.run(route.set_meeting_capture(enabled="0", token=TEST_TOKEN))
-    assert out == {"ok": True, "enabled": False}
+    assert out["ok"] is True
+    assert out["enabled"] is False
+    assert out["installed"] is False
+    assert out["started"] is False
     assert route_settings.get_meeting_capture_enabled() is False
 
 

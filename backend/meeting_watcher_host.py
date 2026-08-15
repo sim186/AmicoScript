@@ -99,6 +99,109 @@ def _start_external_task() -> None:
         )
 
 
+def _watcher_scripts_dir() -> Path | None:
+    """Find the bundled meeting_watcher scripts next to the app install.
+
+    Works both from a checkout (repo-root/scripts/meeting_watcher) and from the
+    installed wheel (.../site-packages/amicoscript/scripts/meeting_watcher).
+    """
+    candidate = Path(__file__).resolve().parent.parent / "scripts" / "meeting_watcher"
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def is_external_installed() -> bool:
+    """Check whether the platform's login task for the external watcher exists."""
+    system = platform.system()
+    if system == "Darwin":
+        label = os.environ.get("AMICOSCRIPT_WATCHER_LABEL", MAC_AGENT_LABEL)
+        plist = Path.home() / "Library/LaunchAgents" / f"{label}.plist"
+        return plist.exists()
+    if system == "Linux":
+        unit = os.environ.get("AMICOSCRIPT_WATCHER_UNIT", LINUX_UNIT)
+        try:
+            proc = subprocess.run(
+                ["systemctl", "--user", "cat", unit],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            return proc.returncode == 0
+        except Exception:
+            return False
+    if system == "Windows":
+        name = os.environ.get("AMICOSCRIPT_WATCHER_TASK", "AmicoScript Meeting Watcher")
+        try:
+            proc = subprocess.run(
+                ["schtasks", "/Query", "/TN", name],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            return proc.returncode == 0
+        except Exception:
+            return False
+    return False
+
+
+def install_external(scripts_dir: Path | None = None) -> bool:
+    """Run the platform install script to register the external watcher.
+
+    Returns True if installation succeeded.
+    """
+    watcher_dir = scripts_dir or _watcher_scripts_dir()
+    if watcher_dir is None or not watcher_dir.exists():
+        logger.warning("Watcher directory not found: %s", watcher_dir)
+        return False
+
+    system = platform.system()
+    if system == "Darwin":
+        install_script = watcher_dir / "install-macos.sh"
+    elif system == "Linux":
+        install_script = watcher_dir / "install-linux.sh"
+    elif system == "Windows":
+        install_script = watcher_dir / "install-windows.ps1"
+    else:
+        return False
+
+    if not install_script.exists():
+        logger.warning("Install script not found: %s", install_script)
+        return False
+
+    try:
+        if system == "Windows":
+            proc = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(install_script)],
+                cwd=str(watcher_dir),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        else:
+            proc = subprocess.run(
+                ["bash", str(install_script)],
+                cwd=str(watcher_dir),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+    except Exception as exc:
+        logger.error("External watcher install exception: %s", exc)
+        return False
+
+    if proc.returncode == 0:
+        logger.info("External watcher installed successfully on %s", system)
+        return True
+    else:
+        logger.error("External watcher install failed (%d): %s", proc.returncode, proc.stderr)
+        return False
+
+
 def _embedded_mode() -> str:
     return os.environ.get("AMICOSCRIPT_EMBEDDED_WATCHER", "auto").lower()
 
@@ -158,7 +261,16 @@ def _run_embedded(mode: str) -> None:
             "use the external watcher (scripts/meeting_watcher) instead", exc
         )
         if mode == "auto":
-            _start_external_task()
+            if not is_external_installed():
+                if install_external():
+                    _start_external_task()
+                else:
+                    logger.warning(
+                        "External watcher auto-install failed; "
+                        "meeting auto-capture will not work until installed manually"
+                    )
+            else:
+                _start_external_task()
         return
     _module = watcher
     logger.info("Embedded meeting watcher started (enable via the UI toggle)")

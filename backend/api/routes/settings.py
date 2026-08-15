@@ -146,11 +146,25 @@ async def set_meeting_capture(enabled: str = Form("false"), token: str = Form(""
 
     The watcher (scripts/meeting_watcher/watcher.py) polls this flag and only
     records meetings while it is enabled.
+
+    When enabling and no watcher is running, attempts to auto-install the
+    external watcher so the user never has to run setup scripts manually.
     """
     _require_session_token(token)
     value = _to_bool(enabled)
     settings.set_meeting_capture_enabled(value)
-    return {"ok": True, "enabled": value}
+
+    installed = False
+    started = False
+    if value:
+        import meeting_watcher_host
+        if meeting_watcher_host._module is None and not meeting_watcher_host.is_external_installed():
+            installed = meeting_watcher_host.install_external()
+        if installed or meeting_watcher_host.is_external_installed():
+            meeting_watcher_host._start_external_task()
+            started = True
+
+    return {"ok": True, "enabled": value, "installed": installed, "started": started}
 
 
 @router.post("/api/watcher/status")
