@@ -127,6 +127,7 @@ include = [
     "/backend",
     "/frontend",
     "/scripts",
+    "/images",
     "/tests",
     "/run.py",
     "/package.py",
