@@ -3268,7 +3268,7 @@
     },
     "/api/settings/meeting-capture": {
       "post": {
-        "description": "Toggle the external meeting auto-capture watcher on/off.\n\nThe watcher (scripts/meeting_watcher/watcher.py) polls this flag and only\nrecords meetings while it is enabled.",
+        "description": "Toggle the external meeting auto-capture watcher on/off.\n\nThe watcher (scripts/meeting_watcher/watcher.py) polls this flag and only\nrecords meetings while it is enabled.\n\nWhen enabling and no watcher is running, attempts to auto-install the\nexternal watcher so the user never has to run setup scripts manually.",
         "operationId": "set_meeting_capture_api_settings_meeting_capture_post",
         "requestBody": {
           "content": {
