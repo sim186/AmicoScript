@@ -9,65 +9,91 @@ import { currentProviderFields, showUrlNote } from './llm-setup.js';
 import { clientLog } from './upload.js';
 
 export function initAiAnalysis() {
-  // Type buttons
-  document.querySelectorAll('.ai-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.ai-type-btn').forEach(b => {
-        b.classList.remove('border-brand', 'text-brand', 'bg-brand/5');
-        b.classList.add('border-slate-200', 'text-slate-600');
+  // Legacy AI analysis panel elements (removed by AI hub refactor).
+  // Guard so missing DOM nodes don't block the LLM-settings init below.
+  const typeBtns = document.querySelectorAll('.ai-type-btn');
+  if (typeBtns.length) {
+    typeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ai-type-btn').forEach(b => {
+          b.classList.remove('border-brand', 'text-brand', 'bg-brand/5');
+          b.classList.add('border-slate-200', 'text-slate-600');
+        });
+        btn.classList.add('border-brand', 'text-brand', 'bg-brand/5');
+        btn.classList.remove('border-slate-200', 'text-slate-600');
+        const type = btn.dataset.type;
+        const langRow = document.getElementById('ai-lang-row');
+        const customRow = document.getElementById('ai-custom-row');
+        if (langRow) langRow.classList.toggle('hidden', type !== 'translate');
+        if (customRow) customRow.classList.toggle('hidden', type !== 'custom');
       });
-      btn.classList.add('border-brand', 'text-brand', 'bg-brand/5');
-      btn.classList.remove('border-slate-200', 'text-slate-600');
-      const type = btn.dataset.type;
-      document.getElementById('ai-lang-row').classList.toggle('hidden', type !== 'translate');
-      document.getElementById('ai-custom-row').classList.toggle('hidden', type !== 'custom');
     });
-  });
+  }
 
-  // Run / Stop button
-  document.getElementById('ai-run-btn').addEventListener('click', () => {
-    if (state.analysisJobId) {
-      stopAnalysis();
-    } else {
-      runAnalysis();
-    }
-  });
+  const runBtn = document.getElementById('ai-run-btn');
+  if (runBtn) {
+    runBtn.addEventListener('click', () => {
+      if (state.analysisJobId) {
+        stopAnalysis();
+      } else {
+        runAnalysis();
+      }
+    });
+  }
 
-  // Copy result
-  document.getElementById('ai-result-copy').addEventListener('click', () => {
-    if (state.rawAiText) navigator.clipboard.writeText(state.rawAiText).catch(() => { });
-  });
+  const copyBtn = document.getElementById('ai-result-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      if (state.rawAiText) navigator.clipboard.writeText(state.rawAiText).catch(() => { });
+    });
+  }
 
   // LLM Settings: eye toggle for API key
-  document.getElementById('llm-key-eye').addEventListener('click', () => {
-    const inp = document.getElementById('llm-api-key');
-    const isHidden = inp.type === 'password';
-    inp.type = isHidden ? 'text' : 'password';
-    document.getElementById('llm-key-eye-open').classList.toggle('hidden', isHidden);
-    document.getElementById('llm-key-eye-closed').classList.toggle('hidden', !isHidden);
-  });
+  const keyEye = document.getElementById('llm-key-eye');
+  if (keyEye) {
+    keyEye.addEventListener('click', () => {
+      const inp = document.getElementById('llm-api-key');
+      if (!inp) return;
+      const isHidden = inp.type === 'password';
+      inp.type = isHidden ? 'text' : 'password';
+      document.getElementById('llm-key-eye-open')?.classList.toggle('hidden', isHidden);
+      document.getElementById('llm-key-eye-closed')?.classList.toggle('hidden', !isHidden);
+    });
+  }
 
   // LLM Settings: auto-save on input (debounced)
   let _llmSaveTimer = null;
   ['llm-base-url', 'llm-model-input', 'llm-api-key', 'llm-embedding-model'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => {
-      clearTimeout(_llmSaveTimer);
-      _llmSaveTimer = setTimeout(saveLlmSettings, 600);
-    });
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', () => {
+        clearTimeout(_llmSaveTimer);
+        _llmSaveTimer = setTimeout(saveLlmSettings, 600);
+      });
+    }
   });
 
   // Browse models button
-  document.getElementById('llm-browse-models-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const panel = document.getElementById('llm-models-panel');
-    if (panel.classList.contains('hidden')) openModelsBrowser(); else panel.classList.add('hidden');
-  });
+  const browseBtn = document.getElementById('llm-browse-models-btn');
+  if (browseBtn) {
+    browseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = document.getElementById('llm-models-panel');
+      if (panel) {
+        if (panel.classList.contains('hidden')) openModelsBrowser();
+        else panel.classList.add('hidden');
+      }
+    });
+  }
 
   // Refresh inside panel
-  document.getElementById('llm-refresh-models-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    refreshModelsBrowser();
-  });
+  const refreshBtn = document.getElementById('llm-refresh-models-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      refreshModelsBrowser();
+    });
+  }
 
   // Close panel on outside click
   document.addEventListener('click', (e) => {
@@ -79,14 +105,28 @@ export function initAiAnalysis() {
   });
 
   // Test connection button
-  document.getElementById('llm-test-btn').addEventListener('click', testLlmConnection);
+  const testBtn = document.getElementById('llm-test-btn');
+  if (testBtn) {
+    testBtn.addEventListener('click', testLlmConnection);
+  }
 
   // Build the library chat index, then embed it
   document.getElementById('llm-embed-btn')?.addEventListener('click', rebuildChatIndex);
 
   // Benchmark button
-  document.getElementById('benchmark-run-btn').addEventListener('click', runBenchmark);
-  document.getElementById('benchmark-share-btn').addEventListener('click', shareBenchmark);
+  const benchRun = document.getElementById('benchmark-run-btn');
+  if (benchRun) benchRun.addEventListener('click', runBenchmark);
+  const benchShare = document.getElementById('benchmark-share-btn');
+  if (benchShare) benchShare.addEventListener('click', shareBenchmark);
+
+  // Auto-test LLM connection once on init (quiet — only shows on error)
+  setTimeout(() => {
+    const statusEl = document.getElementById('llm-test-status');
+    if (!statusEl) return;
+    // Don't overwrite an existing status from a user click
+    if (statusEl.textContent) return;
+    _autoTestLlmConnection(statusEl);
+  }, 2000);
 }
 
 let _benchmarkData = null;
@@ -594,6 +634,23 @@ async function rebuildChatIndex() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Rebuild & embed';
+  }
+}
+
+async function _autoTestLlmConnection(statusEl) {
+  try {
+    const res = await fetch('/api/llm/test-connection', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.className = 'text-xs text-emerald-500';
+      statusEl.textContent = '● LLM connected';
+    } else {
+      statusEl.className = 'text-xs text-amber-500';
+      statusEl.textContent = '● ' + (data.error || 'LLM not reachable');
+    }
+  } catch (_) {
+    statusEl.className = 'text-xs text-slate-400';
+    statusEl.textContent = '● LLM status unknown';
   }
 }
 

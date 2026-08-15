@@ -3,7 +3,7 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
-import { saveLlmSettings } from './analysis.js';
+import { initAiAnalysis, saveLlmSettings } from './analysis.js';
 import { fetchAndShowChangelog } from './changelog.js';
 import { initCommandPalette } from './command-palette.js';
 import { initExportButtons } from './exports.js';
@@ -37,6 +37,7 @@ export function init() {
   initExportButtons();
   initTagSuggest();
   initAiHub();
+  initAiAnalysis();
   initShortcuts();
   initCommandPalette();
 
