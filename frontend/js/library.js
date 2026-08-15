@@ -609,14 +609,15 @@ export async function openRecording(rec, silent = false) {
       state.currentRecording = rec;
     }
 
-    // Reset AI analysis panel and inputs
-    document.getElementById('ai-result-area').classList.add('hidden');
-    document.getElementById('ai-result-text').innerHTML = '';
+    // Reset AI hub state when opening a different recording
     state.rawAiText = '';
-    document.getElementById('ai-past-analyses').classList.add('hidden');
-    const customInp = document.getElementById('ai-custom-prompt'); if (customInp) customInp.value = '';
-    const targ = document.getElementById('ai-target-lang'); if (targ) targ.value = '';
-    const out = document.getElementById('ai-output-lang'); if (out) out.value = '';
+    // Legacy panel elements may be absent since the hub replaced them
+    const _legacyArea = document.getElementById('ai-result-area');
+    if (_legacyArea) _legacyArea.classList.add('hidden');
+    const _legacyText = document.getElementById('ai-result-text');
+    if (_legacyText) _legacyText.innerHTML = '';
+    const _legacyPast = document.getElementById('ai-past-analyses');
+    if (_legacyPast) _legacyPast.classList.add('hidden');
 
     renderResults();
 

@@ -13,7 +13,8 @@ import { initBackup } from './backup.js';
 import { installAuthAwareFetch } from './http.js';
 import { state } from './state.js';
 import './version.js';
-import { switchTab, toggleAiPanel } from './tabs.js';
+import { switchTab } from './tabs.js';
+import { toggleHub } from './ai-hub.js';
 import './upload.js';
 import './jobs.js';
 import { assignSpeakerToSelected, cancelSegmentEdit, clearSegmentSelection, escHtml, openSegmentEdit, promptRenameSpeaker, resetSegment, saveSegmentEdit, toggleSegmentSelection, toggleSpeakerFilter, translateSegment } from './transcript.js';
@@ -35,7 +36,7 @@ import './watcher.js';
 // the global scope. Module scope is not global, so these are republished.
 Object.assign(window, {
   state,
-  switchTab, toggleAiPanel,
+  switchTab, toggleHub,
   assignSpeakerToSelected, cancelSegmentEdit, clearSegmentSelection, escHtml, openSegmentEdit, promptRenameSpeaker, resetSegment, saveSegmentEdit, toggleSegmentSelection, toggleSpeakerFilter, translateSegment,
   selectFolder,
   clearTagFilter,

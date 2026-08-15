@@ -33,21 +33,11 @@ export function switchTab(name) {
   });
 
   document.getElementById('export-bar').classList.toggle('hidden', name !== 'transcript');
-  // Close AI panel when leaving transcript tab
+  // Close AI hub when leaving transcript tab
   if (name !== 'transcript') {
-    document.getElementById('inner-panel-ai').classList.remove('active');
-    document.getElementById('ai-panel-btn')?.classList.remove('text-brand', 'bg-slate-100');
+    // Hub auto-closes via its own logic if needed
   }
   if (name === 'library') fetchLibrary();
-}
-
-export function toggleAiPanel() {
-  const panel = document.getElementById('inner-panel-ai');
-  const btn = document.getElementById('ai-panel-btn');
-  const active = panel.classList.toggle('active');
-  btn.classList.toggle('text-brand', active);
-  btn.classList.toggle('bg-slate-100', active);
-  if (active) clientLog('AI Analysis panel opened');
 }
 
 document.getElementById('tab-btn-transcribe').addEventListener('click', () => switchTab('transcribe'));

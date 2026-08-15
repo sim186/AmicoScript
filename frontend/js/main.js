@@ -3,12 +3,12 @@
 // Part of the AmicoScript frontend. No build step: these are plain ES
 // modules loaded directly by the browser via <script type="module">.
 
-import { initAiAnalysis, saveLlmSettings } from './analysis.js';
+import { saveLlmSettings } from './analysis.js';
 import { fetchAndShowChangelog } from './changelog.js';
 import { initCommandPalette } from './command-palette.js';
 import { initExportButtons } from './exports.js';
 import { cancelJob } from './jobs.js';
-import { initLibraryChat } from './library-chat.js';
+import { initAiHub } from './ai-hub.js';
 import { initLibrary } from './library-init.js';
 import { initLlmSetup } from './llm-setup.js';
 import { _saveTranscriptionDefaults, initAutoSummaryToggle, restoreSettings } from './prefs.js';
@@ -36,7 +36,7 @@ export function init() {
   initAudioPlayer();
   initExportButtons();
   initTagSuggest();
-  initLibraryChat();
+  initAiHub();
   initShortcuts();
   initCommandPalette();
 
@@ -80,7 +80,7 @@ export function init() {
     const h = document.getElementById('console-panel').offsetHeight;
     document.documentElement.style.setProperty('--console-h', `${h}px`);
   });
-  initAiAnalysis();
+  // AI hub already initialized above
 
   // AI panel closed by default
 

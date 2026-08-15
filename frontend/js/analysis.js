@@ -340,6 +340,7 @@ export async function loadPastAnalyses(recordingId) {
     const analyses = await res.json();
     const container = document.getElementById('ai-past-list');
     const section = document.getElementById('ai-past-analyses');
+    if (!container || !section) return;  // replaced by AI hub
     if (!analyses.length) { section.classList.add('hidden'); return; }
     section.classList.remove('hidden');
 

@@ -20,7 +20,8 @@ import { fetchLibrary } from './library.js';
 import { toggleQueuePanel } from './queue.js';
 import { toggleShortcutsOverlay } from './shortcuts.js';
 import { state } from './state.js';
-import { switchTab, toggleAiPanel } from './tabs.js';
+import { switchTab } from './tabs.js';
+import { toggleHub } from './ai-hub.js';
 import { clearTagFilter } from './tags.js';
 import { updateTuiCommand } from './upload.js';
 
@@ -125,7 +126,7 @@ const COMMANDS = [
     section: VIEW,
     keywords: 'summary summarize translate llm',
     enabled: () => state.activeTab === 'transcript',
-    run: () => toggleAiPanel(),
+    run: () => toggleHub(),
   },
   {
     id: 'toggle-queue',
