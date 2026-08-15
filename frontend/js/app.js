@@ -27,7 +27,7 @@ import './library-init.js';
 import { toggleShortcutsOverlay } from './shortcuts.js';
 import { pullLlmModel, saveLlmSettings, selectLlmModel } from './analysis.js';
 import { closeDrawer, toggleDrawer } from './layout.js';
-import './main.js';
+import { init } from './main.js';
 import './changelog.js';
 import { attachToJob, cancelQueuedJob, toggleQueuePanel } from './queue.js';
 import './watcher.js';
@@ -51,7 +51,19 @@ Object.assign(window, {
 // the login form instead of a page full of silently failing panels.
 installAuthAwareFetch();
 
-document.addEventListener('DOMContentLoaded', () => {
+// Building the UI used to hang off a DOMContentLoaded listener registered in
+// watcher.js, of all places. It lives here now, next to the other bootstrap
+// calls, and runs immediately when the document is already parsed — a module
+// that finishes loading after DOMContentLoaded would otherwise wait for an
+// event that has already fired and never start the app at all.
+function bootstrap() {
+  init();
   initAuth();
   initBackup();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrap);
+} else {
+  bootstrap();
+}

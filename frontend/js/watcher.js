@@ -4,7 +4,6 @@
 // modules loaded directly by the browser via <script type="module">.
 
 import { openRecording } from './library.js';
-import { init } from './main.js';
 import { state } from './state.js';
 import { ensureSessionToken } from './upload.js';
 
@@ -253,5 +252,3 @@ function initWatcherUpdateBanner() {
 setInterval(refreshRecordingChip, 1000);
 
 document.addEventListener('DOMContentLoaded', () => { initWatcherOnboarding(); initWatcherUpdateBanner(); refreshRecordingChip(); });
-
-document.addEventListener('DOMContentLoaded', init);
