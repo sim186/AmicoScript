@@ -445,7 +445,8 @@ function _buildDom() {
   const trigger = document.createElement('button');
   trigger.id = 'ai-hub-trigger';
   trigger.type = 'button';
-  trigger.className = 'fixed right-5 bottom-5 z-40 w-12 h-12 rounded-full bg-brand text-white shadow-lg hover:shadow-xl hover:scale-105 transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2';
+  trigger.className = 'fixed right-5 z-[60] w-12 h-12 rounded-full bg-brand text-white shadow-lg hover:shadow-xl hover:scale-105 transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2';
+  trigger.style.bottom = 'calc(var(--console-h, 36px) + 0.75rem)';
   trigger.title = 'AI Assistant';
   trigger.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>`;
   trigger.addEventListener('click', toggleHub);
@@ -454,7 +455,8 @@ function _buildDom() {
   // Panel
   const panel = document.createElement('div');
   panel.id = 'ai-hub-panel';
-  panel.className = 'hidden fixed right-5 bottom-20 z-50 w-[420px] max-w-[92vw] h-[560px] max-h-[75vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden';
+  panel.className = 'hidden fixed right-5 z-[60] w-[420px] max-w-[92vw] h-[560px] max-h-[75vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden';
+  panel.style.bottom = 'calc(var(--console-h, 36px) + 4.5rem)';
   panel.innerHTML = `
     <!-- Header -->
     <div class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-brand/5 to-white">
