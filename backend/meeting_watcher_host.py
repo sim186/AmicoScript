@@ -86,7 +86,6 @@ def _clear_stale_watcher_lock() -> bool:
             # Check whether that PID is still alive on this host.
             if platform.system() == "Windows":
                 import ctypes
-                from ctypes import wintypes
 
                 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
                 handle = kernel32.OpenProcess(1, False, pid)  # PROCESS_TERMINATE=1
