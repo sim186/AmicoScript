@@ -40,12 +40,14 @@ try:
     )
     _objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
 except OSError as exc:
-    # ImportError, not OSError: `import watcher_platform.macos` must be
-    # skippable on a non-Mac host. pytest.importorskip (and everything else
-    # that treats "this module does not exist here" as ImportError) only
-    # honours ImportError, while ctypes.CDLL raises OSError when a framework
-    # is absent — which used to abort test collection on the Linux CI runner.
-    raise ImportError(
+    # ModuleNotFoundError, not OSError: importing the macOS backend on a
+    # non-Mac host must be skippable. pytest.importorskip treats a
+    # ModuleNotFoundError as "this module is unavailable here" and skips —
+    # both before and after pytest 9.1, which narrowed its default from
+    # ImportError to ModuleNotFoundError. ctypes.CDLL raises OSError when a
+    # framework is absent, which used to abort test collection on the Linux
+    # CI runner.
+    raise ModuleNotFoundError(
         "the macOS Core Audio bindings need Apple's frameworks, "
         f"which are not available on this host: {exc}"
     ) from exc
