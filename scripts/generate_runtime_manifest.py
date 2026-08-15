@@ -181,7 +181,24 @@ def _resolve(requirements: Path, constraints: Path | None, directory: Path) -> l
     return report.get("install") or []
 
 
-def _hash_of(download_info: dict, url: str) -> str:
+def _hash_from_pypi(name: str, version: str, filename: str) -> str:
+    """Query the PyPI JSON API for the sha256 of a specific wheel file."""
+    request = urllib.request.Request(
+        f"https://pypi.org/pypi/{name}/{version}/json",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = json.loads(response.read())
+        for file_info in data.get("urls", []):
+            if file_info.get("filename") == filename:
+                return file_info.get("digests", {}).get("sha256", "")
+    except Exception:
+        pass
+    return ""
+
+
+def _hash_of(download_info: dict, url: str, name: str = "", version: str = "") -> str:
     archive = download_info.get("archive_info") or {}
     hashes = archive.get("hashes") or {}
     if hashes.get("sha256"):
@@ -193,6 +210,12 @@ def _hash_of(download_info: dict, url: str) -> str:
     # download.pytorch.org puts it in the URL fragment; pip may pass it through.
     if "#sha256=" in url:
         return url.split("#sha256=", 1)[1]
+    # PyPI JSON API fallback: some packages (e.g. Jinja2 resolved via
+    # --extra-index-url) don't carry a hash in pip's simple API response.
+    if name and version:
+        digest = _hash_from_pypi(name, version, url.rsplit("/", 1)[-1])
+        if digest:
+            return digest
     return ""
 
 
@@ -225,7 +248,7 @@ def _wheels(entries: list[dict], bundled: dict[str, str], with_sizes: bool) -> t
         if not url.startswith("https://"):
             raise SystemExit(f"{name} resolved to a non-https URL ({url or 'none'})")
 
-        digest = _hash_of(download_info, url)
+        digest = _hash_of(download_info, url, name, metadata.get("version") or "")
         if not digest:
             raise SystemExit(
                 f"No sha256 for {name}; refusing to write a manifest the app "
