@@ -45,9 +45,14 @@ jobs:
       # generate_runtime_manifest.py tags the manifest with this version, and
       # runtime_pack downloads those exact wheels into the frozen interpreter.
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements.txt
+            requirements-pyinstaller.txt
+            scripts/meeting_watcher/requirements.txt
 
       - name: Install build dependencies
         run: |
@@ -144,9 +149,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
 
       - name: Build sdist and wheel
         run: |

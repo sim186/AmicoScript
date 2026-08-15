@@ -20,6 +20,7 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             backend/requirements.txt
+            tui/requirements.txt
 
       # Deliberately without backend/requirements-diarization.txt. The suite
       # stubs pyannote and torch where it needs them, and running it against a
