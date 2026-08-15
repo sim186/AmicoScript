@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/github/v/release/sim186/AmicoScript?style=flat-square" alt="Latest Release" />
   <img src="https://img.shields.io/github/license/sim186/AmicoScript?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+" />
+  <a href="https://docs.astral.sh/uv/getting-started/installation/"><img src="https://img.shields.io/badge/install-uv%20tool%20install%20amicoscript-6c63ff?style=flat-square" alt="Install with uv" /></a>
 </p>
 
 <p align="center">
@@ -23,6 +24,14 @@
 ![AmicoScript Demo](images/amicoscript-demo.gif)
 
 AmicoScript is perfect for journalists, researchers, students, or anyone who wants control over their audio data and transcripts. It supports batch processing, multiple export formats, and optional AI analysis features — all running locally on your hardware.
+
+> 🚀 **Get started in 10 seconds**
+>
+> ```bash
+> uv tool install amicoscript && amicoscript
+> ```
+>
+> `uv` handles Python for you — no system install needed. ([Get uv](https://docs.astral.sh/uv/getting-started/installation/) · [Docker & other ways](#-quick-start))
 
 ## ✨ Why AmicoScript
 
@@ -108,7 +117,37 @@ Paste a supported video URL in the drop area → AmicoScript fetches the audio a
 
 ## 🖥️ Quick Start
 
-### Docker (recommended)
+### UV — one command, any OS (recommended)
+
+```bash
+uv tool install amicoscript
+amicoscript
+```
+
+`uv` fetches a suitable Python itself, so nothing needs to be installed first.
+([Don't have uv?](https://docs.astral.sh/uv/getting-started/installation/) —
+`pipx install amicoscript` works the same way.) To run it once without
+installing: `uvx amicoscript`.
+
+This is the recommended route: nothing here is a downloaded application, so
+neither Gatekeeper nor SmartScreen is involved. The zips below are unsigned and
+both will object to them.
+
+Speaker diarization is an optional extra:
+```bash
+uv tool install "amicoscript[diarization]"
+```
+
+On **Linux**, that pulls PyPI's default torch (CUDA build, several GB). For a
+CPU-only machine, name the CPU index:
+```bash
+uv tool install "amicoscript[diarization]" \
+  --index https://download.pytorch.org/whl/cpu
+```
+
+Upgrade with `uv tool upgrade amicoscript`.
+
+### Docker (servers & self-hosting)
 
 ```bash
 docker compose up --build
@@ -195,43 +234,12 @@ UI's Help modal also has a one-click "Copy command" for this.
 pytest -q
 ```
 
-## 📦 Install
+## 📦 Download installer (unsigned binaries)
 
-One command, identical on macOS, Windows and Linux:
+> 💡 **Prefer `uv tool install`?** See [Quick Start → UV](#-quick-start) above — it
+> is the recommended route and avoids Gatekeeper / SmartScreen warnings entirely.
 
-```bash
-uv tool install amicoscript
-amicoscript
-```
-
-`uv` fetches a suitable Python itself, so nothing needs to be installed first.
-([Don't have uv?](https://docs.astral.sh/uv/getting-started/installation/) —
-`pipx install amicoscript` works the same way.) To run it once without
-installing: `uvx amicoscript`.
-
-This is the recommended route, and not only for convenience: nothing here is a
-downloaded application, so neither Gatekeeper nor SmartScreen is involved. The
-zips below are unsigned and both will object to them.
-
-Speaker diarization is an optional extra, since transcription never needs
-torch:
-
-```bash
-uv tool install "amicoscript[diarization]"
-```
-
-On **Linux**, that pulls PyPI's default torch, which is the CUDA build and
-several GB of `nvidia-*` packages with it. For a CPU-only machine, name the CPU
-index — torch comes from there, everything else still comes from PyPI:
-
-```bash
-uv tool install "amicoscript[diarization]" \
-  --index https://download.pytorch.org/whl/cpu
-```
-
-Upgrade with `uv tool upgrade amicoscript`.
-
-## 🏃🏼 Running from the installer
+If you want a traditional downloaded app instead:
 In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
 
 There is one download per platform — no separate CPU and GPU builds. The app
