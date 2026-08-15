@@ -115,6 +115,7 @@ packages = ["amicoscript"]
 # download, and meeting_watcher_host.start() runs it. The rest of scripts/ is
 # build tooling that has no business being served over HTTP.
 "scripts/meeting_watcher" = "amicoscript/scripts/meeting_watcher"
+"images" = "amicoscript/images"
 "run.py" = "amicoscript/_run.py"
 # run_windowed() reads BASE_DIR/"VERSION" for the window title, and BASE_DIR is
 # the backend directory.

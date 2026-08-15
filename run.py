@@ -177,12 +177,23 @@ def run_windowed(url: str, host: str, port: int) -> int:
     if sys.platform == "darwin":
         try:
             from AppKit import NSImage, NSApplication
-            icon_dir = BASE_DIR.parent / "images"
-            icon_candidates = sorted(icon_dir.glob("*.icns"))
-            if icon_candidates:
+            # Look for icons relative to this file (works both in repo and installed package)
+            script_dir = Path(__file__).parent
+            icon_dirs = [
+                script_dir / "images",
+                BASE_DIR.parent / "images",
+                script_dir.parent / "images",
+            ]
+            icon_path = None
+            for d in icon_dirs:
+                candidates = sorted(d.glob("*.icns"))
+                if candidates:
+                    icon_path = candidates[0]
+                    break
+            if icon_path:
                 app = NSApplication.sharedApplication()
-                image = NSImage.alloc().initWithContentsOfFile_(str(icon_candidates[0]))
-                if image:
+                image = NSImage.alloc().initWithContentsOfFile_(str(icon_path))
+                if image and app:
                     app.setApplicationIconImage_(image)
         except Exception:
             pass
