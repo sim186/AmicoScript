@@ -410,6 +410,15 @@ export function initMeetingCaptureToggle() {
       fd.append('token', token);
       const res = await fetch('/api/settings/meeting-capture', { method: 'POST', body: fd });
       if (!res.ok) throw new Error('save failed');
+      const data = await res.json().catch(() => ({}));
+      if (next && data.installed) {
+        clientLog('Watcher auto-installed — starting…');
+      } else if (next && data.started) {
+        clientLog('Watcher starting…');
+      }
+      // Poll for status change so the UI updates before the next 1-second tick.
+      setTimeout(() => { try { window.refreshRecordingChip(); } catch (_) {} }, 1500);
+      setTimeout(() => { try { window.refreshRecordingChip(); } catch (_) {} }, 4000);
     } catch (_) {
       setMeetingCaptureToggle(!next); // revert on failure
     }

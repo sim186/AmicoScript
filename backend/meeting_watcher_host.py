@@ -73,8 +73,42 @@ def _external_task_command() -> tuple[str, list[str]] | None:
     return None
 
 
+def _clear_stale_watcher_lock() -> bool:
+    """Remove a leftover watcher.lock from a crashed process so a new watcher
+    can start. Returns True if a stale lock was removed."""
+    lock_path = output_dir() / "watcher.lock"
+    if not lock_path.exists():
+        return False
+    try:
+        pid_text = lock_path.read_text(encoding="ascii", errors="ignore").strip()
+        if pid_text and pid_text.isdigit():
+            pid = int(pid_text)
+            # Check whether that PID is still alive on this host.
+            if platform.system() == "Windows":
+                import ctypes
+                from ctypes import wintypes
+
+                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+                handle = kernel32.OpenProcess(1, False, pid)  # PROCESS_TERMINATE=1
+                if handle:
+                    kernel32.CloseHandle(handle)
+                    return False  # process is alive; don't touch the lock
+            else:
+                try:
+                    os.kill(pid, 0)
+                    return False  # process is alive; don't touch the lock
+                except (OSError, ProcessLookupError):
+                    pass  # PID does not exist → stale lock
+        lock_path.unlink()
+        logger.info("Cleared stale watcher.lock (PID %s)", pid_text or "?")
+        return True
+    except Exception:
+        return False
+
+
 def _start_external_task() -> None:
     """Start the installed per-user watcher task, if a setup script registered it."""
+    _clear_stale_watcher_lock()
     command = _external_task_command()
     if command is None:
         return
