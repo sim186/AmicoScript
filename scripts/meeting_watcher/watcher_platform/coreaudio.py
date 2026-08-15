@@ -31,13 +31,24 @@ from ctypes import (
     sizeof,
 )
 
-_coreaudio = ctypes.CDLL(
-    "/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio"
-)
-_cf = ctypes.CDLL(
-    "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation"
-)
-_objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+try:
+    _coreaudio = ctypes.CDLL(
+        "/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio"
+    )
+    _cf = ctypes.CDLL(
+        "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation"
+    )
+    _objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+except OSError as exc:
+    # ImportError, not OSError: `import watcher_platform.macos` must be
+    # skippable on a non-Mac host. pytest.importorskip (and everything else
+    # that treats "this module does not exist here" as ImportError) only
+    # honours ImportError, while ctypes.CDLL raises OSError when a framework
+    # is absent — which used to abort test collection on the Linux CI runner.
+    raise ImportError(
+        "the macOS Core Audio bindings need Apple's frameworks, "
+        f"which are not available on this host: {exc}"
+    ) from exc
 _libsystem = ctypes.CDLL(None)
 
 
