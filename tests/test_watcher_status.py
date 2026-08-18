@@ -53,9 +53,10 @@ def test_watcher_status_constants_sane():
 
 
 def _post_status(recording: str, app: str = "", version: str = "", unsupported: str = "",
-                 token: str = TEST_TOKEN) -> dict:
+                 token: str = TEST_TOKEN, started_at: str = "") -> dict:
     return asyncio.run(route.set_watcher_status(
-        recording=recording, app=app, version=version, unsupported=unsupported, token=token
+        recording=recording, app=app, version=version, unsupported=unsupported, token=token,
+        started_at=started_at,
     ))
 
 
