@@ -24,7 +24,7 @@ router = APIRouter()
 
 # A recording heartbeat older than this (seconds) is treated as idle, so a
 # crashed/killed watcher never leaves the UI stuck showing "recording".
-WATCHER_STATUS_TTL = 8.0
+WATCHER_STATUS_TTL = 12.0
 # No heartbeat at all within this window means the watcher isn't running, so the
 # UI shows its one-time setup prompt. Must exceed the watcher's heartbeat period.
 WATCHER_ALIVE_TTL = 15.0
@@ -178,6 +178,7 @@ async def set_watcher_status(
     version: str = Form(""),
     unsupported: str = Form(""),
     token: str = Form(""),
+    started_at: str = Form(""),
 ) -> dict:
     """Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).
 
@@ -189,19 +190,35 @@ async def set_watcher_status(
     capture — an old macOS, a missing audio stack, a permission the OS will not
     prompt for. It heartbeats like the rest so the sidebar can say "running, but
     it will not record" instead of the reassuring plain "running".
+
+    ``started_at`` is an optional Unix timestamp the watcher sends so the server
+    can preserve the badge timer across missed heartbeats instead of resetting it.
     """
     _require_session_token(token)
     is_recording = _to_bool(recording)
     prev = getattr(state, "watcher_status", None) or {}
     was_recording = bool(prev.get("recording")) and (time.time() - prev.get("ts", 0)) < WATCHER_STATUS_TTL
-    started_at = prev.get("started_at", 0.0) if (is_recording and was_recording) else (time.time() if is_recording else 0.0)
+    prev_started = prev.get("started_at", 0.0)
+    now = time.time()
+    if is_recording:
+        # Trust the watcher's started_at when reasonable: not in the future and
+        # not older than the previous started_at (which would mean a reset).
+        watcher_started = float(started_at) if started_at else 0.0
+        if watcher_started > 0 and watcher_started <= now and (not prev_started or watcher_started >= prev_started):
+            started_at_val = watcher_started
+        elif was_recording and prev_started:
+            started_at_val = prev_started
+        else:
+            started_at_val = now
+    else:
+        started_at_val = 0.0
     state.watcher_status = {
         "recording": is_recording,
         "app": (app or "").strip(),
         "version": (version or "").strip(),
         "unsupported": (unsupported or "").strip(),
-        "ts": time.time(),
-        "started_at": started_at,
+        "ts": now,
+        "started_at": started_at_val,
     }
     return {"ok": True}
 

@@ -147,8 +147,8 @@ def test_get_status_recording_flag_stale_within_alive_window(monkeypatch):
     # is older than WATCHER_STATUS_TTL -> a crashed-mid-call watcher must NOT
     # show as recording, while still being seen as installed/running.
     monkeypatch.setattr(time, "time", lambda: 100.0)
-    # age = 10s: < ALIVE(15) but > RECORDING_TTL(8)
-    _set_state(ts=90.0, recording=True, app="Zoom")
+    # age = 13s: < ALIVE(15) but > RECORDING_TTL(12)
+    _set_state(ts=87.0, recording=True, app="Zoom")
     d = _get_status()
     assert d["alive"] is True
     assert d["recording"] is False

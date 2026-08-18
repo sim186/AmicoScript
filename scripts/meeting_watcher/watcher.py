@@ -143,8 +143,8 @@ DIARIZE = _env_flag("AMICOSCRIPT_DIARIZE")
 MIX_MIC = os.environ.get("AMICOSCRIPT_MIX_MIC", "true").lower() in {"1", "true", "yes", "on"}
 
 POLL_SECONDS = 0.5          # how often to check audio state
-START_DEBOUNCE = 2          # consecutive active polls before "call started"
-STOP_DEBOUNCE = 3           # consecutive inactive polls before "call ended"
+START_DEBOUNCE = 1          # consecutive active polls before "call started"
+STOP_DEBOUNCE = 2           # consecutive inactive polls before "call ended"
 MIN_MEETING_SECONDS = 15    # ignore captures shorter than this (false triggers)
 STATUS_HEARTBEAT = 5        # seconds between "recording" heartbeats to the web UI
 
@@ -709,11 +709,15 @@ def unsupported_reason() -> str:
     return ""
 
 
-def report_status(recording: bool, app: str = "") -> None:
+def report_status(recording: bool, app: str = "", started_at: float = 0.0) -> None:
     """Tell AmicoScript whether we're recording, so the web UI can show a chip.
 
     Best-effort: posted on capture start, periodically as a heartbeat, and on
     stop. Failures are ignored — the server expires a stale heartbeat on its own.
+
+    ``started_at`` is a Unix timestamp of when the capture actually began.
+    Sent on recording heartbeats so the server can preserve it across missed
+    heartbeats instead of resetting the badge timer.
     """
     try:
         data = {
@@ -723,6 +727,8 @@ def report_status(recording: bool, app: str = "") -> None:
             "unsupported": unsupported_reason(),
             "token": server_token(),
         }
+        if recording and started_at > 0:
+            data["started_at"] = str(started_at)
         resp = HTTP.post(
             f"{BASE_URL}/api/watcher/status",
             data=data,
@@ -1051,8 +1057,15 @@ def _main_loop() -> None:
                 capture = Capture(mix_mic=MIX_MIC)
                 capture.start()
                 notify("Recording started", f"Capturing {detected_app} meeting at {started_at:%H:%M}")
-                report_status(True, detected_app)
+                _started_at_ts = started_at.timestamp()
+                report_status(True, detected_app, _started_at_ts)
                 last_heartbeat = time.time()
+                # Send a follow-up heartbeat after 1s so the server has fresh
+                # state even if the first one was slow or lost.
+                def _send_followup():
+                    time.sleep(1.0)
+                    report_status(True, detected_app, _started_at_ts)
+                threading.Thread(target=_send_followup, daemon=True).start()
             except Exception as exc:
                 log(f"ERROR starting capture: {exc}")
                 capture, in_call = None, False
@@ -1065,20 +1078,20 @@ def _main_loop() -> None:
                 _finalize_capture(capture, started_at, detected_app)
                 capture = None
 
+        # Heartbeat: include started_at so the server can preserve the badge
+        # timer across missed heartbeats.
+        now = time.time()
+        if now - last_heartbeat >= STATUS_HEARTBEAT:
+            recording = in_call and capture is not None
+            _sat_ts = started_at.timestamp() if (recording and started_at) else 0.0
+            report_status(recording, detected_app if recording else "", _sat_ts)
+            last_heartbeat = now
+
         # Reflect current state on the tray icon (colour + tooltip + menu label).
         _tray_state["enabled"] = enabled
         _tray_state["recording"] = bool(in_call and capture is not None)
         _tray_state["app"] = detected_app if in_call else ""
         _tray_refresh()
-
-        # Heartbeat so the web UI knows the watcher is installed and running
-        # (and whether it is currently recording). Sent while idle too, so the
-        # UI can hide its one-time setup prompt once the watcher is alive.
-        now = time.time()
-        if now - last_heartbeat >= STATUS_HEARTBEAT:
-            recording = in_call and capture is not None
-            report_status(recording, detected_app if recording else "")
-            last_heartbeat = now
 
         time.sleep(POLL_SECONDS)
 
