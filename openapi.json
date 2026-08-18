@@ -366,6 +366,11 @@
             "title": "Recording",
             "type": "string"
           },
+          "started_at": {
+            "default": "",
+            "title": "Started At",
+            "type": "string"
+          },
           "token": {
             "default": "",
             "title": "Token",
@@ -3666,7 +3671,7 @@
         ]
       },
       "post": {
-        "description": "Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).\n\nThe watcher posts ``recording=true`` when a capture starts and again\nperiodically while it runs, then ``recording=false`` on stop. Stored only in\nmemory — see WATCHER_STATUS_TTL for the staleness rule.\n\n``unsupported`` carries the reason a running watcher cannot actually\ncapture — an old macOS, a missing audio stack, a permission the OS will not\nprompt for. It heartbeats like the rest so the sidebar can say \"running, but\nit will not record\" instead of the reassuring plain \"running\".",
+        "description": "Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).\n\nThe watcher posts ``recording=true`` when a capture starts and again\nperiodically while it runs, then ``recording=false`` on stop. Stored only in\nmemory — see WATCHER_STATUS_TTL for the staleness rule.\n\n``unsupported`` carries the reason a running watcher cannot actually\ncapture — an old macOS, a missing audio stack, a permission the OS will not\nprompt for. It heartbeats like the rest so the sidebar can say \"running, but\nit will not record\" instead of the reassuring plain \"running\".\n\n``started_at`` is an optional Unix timestamp the watcher sends so the server\ncan preserve the badge timer across missed heartbeats instead of resetting it.",
         "operationId": "set_watcher_status_api_watcher_status_post",
         "requestBody": {
           "content": {
