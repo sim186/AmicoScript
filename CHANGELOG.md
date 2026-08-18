@@ -8,6 +8,15 @@ Keep a Changelog format.
 
 
 
+## [1.20.1] - 2026-08-18
+- No change details provided.
+
+## [1.20.0] - 2026-08-18
+- No change details provided.
+
+## [1.19.0] - 2026-08-18
+- No change details provided.
+
 ## [1.18.1] - 2026-08-15
 ### 🤖 Unified AI Assistant hub
 
