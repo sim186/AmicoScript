@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import pyaudiowpatch as pyaudio
@@ -169,19 +170,27 @@ class _WindowsSession:
     def __init__(self, mix_mic: bool, out_dir: Path):
         self._out_dir = out_dir
         self._stop = threading.Event()
+        _t = time.perf_counter()
         self._pa = pyaudio.PyAudio()
+        log(f"[DEBUG-w1] pyaudio_init={time.perf_counter() - _t:.3f}s")
         self._infos: list[dict] = []
         self._threads: list[threading.Thread] = []
         self.sources: list[RawSource] = []
 
+        _t = time.perf_counter()
         id_to_name = _all_device_names()  # one COM enumeration, reused below
+        log(f"[DEBUG-w1] device_enumeration={time.perf_counter() - _t:.3f}s devices={len(id_to_name)}")
+        _t = time.perf_counter()
         loop_infos = self._loopback_infos(id_to_name)
+        log(f"[DEBUG-w1] loopback_resolution={time.perf_counter() - _t:.3f}s count={len(loop_infos)}")
         if not loop_infos:
             self._pa.terminate()
             raise RuntimeError("No WASAPI loopback device found")
         infos = list(loop_infos)
         if mix_mic:
+            _t = time.perf_counter()
             infos += self._mic_infos(id_to_name)
+            log(f"[DEBUG-w1] mic_resolution={time.perf_counter() - _t:.3f}s count={len(infos) - len(loop_infos)}")
         for info in infos:
             self._infos.append(info)
             self.sources.append(RawSource(
@@ -266,6 +275,7 @@ class _WindowsSession:
 
     def _record(self, info: dict, source: RawSource) -> None:
         try:
+            _t = time.perf_counter()
             stream = self._pa.open(
                 format=pyaudio.paInt16,
                 channels=source.channels,
@@ -274,13 +284,21 @@ class _WindowsSession:
                 input=True,
                 input_device_index=info["index"],
             )
+            _opened_at = time.perf_counter()
+            log(f"[DEBUG-w1] stream_open name={info.get('name')!r} seconds={_opened_at - _t:.3f}")
         except Exception as exc:
             log(f"WARN: cannot open {info.get('name')}: {exc}")
             return
+        got_first_chunk = False
         try:
             with open(source.path, "ab", buffering=1024 * 1024) as raw:
                 while not self._stop.is_set():
-                    raw.write(stream.read(READ_CHUNK, exception_on_overflow=False))
+                    chunk = stream.read(READ_CHUNK, exception_on_overflow=False)
+                    if not got_first_chunk:
+                        got_first_chunk = True
+                        log(f"[DEBUG-w1] first_chunk_after_open name={info.get('name')!r} "
+                            f"seconds={time.perf_counter() - _opened_at:.3f}")
+                    raw.write(chunk)
         finally:
             stream.stop_stream()
             stream.close()

@@ -462,7 +462,9 @@ class Capture:
         if be is None:
             raise RuntimeError(_BACKEND_ERROR or "no meeting-watcher backend on this host")
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        _t = time.perf_counter()
         self._session = be.open_session(mix_mic=mix_mic, out_dir=OUTPUT_DIR)
+        log(f"[DEBUG-w1] backend_open_session_total={time.perf_counter() - _t:.3f}s")
         self._sources = list(self._session.sources)
         if not self._sources:
             self._session.stop()
@@ -567,12 +569,14 @@ class Capture:
 
     def stop(self, out_path: Path) -> float:
         """Stop recording, write mixed WAV to out_path, return duration seconds."""
+        _t = time.perf_counter()
         try:
             self._session.stop()
         except Exception as exc:
             # The bytes are already on disk; a device that would not release is
             # not a reason to lose the meeting.
             log(f"WARN: capture teardown failed (ignored): {exc}")
+        log(f"[DEBUG-w1] session_teardown={time.perf_counter() - _t:.3f}s")
 
         stats = self._source_stats()
         rate = OUT_RATE
@@ -582,6 +586,7 @@ class Capture:
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
         handles = []
+        _t_mix = time.perf_counter()
         try:
             handles = [(s, open(s["source"].path, "rb")) for s in stats]
             with wave.open(str(out_path), "wb") as wf:
@@ -606,6 +611,9 @@ class Capture:
                     source.path.unlink(missing_ok=True)
                 except Exception:
                     pass
+
+        log(f"[DEBUG-w1] mix_and_write={time.perf_counter() - _t_mix:.3f}s "
+            f"out_frames={total_frames} sources={len(stats)}")
 
         return duration
 
@@ -729,11 +737,15 @@ def report_status(recording: bool, app: str = "", started_at: float = 0.0) -> No
         }
         if recording and started_at > 0:
             data["started_at"] = str(started_at)
+        _t = time.perf_counter()
         resp = HTTP.post(
             f"{BASE_URL}/api/watcher/status",
             data=data,
             timeout=5,
         )
+        _elapsed = time.perf_counter() - _t
+        if _elapsed > 1.0:
+            log(f"[DEBUG-w1] slow_status_post seconds={_elapsed:.2f} recording={recording}")
         if resp.status_code == 403:
             data["token"] = server_token(force=True)
             HTTP.post(f"{BASE_URL}/api/watcher/status", data=data, timeout=5)
@@ -1053,6 +1065,13 @@ def _main_loop() -> None:
     detected_app = "Meeting"
     last_heartbeat = 0.0
 
+    # [DEBUG-w1] actual poll-period health: the loop targets POLL_SECONDS, but
+    # per-poll COM enumeration on Windows can stretch iterations far past it.
+    _dbg_prev = time.perf_counter()
+    _dbg_sum = _dbg_n = 0
+    _dbg_max = 0.0
+    _dbg_reported_at = _dbg_prev
+
     while True:
         if _tray_quit.is_set() or _embedded_quit.is_set():
             break
@@ -1085,9 +1104,12 @@ def _main_loop() -> None:
             started_at = dt.datetime.now()
             detected_app = app or "Meeting"
             log(f"{detected_app} meeting detected -- starting capture")
+            _t_detect = time.perf_counter()
             try:
                 capture = Capture(mix_mic=MIX_MIC)
                 capture.start()
+                log(f"[DEBUG-w1] detect_to_first_byte_budget="
+                    f"{time.perf_counter() - _t_detect:.3f}s app={detected_app}")
                 notify("Recording started", f"Capturing {detected_app} meeting at {started_at:%H:%M}")
                 _started_at_ts = started_at.timestamp()
                 report_status(True, detected_app, _started_at_ts)
@@ -1124,6 +1146,21 @@ def _main_loop() -> None:
         _tray_state["recording"] = bool(in_call and capture is not None)
         _tray_state["app"] = detected_app if in_call else ""
         _tray_refresh()
+
+        # [DEBUG-w1]
+        _now_p = time.perf_counter()
+        _period = _now_p - _dbg_prev
+        _dbg_prev = _now_p
+        _dbg_sum += _period
+        _dbg_n += 1
+        if _period > _dbg_max:
+            _dbg_max = _period
+        if _now_p - _dbg_reported_at >= 60:
+            log(f"[DEBUG-w1] poll_period avg={_dbg_sum / max(1, _dbg_n):.3f}s "
+                f"max={_dbg_max:.3f}s n={_dbg_n} target={POLL_SECONDS}")
+            _dbg_sum = _dbg_n = 0
+            _dbg_max = 0.0
+            _dbg_reported_at = _now_p
 
         time.sleep(POLL_SECONDS)
 
