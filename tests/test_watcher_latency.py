@@ -17,10 +17,8 @@ path, per-poll COM churn) cannot be exercised on a CI box; they need an
 instrumented run on a Windows host (see docs/ROADMAP.md, watcher gaps).
 """
 
-import importlib.util
 import sys
 import threading
-import types
 from pathlib import Path
 
 import pytest
