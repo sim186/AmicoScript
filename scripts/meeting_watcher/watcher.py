@@ -819,6 +819,38 @@ def _report_capture_health(capture: "Capture") -> None:
         notify("Meeting capture is missing permission", problem)
 
 
+# Teardown + mixing runs off the watch loop: mixing a multi-hour capture
+# takes tens of seconds, and doing it inline stalled polls *and* heartbeats,
+# so the web UI expired the helper as dead right after it recorded a meeting.
+_finalize_threads: set[threading.Thread] = set()
+_finalize_threads_lock = threading.Lock()
+
+
+def wait_for_finalizes(timeout: float | None = None) -> None:
+    """Join outstanding finalize threads (used at shutdown so a meeting is
+    never half-mixed when the host process exits)."""
+    with _finalize_threads_lock:
+        threads = list(_finalize_threads)
+    for t in threads:
+        t.join(timeout=timeout)
+
+
+def _finalize_in_background(capture: "Capture", started_at, detected_app: str) -> None:
+    """_finalize_capture on its own thread; the loop keeps polling."""
+
+    def _run() -> None:
+        try:
+            _finalize_capture(capture, started_at, detected_app)
+        finally:
+            with _finalize_threads_lock:
+                _finalize_threads.discard(threading.current_thread())
+
+    t = threading.Thread(target=_run, daemon=True, name="watcher-finalize")
+    with _finalize_threads_lock:
+        _finalize_threads.add(t)
+    t.start()
+
+
 def _finalize_capture(capture: "Capture", started_at, detected_app: str) -> None:
     """Stop a capture, save the WAV, and kick off transcription if long enough."""
     stamp = (started_at or dt.datetime.now()).strftime("%Y%m%d_%H%M%S")
@@ -1045,7 +1077,7 @@ def _main_loop() -> None:
             report_status(False)
             log("Auto-capture disabled -- stopping capture")
             if capture:
-                _finalize_capture(capture, started_at, detected_app)
+                _finalize_in_background(capture, started_at, detected_app)
                 capture = None
 
         elif not in_call and enabled and active_streak >= START_DEBOUNCE:
@@ -1075,7 +1107,7 @@ def _main_loop() -> None:
             report_status(False)
             log("Meeting ended -- stopping capture")
             if capture:
-                _finalize_capture(capture, started_at, detected_app)
+                _finalize_in_background(capture, started_at, detected_app)
                 capture = None
 
         # Heartbeat: include started_at so the server can preserve the badge
@@ -1100,6 +1132,9 @@ def _main_loop() -> None:
     if capture is not None:
         log("Quit requested -- finalizing in-progress capture")
         _finalize_capture(capture, started_at, detected_app)
+    # Already-scheduled finalizes are daemon threads: without this join a
+    # quit landing seconds after a meeting ends could kill the mix halfway.
+    wait_for_finalizes()
     report_status(False)
     if _tray_icon is not None:
         try:
@@ -1128,6 +1163,9 @@ def stop_embedded() -> None:
     not running embedded or already stopped (the event is idempotent).
     """
     _embedded_quit.set()
+    # Bounded like the host's own join: a wedged finalize must not hold
+    # shutdown open indefinitely, but a healthy one gets to finish writing.
+    wait_for_finalizes(timeout=10.0)
 
 
 def run_embedded(base_url: str | None = None) -> None:

@@ -97,7 +97,9 @@ function _setWatcherUI(d) {
       const appEl = document.getElementById('recording-chip-app');
       if (appEl) appEl.textContent = d.app ? `· ${d.app}` : '';
       chip.classList.remove('hidden');
-      _watcherRecordingSince = d.since || _watcherRecordingSince || (Date.now() / 1000);
+      // Hold the last known anchor when 'since' is missing: adopting 'now'
+      // would silently restart the visible timer mid-meeting.
+      _watcherRecordingSince = d.since || _watcherRecordingSince;
       _tickRecordingTimer();
       if (!_watcherTimerHandle) _watcherTimerHandle = setInterval(_tickRecordingTimer, 1000);
     } else {

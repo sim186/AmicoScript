@@ -72,6 +72,9 @@ export function initLibrary() {
 
     function stopRecording(keepData) {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      // Grab the stream first: dropping mediaRecorder below must not strand
+      // the mic tracks (they kept recording after a cancelled modal).
+      const stream = mediaRecorder ? mediaRecorder.stream : null;
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         if (!keepData) {
           mediaRecorder.ondataavailable = null;
@@ -79,12 +82,12 @@ export function initLibrary() {
         }
         mediaRecorder.stop();
       }
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
       if (!keepData) {
         mediaRecorder = null;
         recordedChunks = [];
-      }
-      if (mediaRecorder && mediaRecorder.stream) {
-        mediaRecorder.stream.getTracks().forEach(t => t.stop());
       }
     }
 
