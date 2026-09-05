@@ -7,6 +7,16 @@
 # through CTranslate2, which needs cuBLAS *and* cuDNN, and a plain `cuda-runtime`
 # tag carries only the former — which fails at the first transcription rather
 # than at build time.
+# frontend/ is Vite build output (see CONTEXT.md), not committed source — this
+# stage runs the asset build so the final image never depends on a pre-built
+# frontend/ existing in the build context.
+FROM node:22-slim AS frontend-build
+WORKDIR /web
+COPY web/package.json web/package-lock.json* ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -43,7 +53,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /tmp/requirements-diarization-cu126.txt
 
 COPY backend/ backend/
-COPY frontend/ frontend/
+COPY --from=frontend-build /frontend/ frontend/
 COPY scripts/ scripts/
 COPY VERSION /app/VERSION
 

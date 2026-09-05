@@ -82,11 +82,13 @@ bundle ships in browser-fallback mode rather than failing.
 
 ### Offline assets
 
-Tailwind, marked, WaveSurfer and the Inter font are vendored under
-`frontend/vendor/` at pinned versions, so the UI renders with no network at all.
+Tailwind, marked, WaveSurfer and the Inter font are ordinary npm dependencies
+under `web/`, bundled into `frontend/` by the Vite asset build, so the UI
+renders with no network at all — see
+[`docs/adr/0003-bundler-managed-deps-replace-vendoring.md`](adr/0003-bundler-managed-deps-replace-vendoring.md)
+for why this replaced the old hand-vendored `frontend/vendor/` directory.
 `tests/test_frontend_assets.py` fails the build if a CDN reference creeps back
-in or a vendored file goes missing. Details and refresh steps:
-[`frontend/vendor/README.md`](../frontend/vendor/README.md).
+into the built output.
 
 This was a prerequisite for Phase 2 regardless — Tauri's default CSP blocks
 external hosts.
