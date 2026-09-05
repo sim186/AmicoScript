@@ -13,6 +13,8 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException
 
 import state
+from core.watcher_state import get_started_at, report_recording
+from db import new_session
 from llm_providers import in_container as _in_container
 
 # Reached through the module, not imported by name: several route handlers here
@@ -178,47 +180,30 @@ async def set_watcher_status(
     version: str = Form(""),
     unsupported: str = Form(""),
     token: str = Form(""),
-    started_at: str = Form(""),
 ) -> dict:
     """Heartbeat from the meeting watcher (scripts/meeting_watcher/watcher.py).
 
     The watcher posts ``recording=true`` when a capture starts and again
-    periodically while it runs, then ``recording=false`` on stop. Stored only in
-    memory — see WATCHER_STATUS_TTL for the staleness rule.
+    periodically while it runs, then ``recording=false`` on stop. Liveness
+    (recording/app/ts) is stored only in memory — see WATCHER_STATUS_TTL for
+    the staleness rule. When the recording started is a different question:
+    see core/watcher_state.py, the sole owner of that value.
 
     ``unsupported`` carries the reason a running watcher cannot actually
     capture — an old macOS, a missing audio stack, a permission the OS will not
     prompt for. It heartbeats like the rest so the sidebar can say "running, but
     it will not record" instead of the reassuring plain "running".
-
-    ``started_at`` is an optional Unix timestamp the watcher sends so the server
-    can preserve the badge timer across missed heartbeats instead of resetting it.
     """
     _require_session_token(token)
     is_recording = _to_bool(recording)
-    prev = getattr(state, "watcher_status", None) or {}
-    was_recording = bool(prev.get("recording")) and (time.time() - prev.get("ts", 0)) < WATCHER_STATUS_TTL
-    prev_started = prev.get("started_at", 0.0)
-    now = time.time()
-    if is_recording:
-        # Trust the watcher's started_at when reasonable: not in the future and
-        # not older than the previous started_at (which would mean a reset).
-        watcher_started = float(started_at) if started_at else 0.0
-        if watcher_started > 0 and watcher_started <= now and (not prev_started or watcher_started >= prev_started):
-            started_at_val = watcher_started
-        elif was_recording and prev_started:
-            started_at_val = prev_started
-        else:
-            started_at_val = now
-    else:
-        started_at_val = 0.0
+    with new_session() as session:
+        report_recording(session, is_recording)
     state.watcher_status = {
         "recording": is_recording,
         "app": (app or "").strip(),
         "version": (version or "").strip(),
         "unsupported": (unsupported or "").strip(),
-        "ts": now,
-        "started_at": started_at_val,
+        "ts": time.time(),
     }
     return {"ok": True}
 
@@ -269,11 +254,15 @@ def get_watcher_status() -> dict:
     installed_version = st.get("version", "") if alive else ""
     current_version = _bundled_watcher_version()
     host = _host_platform()
+    since = None
+    if fresh:
+        with new_session() as session:
+            since = get_started_at(session)
     return {
         "alive": alive,
         "recording": fresh,
         "app": st.get("app", "") if fresh else "",
-        "since": st.get("started_at", 0) if fresh else 0,
+        "since": since,
         "installed_version": installed_version,
         "current_version": current_version,
         "update_available": bool(installed_version and current_version and installed_version != current_version),

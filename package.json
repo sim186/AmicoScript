@@ -1,0 +1,11 @@
+{
+  "name": "amicoscript-frontend-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/frontend/"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  }
+}

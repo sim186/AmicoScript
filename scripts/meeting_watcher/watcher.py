@@ -717,15 +717,15 @@ def unsupported_reason() -> str:
     return ""
 
 
-def report_status(recording: bool, app: str = "", started_at: float = 0.0) -> None:
+def report_status(recording: bool, app: str = "") -> None:
     """Tell AmicoScript whether we're recording, so the web UI can show a chip.
 
     Best-effort: posted on capture start, periodically as a heartbeat, and on
     stop. Failures are ignored — the server expires a stale heartbeat on its own.
 
-    ``started_at`` is a Unix timestamp of when the capture actually began.
-    Sent on recording heartbeats so the server can preserve it across missed
-    heartbeats instead of resetting the badge timer.
+    Just the recording=true/false transition — the server stamps its own
+    clock for "when did this start" (core/watcher_state.py) rather than
+    trusting a timestamp from over here, so there is nothing to send it.
     """
     try:
         data = {
@@ -735,8 +735,6 @@ def report_status(recording: bool, app: str = "", started_at: float = 0.0) -> No
             "unsupported": unsupported_reason(),
             "token": server_token(),
         }
-        if recording and started_at > 0:
-            data["started_at"] = str(started_at)
         _t = time.perf_counter()
         resp = HTTP.post(
             f"{BASE_URL}/api/watcher/status",
@@ -1111,14 +1109,13 @@ def _main_loop() -> None:
                 log(f"[DEBUG-w1] detect_to_first_byte_budget="
                     f"{time.perf_counter() - _t_detect:.3f}s app={detected_app}")
                 notify("Recording started", f"Capturing {detected_app} meeting at {started_at:%H:%M}")
-                _started_at_ts = started_at.timestamp()
-                report_status(True, detected_app, _started_at_ts)
+                report_status(True, detected_app)
                 last_heartbeat = time.time()
                 # Send a follow-up heartbeat after 1s so the server has fresh
                 # state even if the first one was slow or lost.
                 def _send_followup():
                     time.sleep(1.0)
-                    report_status(True, detected_app, _started_at_ts)
+                    report_status(True, detected_app)
                 threading.Thread(target=_send_followup, daemon=True).start()
             except Exception as exc:
                 log(f"ERROR starting capture: {exc}")
@@ -1132,13 +1129,10 @@ def _main_loop() -> None:
                 _finalize_in_background(capture, started_at, detected_app)
                 capture = None
 
-        # Heartbeat: include started_at so the server can preserve the badge
-        # timer across missed heartbeats.
         now = time.time()
         if now - last_heartbeat >= STATUS_HEARTBEAT:
             recording = in_call and capture is not None
-            _sat_ts = started_at.timestamp() if (recording and started_at) else 0.0
-            report_status(recording, detected_app if recording else "", _sat_ts)
+            report_status(recording, detected_app if recording else "")
             last_heartbeat = now
 
         # Reflect current state on the tray icon (colour + tooltip + menu label).

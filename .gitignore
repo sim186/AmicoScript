@@ -45,3 +45,6 @@ backend/ffmpeg.zip
 
 # Local environment (copy .env.example and fill in your values)
 .env
+
+# Frontend test tooling (tests/frontend/) — jsdom devDependency only, no build step
+node_modules/

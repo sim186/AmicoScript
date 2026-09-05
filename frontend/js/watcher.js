@@ -82,7 +82,7 @@ export async function _maybeOpenLatestWatcherRecording() {
   }
 }
 
-function _setWatcherUI(d) {
+export function _setWatcherUI(d) {
   const wasRecording = _watcherWasRecording;
   _watcherWasRecording = !!d.recording;
   if (!d.recording && wasRecording) {
@@ -97,9 +97,9 @@ function _setWatcherUI(d) {
       const appEl = document.getElementById('recording-chip-app');
       if (appEl) appEl.textContent = d.app ? `· ${d.app}` : '';
       chip.classList.remove('hidden');
-      // Hold the last known anchor when 'since' is missing: adopting 'now'
-      // would silently restart the visible timer mid-meeting.
-      _watcherRecordingSince = d.since || _watcherRecordingSince;
+      // Render exactly what the server says. The server (core/watcher_state.py)
+      // is the sole owner of started_at now — no local anchor to fall back to.
+      _watcherRecordingSince = d.since;
       _tickRecordingTimer();
       if (!_watcherTimerHandle) _watcherTimerHandle = setInterval(_tickRecordingTimer, 1000);
     } else {

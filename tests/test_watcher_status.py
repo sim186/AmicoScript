@@ -53,10 +53,9 @@ def test_watcher_status_constants_sane():
 
 
 def _post_status(recording: str, app: str = "", version: str = "", unsupported: str = "",
-                 token: str = TEST_TOKEN, started_at: str = "") -> dict:
+                 token: str = TEST_TOKEN) -> dict:
     return asyncio.run(route.set_watcher_status(
         recording=recording, app=app, version=version, unsupported=unsupported, token=token,
-        started_at=started_at,
     ))
 
 
@@ -66,50 +65,74 @@ def _get_status() -> dict:
 
 def _set_state(ts: float, recording: bool = True, app: str = "Zoom", started_at: float = None,
                 version: str = "", unsupported: str = "") -> None:
+    """Fake a watcher heartbeat for GET-side tests: the liveness fields
+    (recording/app/ts) still live in `state`, but started_at now lives in the
+    DB — see core/watcher_state.py — so it's set there directly.
+    """
     import state
-    if started_at is None:
-        started_at = ts if recording else 0.0
+    from db import new_session
+    from models import WatcherState
+
     state.watcher_status = {
-        "recording": recording, "app": app, "ts": ts, "started_at": started_at,
+        "recording": recording, "app": app, "ts": ts,
         "version": version, "unsupported": unsupported,
     }
+    if started_at is None:
+        started_at = ts if recording else None
+    with new_session() as session:
+        row = session.get(WatcherState, "singleton") or WatcherState(id="singleton")
+        row.started_at = started_at
+        session.add(row)
+        session.commit()
 
 
-def test_post_status_stores_recording_app_and_ts(monkeypatch):
+def test_post_status_stores_recording_app_and_ts(api_app, monkeypatch):
     import state
     fixed = 1_700_000_000.0
     monkeypatch.setattr(time, "time", lambda: fixed)
     result = _post_status("true", "Zoom", version="3")
     assert result == {"ok": True}
     assert state.watcher_status == {
-        "recording": True, "app": "Zoom", "version": "3", "ts": fixed, "started_at": fixed,
+        "recording": True, "app": "Zoom", "version": "3", "ts": fixed,
         "unsupported": "",
     }
 
 
-def test_post_status_keeps_started_at_across_heartbeats(monkeypatch):
-    import state
-    state.watcher_status = {"recording": False, "app": "", "ts": 0.0, "started_at": 0.0}
+def test_post_status_true_stamps_started_at_once_per_server_clock(api_app, monkeypatch):
+    """started_at now comes from core.watcher_state — the server's own clock,
+    stamped once on the false->true edge and left alone across heartbeats.
+    See core/watcher_state.py for why the watcher's own clock isn't trusted.
+    """
+    from core.watcher_state import get_started_at
+    from db import new_session
+
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _post_status("true", "Zoom")
     monkeypatch.setattr(time, "time", lambda: 105.0)
     _post_status("true", "Zoom")
-    assert state.watcher_status["started_at"] == 100.0
+
+    with new_session() as session:
+        assert get_started_at(session) == 100.0
+    import state
     assert state.watcher_status["ts"] == 105.0
 
 
-def test_post_status_resets_started_at_after_stop_and_restart(monkeypatch):
-    import state
+def test_post_status_false_then_true_stamps_a_new_started_at(api_app, monkeypatch):
+    from core.watcher_state import get_started_at
+    from db import new_session
+
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _post_status("true", "Zoom")
     monkeypatch.setattr(time, "time", lambda: 105.0)
     _post_status("false", "Zoom")
     monkeypatch.setattr(time, "time", lambda: 110.0)
     _post_status("true", "Zoom")
-    assert state.watcher_status["started_at"] == 110.0
+
+    with new_session() as session:
+        assert get_started_at(session) == 110.0
 
 
-def test_post_status_strips_app_and_parses_false(monkeypatch):
+def test_post_status_strips_app_and_parses_false(api_app, monkeypatch):
     import state
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _post_status("false", "  Meet  ")
@@ -123,7 +146,7 @@ def test_post_status_rejects_missing_token():
     assert exc.value.status_code == 403
 
 
-def test_get_status_alive_and_recording_when_fresh(monkeypatch):
+def test_get_status_alive_and_recording_when_fresh(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _set_state(ts=95.0, recording=True, app="Zoom")  # age = 5s
     d = _get_status()
@@ -133,17 +156,17 @@ def test_get_status_alive_and_recording_when_fresh(monkeypatch):
     assert d["since"] == 95.0
 
 
-def test_get_status_alive_but_not_recording_when_recording_flag_false(monkeypatch):
+def test_get_status_alive_but_not_recording_when_recording_flag_false(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _set_state(ts=95.0, recording=False, app="")  # idle heartbeat
     d = _get_status()
     assert d["alive"] is True
     assert d["recording"] is False
     assert d["app"] == ""
-    assert d["since"] == 0
+    assert d["since"] is None
 
 
-def test_get_status_recording_flag_stale_within_alive_window(monkeypatch):
+def test_get_status_recording_flag_stale_within_alive_window(api_app, monkeypatch):
     # Heartbeat is recent enough to be "alive" but the recording heartbeat
     # is older than WATCHER_STATUS_TTL -> a crashed-mid-call watcher must NOT
     # show as recording, while still being seen as installed/running.
@@ -154,17 +177,17 @@ def test_get_status_recording_flag_stale_within_alive_window(monkeypatch):
     assert d["alive"] is True
     assert d["recording"] is False
     assert d["app"] == ""
-    assert d["since"] == 0
+    assert d["since"] is None
 
 
-def test_get_status_not_alive_when_heartbeat_too_old(monkeypatch):
+def test_get_status_not_alive_when_heartbeat_too_old(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     _set_state(ts=10.0, recording=True, app="Zoom")  # age = 90s > ALIVE
     d = _get_status()
     assert d["alive"] is False
     assert d["recording"] is False
     assert d["app"] == ""
-    assert d["since"] == 0
+    assert d["since"] is None
 
 
 def test_get_status_never_heartbeat_is_not_alive():
@@ -234,7 +257,7 @@ def test_bundled_watcher_version_reads_real_constant():
     assert version != ""
 
 
-def test_get_status_flags_update_available_when_versions_differ(monkeypatch):
+def test_get_status_flags_update_available_when_versions_differ(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     monkeypatch.setattr(route, "_bundled_watcher_version", lambda: "3")
     _set_state(ts=95.0, recording=False, app="", version="2")
@@ -244,7 +267,7 @@ def test_get_status_flags_update_available_when_versions_differ(monkeypatch):
     assert d["update_available"] is True
 
 
-def test_get_status_no_update_when_versions_match(monkeypatch):
+def test_get_status_no_update_when_versions_match(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     monkeypatch.setattr(route, "_bundled_watcher_version", lambda: "3")
     _set_state(ts=95.0, recording=False, app="", version="3")
@@ -252,7 +275,7 @@ def test_get_status_no_update_when_versions_match(monkeypatch):
     assert d["update_available"] is False
 
 
-def test_get_status_no_update_when_installed_version_unknown(monkeypatch):
+def test_get_status_no_update_when_installed_version_unknown(api_app, monkeypatch):
     # An old watcher that predates the version field reports "" -- never
     # claim an update is available without a real installed version to compare.
     monkeypatch.setattr(time, "time", lambda: 100.0)
@@ -262,7 +285,7 @@ def test_get_status_no_update_when_installed_version_unknown(monkeypatch):
     assert d["update_available"] is False
 
 
-def test_get_status_clears_installed_version_when_not_alive(monkeypatch):
+def test_get_status_clears_installed_version_when_not_alive(api_app, monkeypatch):
     monkeypatch.setattr(time, "time", lambda: 100.0)
     monkeypatch.setattr(route, "_bundled_watcher_version", lambda: "3")
     _set_state(ts=10.0, recording=False, app="", version="2")  # stale heartbeat
@@ -313,7 +336,7 @@ def test_a_container_host_offers_downloads_but_cannot_install(monkeypatch):
     assert d["installers"]["windows"]["name"] == "setup.bat"
 
 
-def test_a_running_watcher_that_cannot_capture_says_so(monkeypatch):
+def test_a_running_watcher_that_cannot_capture_says_so(api_app, monkeypatch):
     """"Helper running" must not read as "meetings are being recorded" when the
     OS is silently refusing to hand over any audio."""
     _post_status("false", unsupported="needs macOS 14.2+")
@@ -322,6 +345,6 @@ def test_a_running_watcher_that_cannot_capture_says_so(monkeypatch):
     assert d["unsupported"] == "needs macOS 14.2+"
 
 
-def test_a_stale_watcher_reports_no_unsupported_reason():
+def test_a_stale_watcher_reports_no_unsupported_reason(api_app):
     _set_state(ts=10.0, recording=False, app="", version="4", unsupported="needs macOS 14.2+")
     assert _get_status()["unsupported"] == ""

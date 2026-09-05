@@ -89,3 +89,14 @@ class Analysis(SQLModel, table=True):
     # True when AmicoScript created this analysis by itself (auto-summary of a
     # captured meeting) rather than the user asking for it.
     auto_generated: bool = Field(default=False)
+
+
+class WatcherState(SQLModel, table=True):
+    """The meeting watcher's current recording, if any. One row, ever.
+
+    started_at is stamped by the server on the recording=false -> true edge —
+    see core/watcher_state.py for why the watcher's own clock isn't trusted.
+    """
+
+    id: str = Field(default="singleton", primary_key=True)
+    started_at: Optional[float] = None
