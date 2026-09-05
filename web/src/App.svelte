@@ -1,13 +1,54 @@
 <script lang="ts">
-  // Placeholder shell proving the Vite/Svelte/Tailwind build pipeline end to
-  // end. Real app UI (login gate, tabs, Transcribe/Transcript/Library) lands
-  // in the tickets that follow this one — see .scratch/svelte-web-ui-migration/.
+  import { onMount } from "svelte";
+  import { installAuthAwareFetch } from "$lib/http";
+  import { initAuth } from "$lib/auth.svelte";
+  import { restoreDrawerState, initViewportTracking } from "$lib/session.svelte";
+  import { restoreTranscriptionSettings } from "$lib/transcribeOptions.svelte";
+  import { loadLlmSettingsFromServer, autoTestLlmConnection } from "$lib/llm.svelte";
+  import { setMeetingCaptureToggleState, autoSummaryState, startWatcherPolling } from "$lib/watcher.svelte";
+  import { fetchVersion, fetchLatestRelease } from "$lib/version.svelte";
+  import { startQueuePolling } from "$lib/queueWidget.svelte";
+  import { initShortcuts } from "$lib/shortcuts";
+  import { transcribeOptions } from "$lib/transcribeOptions.svelte";
+  import LoginOverlay from "$lib/components/LoginOverlay.svelte";
+  import AppShell from "$lib/components/shell/AppShell.svelte";
+
+  let hfTokenPreview = $state("");
+  let hfTokenMasked = $state(false);
+
+  onMount(() => {
+    installAuthAwareFetch();
+    initViewportTracking();
+    restoreDrawerState();
+    initShortcuts();
+    initAuth();
+    startWatcherPolling();
+    startQueuePolling();
+    fetchVersion();
+    fetchLatestRelease();
+
+    restoreTranscriptionSettings().then((restored) => {
+      hfTokenPreview = restored.preview;
+      hfTokenMasked = restored.masked;
+      setMeetingCaptureToggleState(restored.meetingCaptureEnabled);
+      autoSummaryState.enabled = restored.autoSummarizeMeetings;
+    });
+
+    loadLlmSettingsFromServer().then((configured) => {
+      autoSummaryState.llmConfigured = configured;
+    });
+
+    setTimeout(() => autoTestLlmConnection(), 2000);
+
+    window.addEventListener("beforeunload", () => {
+      try {
+        navigator.sendBeacon(`/api/exit?token=${encodeURIComponent(transcribeOptions.exitToken || "")}`);
+      } catch {
+        /* best-effort only */
+      }
+    });
+  });
 </script>
 
-<main class="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-  <div class="text-center">
-    <img src="/logo.svg" alt="AmicoScript" class="mx-auto mb-4 h-12 w-12" />
-    <h1 class="text-xl font-semibold">AmicoScript Web UI</h1>
-    <p class="mt-2 text-sm text-neutral-400">Svelte/Vite build pipeline is live. The full UI is being ported.</p>
-  </div>
-</main>
+<AppShell {hfTokenPreview} {hfTokenMasked} />
+<LoginOverlay />

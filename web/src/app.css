@@ -1,1 +1,49 @@
 @import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+@theme {
+  --color-brand: #6c63ff;
+  --color-brand-hover: #7d75ff;
+  --color-brand-muted: #ede9ff;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+mark {
+  background: #fef08a;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.model-card.selected {
+  border-color: var(--color-brand);
+  background: var(--color-brand-muted);
+}
+
+.palette-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+  background: var(--color-brand-muted);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.palette-dur {
+  font-size: 11px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}

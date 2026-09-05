@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
@@ -11,6 +12,11 @@ const BACKEND_ORIGIN = "http://127.0.0.1:8002";
 
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
+  resolve: {
+    alias: {
+      $lib: fileURLToPath(new URL("./src/lib", import.meta.url)),
+    },
+  },
   build: {
     outDir: "../frontend",
     emptyOutDir: true,
