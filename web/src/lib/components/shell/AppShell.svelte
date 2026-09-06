@@ -14,8 +14,10 @@
   import RecordingChip from "../widgets/RecordingChip.svelte";
   import QueueWidget from "../widgets/QueueWidget.svelte";
   import TranscribeTab from "../transcribe/TranscribeTab.svelte";
-  import TranscriptTabPlaceholder from "../TranscriptTabPlaceholder.svelte";
-  import LibraryTabPlaceholder from "../LibraryTabPlaceholder.svelte";
+  import TranscriptTab from "../transcript/TranscriptTab.svelte";
+  import LibraryTab from "../library/LibraryTab.svelte";
+  import EntityEditModal from "../library/EntityEditModal.svelte";
+  import AiHub from "../widgets/AiHub.svelte";
 
   let { hfTokenPreview, hfTokenMasked }: { hfTokenPreview: string; hfTokenMasked: boolean } = $props();
 
@@ -34,9 +36,9 @@
     {#if session.activeTab === "transcribe"}
       <TranscribeTab />
     {:else if session.activeTab === "transcript"}
-      <TranscriptTabPlaceholder />
+      <TranscriptTab />
     {:else}
-      <LibraryTabPlaceholder />
+      <LibraryTab />
     {/if}
   </div>
 </div>
@@ -46,8 +48,10 @@
   <QueueWidget />
 </div>
 
+<AiHub />
 <ConsolePanel />
 <ShortcutsOverlay />
 <HelpModal />
 <ChangelogModal />
 <CommandPalette />
+<EntityEditModal />

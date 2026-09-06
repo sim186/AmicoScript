@@ -3,6 +3,8 @@
   import { versionState } from "$lib/version.svelte";
   import { toggleShortcutsOverlay, openHelpModal, fetchAndShowChangelog } from "$lib/modals.svelte";
   import TranscribeSidebar from "../sidebar/TranscribeSidebar.svelte";
+  import TranscriptSidebar from "../sidebar/TranscriptSidebar.svelte";
+  import LibrarySidebar from "../library/LibrarySidebar.svelte";
 
   let { hfTokenPreview, hfTokenMasked }: { hfTokenPreview: string; hfTokenMasked: boolean } = $props();
 </script>
@@ -34,9 +36,9 @@
     {#if session.activeTab === "transcribe"}
       <TranscribeSidebar {hfTokenPreview} {hfTokenMasked} />
     {:else if session.activeTab === "transcript"}
-      <div id="sidebar-transcript" class="p-4 text-xs text-slate-400">Transcript tools land with the next ticket.</div>
+      <TranscriptSidebar />
     {:else}
-      <div id="sidebar-library" class="p-4 text-xs text-slate-400">Library filters land with the next ticket.</div>
+      <LibrarySidebar />
     {/if}
   </div>
 

@@ -61,6 +61,7 @@ export const paletteState = $state({
   activeIndex: 0,
   searching: false,
   pendingRecordingId: null as string | null,
+  pendingSearchQuery: null as string | null,
 });
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -224,10 +225,12 @@ export function activatePaletteRow(index: number): void {
       break;
     case "recording":
       paletteState.pendingRecordingId = row.id || null;
+      paletteState.pendingSearchQuery = null;
       switchTab("library");
       break;
     case "search-all":
       paletteState.pendingRecordingId = null;
+      paletteState.pendingSearchQuery = row.query || null;
       switchTab("library");
       break;
   }

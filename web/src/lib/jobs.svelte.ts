@@ -1,6 +1,7 @@
 import { appendJobLogLine, clientLog, resetJobLogs } from "./consoleLog.svelte";
 import { switchTab, session } from "./session.svelte";
 import { transcribeOptions } from "./transcribeOptions.svelte";
+import { hydrateFromJob, resetTranscript } from "./transcript.svelte";
 
 export const ALLOWED_EXTENSIONS = ["mp3", "wav", "m4a", "ogg", "flac", "mp4", "mov", "mkv", "opus"];
 
@@ -26,6 +27,8 @@ export const jobState = $state({
 
   batchMode: false,
   batchQueue: [] as BatchItem[],
+
+  liveSegments: [] as { id: number; start: number; end: number; text: string }[],
 
   errorMessage: "",
 });
@@ -177,6 +180,7 @@ export function setProcessing(active: boolean): void {
   jobState.processing = active;
   if (active) {
     session.transcriptEnabled = true;
+    jobState.liveSegments = [];
     resetJobLogs();
     startLogPolling();
   } else {
@@ -190,6 +194,25 @@ export async function loadResult(jobId: string, recordingId?: string | null): Pr
   session.transcriptEnabled = true;
   setProcessing(false);
   switchTab("transcript");
+  await hydrateFromJob(jobId, recordingId ?? jobState.recordingId);
+}
+
+/** Resets everything the Transcribe/Transcript flow tracks, for "+ New transcription". */
+export function resetForNewTranscription(): void {
+  eventSource?.close();
+  eventSource = null;
+  jobState.jobId = null;
+  jobState.recordingId = null;
+  jobState.jobStatus = null;
+  jobState.jobProgress = 0;
+  jobState.jobMessage = "";
+  jobState.selectedFile = null;
+  jobState.batchMode = false;
+  jobState.batchQueue = [];
+  jobState.liveSegments = [];
+  session.transcriptEnabled = false;
+  resetTranscript();
+  resetJobLogs();
 }
 
 export function connectSSE(jobId: string): void {
@@ -210,6 +233,10 @@ export function connectSSE(jobId: string): void {
     jobState.jobProgress = data.progress;
     jobState.jobMessage = data.message || "";
     appendJobLogLine(`[${new Date().toLocaleTimeString()}] EVENT ${data.status}: ${jobState.jobMessage}`);
+
+    if (data.status === "transcribing" && data.data?.segment) {
+      jobState.liveSegments.push(data.data.segment);
+    }
 
     if (data.status === "done") {
       es.close();
