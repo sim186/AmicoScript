@@ -53,3 +53,7 @@ node_modules/
 # never hand-edited, never committed. See CONTEXT.md and
 # docs/adr/0002-node-required-for-web-ui-dev.md.
 /frontend/
+
+# Scratch planning docs (specs, ticket breakdowns) — local working notes,
+# not project source or documentation.
+/.scratch/
