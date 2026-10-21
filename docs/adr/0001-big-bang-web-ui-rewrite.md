@@ -1,0 +1,3 @@
+# Big-bang rewrite of the Web UI, not an incremental strangler
+
+The existing Web UI (`frontend/index.html` + `frontend/js/*`, ~30 hand-written ES modules with no component boundaries or router) is being replaced wholesale by a Svelte/Vite app rather than migrated section-by-section behind a flag. An incremental strangler would need dual-serving and flag logic to bridge two UIs with no existing seams to split along — real added complexity for a codebase this size, with no external users mid-migration to protect. The full rewrite ships once feature-complete; the old `frontend/js/*` modules are deleted at that point.

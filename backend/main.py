@@ -238,23 +238,26 @@ def _warn_if_exposed_without_password() -> None:
     )
 
 
-class RevalidatingStaticFiles(StaticFiles):
-    """StaticFiles that tells the client to revalidate on every request.
+class _IndexNoCacheStaticFiles(StaticFiles):
+    """Serve frontend/ normally, but never let index.html be cached without revalidation.
 
-    Starlette sends an ETag and Last-Modified but no Cache-Control, which lets
-    a browser cache the asset heuristically and reuse it without asking. The
-    frontend is ~30 separate ES modules loaded by index.html with no hashed
-    filenames, and the packaged app's webview keeps a persistent profile
-    (run.py starts it with private_mode=False), so an upgrade could pair a new
-    index.html with a stale module and leave part of the UI unwired.
-
-    `no-cache` does not mean "do not store": the cached copy is still used, it
-    just has to be revalidated, so an unchanged file costs one 304.
+    frontend/ is Vite build output with hashed asset filenames (js/css under
+    assets/*-<hash>.*), so a stale cached asset can never be paired with a
+    newer index.html — the hash in the reference changes instead. But the
+    asset build empties frontend/ on every run (emptyOutDir), replacing the
+    previous build's hashed filenames outright, and the packaged app's webview
+    keeps a persistent profile (run.py starts it with private_mode=False). A
+    heuristically-cached index.html could therefore survive an update and
+    still reference asset files that no longer exist — a blank/broken UI
+    until a hard refresh. Hashed assets themselves stay cacheable as normal:
+    a changed file gets a new filename, so a stale cache entry just goes
+    unused rather than served.
     """
 
-    def file_response(self, *args, **kwargs):
-        response = super().file_response(*args, **kwargs)
-        response.headers["Cache-Control"] = "no-cache"
+    def file_response(self, full_path, *args, **kwargs):
+        response = super().file_response(full_path, *args, **kwargs)
+        if Path(full_path).name == "index.html":
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
 
@@ -262,7 +265,7 @@ if SCRIPTS_DIR.exists():
     app.mount("/scripts", StaticFiles(directory=str(SCRIPTS_DIR)), name="scripts")
 
 if FRONTEND_DIR.exists():
-    app.mount("/", RevalidatingStaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    app.mount("/", _IndexNoCacheStaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
     changelog_path = BASE_DIR / "CHANGELOG.md"
     if changelog_path.exists():

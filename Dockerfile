@@ -1,3 +1,13 @@
+# frontend/ is Vite build output (see CONTEXT.md), not committed source — this
+# stage runs the asset build so the final image never depends on a pre-built
+# frontend/ existing in the build context.
+FROM node:22-slim AS frontend-build
+WORKDIR /web
+COPY web/package.json web/package-lock.json* ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -31,7 +41,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements-diarization.txt
 # Preserve backend/ as a subdirectory so it is importable as the 'backend'
 # package (matching the venv layout where run.py adds backend/ to sys.path).
 COPY backend/ backend/
-COPY frontend/ frontend/
+COPY --from=frontend-build /frontend/ frontend/
 COPY scripts/ scripts/
 COPY VERSION /app/VERSION
 

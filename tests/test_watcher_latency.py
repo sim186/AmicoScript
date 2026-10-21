@@ -8,9 +8,15 @@ runs on any OS:
   and mixing the watch loop used to freeze: no polls, no heartbeats, so the
   web UI expired the heartbeat and showed the helper as dead mid-cleanup.
   The loop must keep running while a capture finalizes.
-* ``test_mic_modal_releases_tracks_before_dropping_recorder`` — cancelling
-  the manual mic modal nulled ``mediaRecorder`` before releasing its stream
-  tracks, leaving the microphone hot and slowing the next ``getUserMedia``.
+
+Two Web-UI-side latency guards used to live here as source-text checks
+against the pre-migration ``frontend/js/*`` modules (the manual mic-modal
+track-release ordering, and the recording-chip timer never falling back to
+``Date.now()``). Both modules are gone — see
+docs/adr/0001-big-bang-web-ui-rewrite.md — and the guarantees they protected
+need re-covering as Vitest tests in web/ once the corresponding Svelte
+components exist (the chip-timer purity guarantee is already ported forward
+as web/src/lib/time.test.ts; the mic-modal one is not yet re-covered).
 
 Windows-only latency sources (device enumeration on the capture critical
 path, per-poll COM churn) cannot be exercised on a CI box; they need an
@@ -20,8 +26,6 @@ instrumented run on a Windows host (see docs/ROADMAP.md, watcher gaps).
 import sys
 import threading
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -114,41 +118,8 @@ def test_finalize_does_not_block_the_watch_loop(monkeypatch, tmp_path):
     )
 
 
-def test_mic_modal_releases_tracks_before_dropping_recorder():
-    """Cancelling the manual mic modal must stop the stream's tracks.
-
-    ``stopRecording(false)`` used to null ``mediaRecorder`` first, so the
-    guard ``if (mediaRecorder && mediaRecorder.stream)`` never fired and the
-    microphone stayed hot after the modal closed.
-    """
-    js_dir = ROOT / "frontend" / "js"
-    source = (js_dir / "library-init.js").read_text(encoding="utf-8")
-
-    start = source.index("function stopRecording")
-    end = source.index("async function startRecording")
-    body = source[start:end]
-
-    track_release = body.find(".getTracks().forEach(t => t.stop())")
-    recorder_nulled = body.find("mediaRecorder = null")
-
-    assert track_release != -1, "stopRecording never releases the mic tracks"
-    assert recorder_nulled == -1 or track_release < recorder_nulled, (
-        "stopRecording drops mediaRecorder before stopping the stream tracks, "
-        "so cancelling the mic modal leaves the microphone recording"
-    )
-
-
-@pytest.mark.parametrize(
-    "module",
-    ["watcher.js"],
-)
-def test_chip_timer_never_falls_back_to_now_while_recording(module):
-    """If the server reports recording=true without a usable ``since``, the
-    badge must not silently restart from 'now' — that presents a fresh timer
-    as elapsed meeting time. It must hold the last known anchor instead."""
-    source = (ROOT / "frontend" / "js" / module).read_text(encoding="utf-8")
-    fallback = "_watcherRecordingSince || (Date.now() / 1000)"
-    assert fallback not in source, (
-        "recording-chip timer falls back to Date.now() when 'since' is "
-        "missing, resetting the visible elapsed time to zero mid-meeting"
-    )
+# The mic-modal track-release guard and the chip-timer-never-falls-back-to-now
+# guard used to live here as source-text checks against frontend/js/library-init.js
+# and frontend/js/watcher.js. Both files are gone (docs/adr/0001-big-bang-web-ui-rewrite.md).
+# The chip-timer guarantee is ported forward as web/src/lib/time.test.ts; the
+# mic-modal one still needs re-covering in web/ once that feature is rebuilt.

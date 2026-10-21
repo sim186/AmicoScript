@@ -195,12 +195,17 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```bash
 pip install -r backend/requirements.txt
 pip install -r backend/requirements-diarization.txt   # optional: speaker labels
+
+npm ci --prefix web && npm run build --prefix web     # builds the Web UI (needs Node.js 22+)
+
 python run.py
 ```
 
-The second line is PyTorch and pyannote. Skip it and everything except speaker
-diarization works; from a source checkout nothing is downloaded on your behalf
-to make up the difference.
+The diarization line is PyTorch and pyannote. Skip it and everything except
+speaker diarization works; from a source checkout nothing is downloaded on
+your behalf to make up the difference. The `npm` step is a one-off (or
+re-run it after pulling Web UI changes) — see `CONTEXT.md` for what it
+does.
 
 `run.py` opens a native desktop window when `pywebview` is installed, and falls
 back to a system browser tab when it is not. Override with `AMICOSCRIPT_UI`:
@@ -440,7 +445,7 @@ site. A running install serves the same thing at `http://localhost:8002/docs`.
 ## 🏗️ Architecture (brief)
 
 - Backend: Python + FastAPI (`backend/main.py` + modular routers in `backend/api/routes/`)
-- Frontend: plain ES modules in `frontend/js/`, loaded natively — still no build step
+- Frontend: Svelte 5 + TypeScript, built with Vite (`web/`, compiles into `frontend/`)
 - Processing: downloads run concurrently, model inference stays serialized; interrupted jobs are requeued on restart
 - Storage: local SQLite metadata (versioned migrations) + managed recording files, exportable as a single bundle
 

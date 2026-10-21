@@ -75,7 +75,19 @@ def build():
     root = os.path.dirname(os.path.abspath(__file__))
     dist = os.path.join(root, "dist")
     build_dir = os.path.join(root, "build")
-    
+
+    # frontend/ is Vite build output (see CONTEXT.md), not committed source, so
+    # it does not exist until `npm --prefix web run build` (the asset build)
+    # has run. Bundling a missing/stale frontend/ would still produce a
+    # PyInstaller build — it would just serve a blank page — so this fails
+    # loudly rather than silently, matching the manifest check below.
+    frontend_index = os.path.join(root, "frontend", "index.html")
+    if not os.path.exists(frontend_index):
+        raise SystemExit(
+            "frontend/index.html is missing. Run the asset build first:\n"
+            "  npm --prefix web ci && npm --prefix web run build"
+        )
+
     # Clean up previous builds
     for d in [dist, build_dir]:
         if os.path.exists(d):
