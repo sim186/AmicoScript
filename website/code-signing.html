@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code signing policy — AmicoScript</title>
+  <meta name="description" content="AmicoScript code signing policy and privacy policy." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { DEFAULT: '#6366f1', dark: '#4f46e5' } } } }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .prose h1 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; color: #f8fafc; }
+    .prose h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2.5rem; margin-bottom: 0.75rem; color: #f1f5f9; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+    .prose h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #e2e8f0; }
+    .prose p { color: #94a3b8; line-height: 1.75; margin-bottom: 0.75rem; }
+    .prose ul { list-style: disc; padding-left: 1.5rem; color: #94a3b8; margin-bottom: 0.75rem; }
+    .prose li { margin-bottom: 0.3rem; line-height: 1.7; }
+    .prose code { font-family: ui-monospace, monospace; font-size: 0.875rem; color: #a5b4fc; }
+    .prose a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+    .prose strong { color: #e2e8f0; font-weight: 600; }
+    .note { border: 1px solid #1e293b; background: #0f172a; border-radius: 0.75rem; padding: 0.75rem 1rem; }
+  </style>
+  <script data-goatcounter="https://seamoce.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans antialiased">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2 font-semibold text-white">
+        <img src="assets/logo.svg" alt="AmicoScript" class="w-7 h-7" />
+        <span>AmicoScript</span>
+      </a>
+      <div class="flex items-center gap-3 sm:gap-5 text-sm text-gray-400">
+        <a href="docs.html" class="hover:text-white transition-colors">Docs</a>
+        <a href="api.html" class="hover:text-white transition-colors">API</a>
+        <a href="changelog.html" class="hidden sm:block hover:text-white transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-3xl mx-auto px-4 pt-24 pb-20 prose">
+    <h1>Code signing policy</h1>
+
+    <p>
+      Free code signing provided by <a href="https://about.signpath.io" target="_blank" rel="noopener">SignPath.io</a>,
+      certificate by <a href="https://signpath.org" target="_blank" rel="noopener">SignPath Foundation</a>.
+    </p>
+    <p class="note">
+      Windows release binaries will carry this signature once SignPath Foundation onboarding completes;
+      until then they are unsigned. macOS builds are not signed.
+    </p>
+    <p>
+      Only artifacts built by the repository's
+      <a href="https://github.com/sim186/AmicoScript/blob/main/.github/workflows/release.yml" target="_blank" rel="noopener">GitHub Actions release workflow</a>
+      from source in <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener">github.com/sim186/AmicoScript</a>
+      are submitted for signing, and every signing request is approved manually.
+    </p>
+
+    <h3>Team roles</h3>
+    <ul>
+      <li>Committers and reviewers: <a href="https://github.com/sim186" target="_blank" rel="noopener">@sim186</a></li>
+      <li>Approvers: <a href="https://github.com/sim186" target="_blank" rel="noopener">@sim186</a></li>
+    </ul>
+    <p>Pull requests from anyone outside these roles are reviewed by a committer before merging.</p>
+
+    <h2 id="privacy">Privacy policy</h2>
+    <p>
+      This program will not transfer any information to other networked systems unless specifically
+      requested by the user or the person installing or operating it. Audio, transcripts and library
+      data stay on your machine.
+    </p>
+    <p>The app does make these network requests, none of which include your recordings or transcripts:</p>
+    <ul>
+      <li><strong>Update check</strong> — on startup, reads the latest release version from the GitHub API (<code>api.github.com</code>).</li>
+      <li><strong>First-use downloads</strong> — fetches the ffmpeg binary (via <code>ffbinaries.com</code>) if none is installed, Whisper models from Hugging Face the first time you pick a model, and the PyTorch runtime (from PyPI / the PyTorch package index) the first time a job needs diarization or a GPU.</li>
+    </ul>
+    <p>Features you turn on yourself send data to the endpoint you choose, under that service's own privacy policy:</p>
+    <ul>
+      <li><strong>Speaker diarization</strong> downloads pyannote models from Hugging Face using your own token.</li>
+      <li><strong>URL import</strong> downloads media from the site you paste (YouTube, Vimeo, …) via yt-dlp.</li>
+      <li><strong>AI analysis</strong> sends transcript text to the LLM server you configure (local Ollama by default; a remote provider such as OpenRouter only if you set one).</li>
+      <li><strong>Cloud Power</strong> sends audio to your own Google Colab session through the ngrok URL you paste.</li>
+      <li><strong>Benchmark</strong> downloads a short public sample clip from GitHub.</li>
+    </ul>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800 py-8 px-4 text-center text-sm text-gray-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="" class="w-5 h-5 opacity-60" />
+        <span>AmicoScript — MIT License</span>
+      </div>
+      <div class="flex items-center gap-5">
+        <a href="index.html" class="hover:text-gray-300 transition-colors">Home</a>
+        <a href="docs.html" class="hover:text-gray-300 transition-colors">Docs</a>
+        <a href="changelog.html" class="hover:text-gray-300 transition-colors">Changelog</a>
+        <a href="https://github.com/sim186/AmicoScript" target="_blank" rel="noopener" class="hover:text-gray-300 transition-colors">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
