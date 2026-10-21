@@ -4,6 +4,7 @@ import { session, switchTab } from "./session.svelte";
 import { openHelpModal, fetchAndShowChangelog, toggleShortcutsOverlay } from "./modals.svelte";
 import { toggleQueuePanel } from "./queueWidget.svelte";
 import { consoleState } from "./consoleLog.svelte";
+import { openSettingsModal } from "./settings.svelte";
 
 const NAVIGATE = "Navigate";
 const ACTIONS = "Actions";
@@ -81,9 +82,17 @@ const COMMANDS: Command[] = [
     section: ACTIONS,
     keywords: "capture microphone system audio call zoom meet",
     run: () => {
-      switchTab("transcribe");
+      openSettingsModal("general");
       focusEl("meeting-capture-toggle");
     },
+  },
+  {
+    id: "open-settings",
+    title: "Open Settings",
+    hint: "Cloud Power, AI/LLM, Security, Backup and more",
+    section: ACTIONS,
+    keywords: "preferences config options gear",
+    run: () => openSettingsModal(),
   },
   {
     id: "export-backup",

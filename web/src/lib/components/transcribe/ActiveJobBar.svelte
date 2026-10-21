@@ -11,16 +11,16 @@
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
     </svg>
     <div class="min-w-0 flex-1">
-      <p id="proc-filename" class="truncate text-sm font-medium text-slate-700">{jobState.filename}</p>
-      <div id="progress-bar-wrap" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100" class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+      <p id="proc-filename" class="truncate text-sm font-medium text-ink">{jobState.filename}</p>
+      <div id="progress-bar-wrap" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100" class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div id="progress-bar" class="h-1.5 rounded-full bg-brand transition-all duration-300" style="width:{pct}%"></div>
       </div>
-      <p id="proc-message" class="mt-1 text-xs text-slate-500">{jobState.jobMessage || "Processing…"} <span id="proc-percent">{pct}%</span></p>
+      <p id="proc-message" class="mt-1 text-xs text-ink-muted">{jobState.jobMessage || "Processing…"} <span id="proc-percent">{pct}%</span></p>
     </div>
     <button
       id="cancel-btn"
       onclick={cancelJob}
-      class="shrink-0 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 transition hover:border-red-300 hover:text-red-500"
+      class="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-muted transition hover:border-red-400 hover:text-red-400"
     >
       Cancel
     </button>

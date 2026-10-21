@@ -27,17 +27,17 @@
   let aliasDraft = $state(recording.alias || "");
 
   const STATUS_COLORS: Record<string, string> = {
-    done: "bg-emerald-100 text-emerald-700",
-    error: "bg-red-100 text-red-600",
-    pending: "bg-slate-100 text-slate-500",
-    queued: "bg-amber-100 text-amber-700",
+    done: "bg-good/15 text-good",
+    error: "bg-red-500/15 text-red-400",
+    pending: "bg-surface-alt text-ink-muted",
+    queued: "bg-warning/15 text-amber-400",
     transcribing: "bg-blue-100 text-blue-700",
     diarizing: "bg-purple-100 text-purple-700",
-    cancelled: "bg-slate-100 text-slate-500",
+    cancelled: "bg-surface-alt text-ink-muted",
     interrupted: "bg-orange-100 text-orange-700",
   };
   const SOURCE_BADGE: Record<string, { label: string; cls: string; title: string }> = {
-    meeting: { label: "meeting", cls: "bg-rose-50 text-rose-600", title: "Captured automatically from a call" },
+    meeting: { label: "meeting", cls: "bg-red-500/10 text-red-400", title: "Captured automatically from a call" },
     url: { label: "link", cls: "bg-sky-50 text-sky-600", title: "Imported from a link" },
   };
 
@@ -75,7 +75,7 @@
 
 <div
   role="presentation"
-  class="cursor-pointer rounded-xl border border-slate-200 bg-white p-3.5 px-4 transition hover:border-indigo-300 hover:shadow-[0_2px_8px_0_rgba(108,99,255,0.08)] {isSelected
+  class="cursor-pointer rounded-xl border border-border bg-surface p-3.5 px-4 transition hover:border-brand hover:shadow-[0_2px_8px_0_rgba(108,99,255,0.08)] {isSelected
     ? 'ring-2 ring-brand ring-inset'
     : ''}"
   draggable="true"
@@ -88,24 +88,24 @@
       checked={isSelected}
       onclick={(e) => e.stopPropagation()}
       onchange={onCheckbox}
-      class="mt-0.5 shrink-0 cursor-pointer rounded border-slate-300 text-brand focus:ring-brand"
+      class="mt-0.5 shrink-0 cursor-pointer rounded border-border text-brand focus:ring-brand"
     />
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
-        <p class="truncate text-sm font-semibold text-slate-800" title={recording.filename}>{recording.alias || recording.filename}</p>
+        <p class="truncate text-sm font-semibold text-ink" title={recording.filename}>{recording.alias || recording.filename}</p>
         {#if recording.source && SOURCE_BADGE[recording.source]}
           <span class="rounded px-1.5 py-0.5 text-[10px] font-medium {SOURCE_BADGE[recording.source].cls}" title={SOURCE_BADGE[recording.source].title}>
             {SOURCE_BADGE[recording.source].label}
           </span>
         {/if}
       </div>
-      <p class="mt-0.5 text-xs text-slate-400">
+      <p class="mt-0.5 text-xs text-ink-muted">
         {new Date(recording.created_at * 1000).toLocaleDateString()} · {recording.duration ? fmtDur(recording.duration) : "—"}{folderName
           ? ` · ${folderName}`
           : ""}{recording.alias ? ` · ${recording.filename}` : ""}
       </p>
       {#if recording.status_detail && canRetry}
-        <p class="mt-0.5 text-[11px] leading-tight text-slate-400">{recording.status_detail}</p>
+        <p class="mt-0.5 text-[11px] leading-tight text-ink-muted">{recording.status_detail}</p>
       {/if}
       {#if recording.tags.length}
         <div class="mt-2 flex flex-wrap gap-1">
@@ -122,24 +122,24 @@
           type="button"
           title="Rename"
           onclick={() => (openPopover = openPopover === "rename" ? null : "rename")}
-          class="rounded-lg p-1.5 text-slate-300 transition hover:bg-brand/5 hover:text-brand focus:outline-none"
+          class="rounded-lg p-1.5 text-ink-muted transition hover:bg-brand/5 hover:text-brand focus:outline-none"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"
             ><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 3.487a2.25 2.25 0 113.182 3.182L7.5 19.213l-4 1 1-4 12.362-12.726z" /></svg
           >
         </button>
         {#if openPopover === "rename"}
-          <div class="absolute right-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-            <p class="mb-2 text-xs text-slate-400">Display name (alias)</p>
+          <div class="absolute right-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-border bg-surface p-3 shadow-lg">
+            <p class="mb-2 text-xs text-ink-muted">Display name (alias)</p>
             <input
               type="text"
               bind:value={aliasDraft}
               placeholder={recording.filename}
               onkeydown={(e) => e.key === "Enter" && saveAliasClick()}
-              class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+              class="w-full rounded border border-border px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
             />
             <div class="mt-2 flex justify-end gap-2">
-              <button onclick={() => (openPopover = null)} class="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+              <button onclick={() => (openPopover = null)} class="text-xs text-ink-muted hover:text-ink">Cancel</button>
               <button onclick={saveAliasClick} class="text-xs font-medium text-brand hover:text-brand/80">Save</button>
             </div>
           </div>
@@ -151,22 +151,22 @@
           type="button"
           title="Move to folder"
           onclick={() => (openPopover = openPopover === "folder" ? null : "folder")}
-          class="rounded-lg p-1.5 text-slate-300 transition hover:bg-brand/5 hover:text-brand focus:outline-none"
+          class="rounded-lg p-1.5 text-ink-muted transition hover:bg-brand/5 hover:text-brand focus:outline-none"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"
             ><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></svg
           >
         </button>
         {#if openPopover === "folder"}
-          <div class="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-            <p class="mb-1 px-1 text-xs text-slate-400">Move to folder</p>
+          <div class="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-border bg-surface p-2 shadow-lg">
+            <p class="mb-1 px-1 text-xs text-ink-muted">Move to folder</p>
             <select
               value={recording.folder_id || ""}
               onchange={(e) => {
                 moveRecordingToFolder(recording.id, (e.target as HTMLSelectElement).value);
                 openPopover = null;
               }}
-              class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+              class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
             >
               <option value="">— No folder —</option>
               {#each folderOptions as f (f.id)}<option value={f.id}>{f.name}</option>{/each}
@@ -180,7 +180,7 @@
           type="button"
           title="Assign tags"
           onclick={() => (openPopover = openPopover === "tags" ? null : "tags")}
-          class="rounded-lg p-1.5 text-slate-300 transition hover:bg-brand/5 hover:text-brand focus:outline-none"
+          class="rounded-lg p-1.5 text-ink-muted transition hover:bg-brand/5 hover:text-brand focus:outline-none"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"
             ><path
@@ -191,22 +191,22 @@
           >
         </button>
         {#if openPopover === "tags"}
-          <div class="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-            <p class="px-3 py-1 text-xs text-slate-400">Assign tags</p>
+          <div class="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-border bg-surface py-1 shadow-lg">
+            <p class="px-3 py-1 text-xs text-ink-muted">Assign tags</p>
             {#if tagsState.tags.length}
               {#each tagsState.tags as tag (tag.id)}
-                <label class="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 text-xs hover:bg-slate-50">
+                <label class="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 text-xs hover:bg-surface-alt">
                   <input
                     type="checkbox"
                     checked={assignedTagIds.has(tag.id)}
                     onchange={(e) => toggleRecordingTag(recording.id, tag.id, (e.target as HTMLInputElement).checked)}
-                    class="rounded border-slate-300 text-brand focus:ring-brand"
+                    class="rounded border-border text-brand focus:ring-brand"
                   />
                   <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold text-white" style="background:{tag.color_code}">{tag.name}</span>
                 </label>
               {/each}
             {:else}
-              <p class="px-3 py-2 text-xs text-slate-400">No tags yet — create one in the sidebar</p>
+              <p class="px-3 py-2 text-xs text-ink-muted">No tags yet — create one in the sidebar</p>
             {/if}
           </div>
         {/if}
@@ -221,7 +221,7 @@
           title="Transcribe again"
           aria-label="Transcribe again"
           onclick={() => retryRecording(recording.id)}
-          class="rounded-lg p-1.5 text-slate-400 transition hover:bg-brand/5 hover:text-brand focus:outline-none"
+          class="rounded-lg p-1.5 text-ink-muted transition hover:bg-brand/5 hover:text-brand focus:outline-none"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
             ><path
@@ -232,7 +232,7 @@
           >
         </button>
       {/if}
-      <button type="button" title="Delete recording" onclick={onDelete} class="rounded-lg p-1.5 text-slate-300 transition hover:text-red-400 focus:outline-none">
+      <button type="button" title="Delete recording" onclick={onDelete} class="rounded-lg p-1.5 text-ink-muted transition hover:text-red-300 focus:outline-none">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
           ><path
             stroke-linecap="round"

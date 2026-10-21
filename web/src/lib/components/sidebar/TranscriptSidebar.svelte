@@ -8,7 +8,7 @@
   import { visibleFolders, fetchFolders } from "$lib/folders.svelte";
   import { tagsState, fetchTags } from "$lib/tags.svelte";
   import { fetchLibrary } from "$lib/library.svelte";
-  import { resetForNewTranscription } from "$lib/jobs.svelte";
+  import { resetForNewTranscription, jobState } from "$lib/jobs.svelte";
   import { switchTab } from "$lib/session.svelte";
   import PlayerSection from "./PlayerSection.svelte";
   import SpeakerLegend from "./SpeakerLegend.svelte";
@@ -74,21 +74,21 @@
 
 <div class="flex flex-col gap-4 p-4 text-xs">
   <div>
-    <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</h2>
+    <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</h2>
     <div class="mb-2 grid grid-cols-3 gap-1.5">
       {#each EXPORT_FORMATS as f (f.fmt)}
         <button
           onclick={() => onExport(f.fmt)}
           title={f.title}
           disabled={!transcriptState.recordingId}
-          class="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40"
+          class="rounded-md bg-surface-alt px-2 py-1 text-xs font-medium text-ink-muted transition hover:bg-border focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-40"
         >
           {f.label}
         </button>
       {/each}
     </div>
-    <label class="mb-2 flex cursor-pointer items-center gap-1.5 text-slate-500" title="Write speaker names as [[wikilinks]] so each person gets a note in your vault. Markdown only.">
-      <input type="checkbox" bind:checked={wikilinks} class="rounded border-slate-300 text-brand focus:ring-brand" />
+    <label class="mb-2 flex cursor-pointer items-center gap-1.5 text-ink-muted" title="Write speaker names as [[wikilinks]] so each person gets a note in your vault. Markdown only.">
+      <input type="checkbox" bind:checked={wikilinks} class="rounded border-border text-brand focus:ring-brand" />
       <span>Obsidian wikilinks in MD</span>
     </label>
     <button
@@ -99,29 +99,37 @@
     </button>
   </div>
 
-  <hr class="border-slate-100" />
+  <hr class="border-border" />
 
   <div class="space-y-2">
-    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">File info</h2>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">File info</h2>
     {#if result}
       <div class="space-y-1.5">
-        <div class="flex justify-between"><span class="text-slate-500">Language</span><span class="font-medium text-slate-700">{result.language ? result.language.toUpperCase() : "?"}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Duration</span><span class="font-medium text-slate-700">{fmtDur(result.duration)}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Segments</span><span class="font-medium text-slate-700">{result.num_segments}</span></div>
+        <div class="flex justify-between"><span class="text-ink-muted">Language</span><span class="font-medium text-ink">{result.language ? result.language.toUpperCase() : "?"}</span></div>
+        <div class="flex justify-between"><span class="text-ink-muted">Duration</span><span class="font-medium text-ink">{fmtDur(result.duration)}</span></div>
+        <div class="flex justify-between"><span class="text-ink-muted">Segments</span><span class="font-medium text-ink">{result.num_segments}</span></div>
         {#if result.speakers.length}
-          <div class="flex justify-between"><span class="text-slate-500">Speakers</span><span class="font-medium text-slate-700">{result.speakers.length}</span></div>
+          <div class="flex justify-between"><span class="text-ink-muted">Speakers</span><span class="font-medium text-ink">{result.speakers.length}</span></div>
         {/if}
+      </div>
+    {:else if jobState.processing && !transcriptState.recordingId}
+      <div class="space-y-1.5">
+        <div class="flex justify-between"><span class="text-ink-muted">File</span><span class="max-w-[60%] truncate font-medium text-ink" title={jobState.filename}>{jobState.filename || "—"}</span></div>
+        <div class="flex justify-between"><span class="text-ink-muted">Status</span><span class="font-medium text-ink">{jobState.jobStatus || "starting…"}</span></div>
+        <div class="h-1 overflow-hidden rounded-full bg-border">
+          <div class="h-full bg-brand transition-all" style="width:{Math.max(Math.round(jobState.jobProgress * 100), 2)}%"></div>
+        </div>
       </div>
     {/if}
 
     {#if transcriptState.recordingId}
       <div class="pt-1">
-        <label for="transcript-folder-select" class="mb-1 block text-slate-500">Folder</label>
+        <label for="transcript-folder-select" class="mb-1 block text-ink-muted">Folder</label>
         <select
           id="transcript-folder-select"
           value={transcriptState.currentRecording?.folder_id || ""}
           onchange={onFolderChange}
-          class="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+          class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
         >
           <option value="">— No folder —</option>
           {#each folderOptions as f (f.id)}<option value={f.id}>{f.name}</option>{/each}
@@ -129,13 +137,13 @@
       </div>
 
       <div class="pt-1">
-        <p class="mb-1 text-slate-500">Tags</p>
+        <p class="mb-1 text-ink-muted">Tags</p>
         {#if tagsState.tags.length}
           <div class="flex flex-wrap gap-1.5">
             {#each tagsState.tags as tag (tag.id)}
               {@const active = currentTags.has(tag.id)}
               <label
-                class="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition {active ? 'text-white' : 'border-slate-200 text-slate-500'}"
+                class="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition {active ? 'text-white' : 'border-border text-ink-muted'}"
                 style={active ? `background:${tag.color_code}; border-color:${tag.color_code}` : ""}
               >
                 <input type="checkbox" checked={active} onchange={(e) => onTagToggle(tag.id, (e.target as HTMLInputElement).checked)} class="hidden" />
@@ -144,7 +152,7 @@
             {/each}
           </div>
         {:else}
-          <p class="text-slate-400">No tags yet — create one in the Library sidebar</p>
+          <p class="text-ink-muted">No tags yet — create one in the Library sidebar</p>
         {/if}
       </div>
     {/if}
@@ -153,7 +161,7 @@
   <SpeakerLegend />
 
   {#if transcriptState.audioUrl}
-    <hr class="border-slate-100" />
+    <hr class="border-border" />
     <PlayerSection />
   {/if}
 </div>

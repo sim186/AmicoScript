@@ -22,10 +22,10 @@
 </script>
 
 <div>
-  <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Player</h2>
-  <div bind:this={container} class="w-full rounded-lg border border-slate-200 bg-slate-50" style="min-height:80px;" aria-label="Audio waveform"></div>
+  <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Player</h2>
+  <div bind:this={container} class="w-full rounded-lg border border-border bg-surface-alt" style="min-height:80px;" aria-label="Audio waveform"></div>
   {#if !playerState.ready}
-    <p class="py-2 text-center text-xs text-slate-400">{playerState.loadError ? "Waveform unavailable for this format." : "Generating waveform…"}</p>
+    <p class="py-2 text-center text-xs text-ink-muted">{playerState.loadError ? "Waveform unavailable for this format." : "Generating waveform…"}</p>
   {/if}
   <div class="mt-2 flex items-center gap-3">
     <button
@@ -40,15 +40,15 @@
         <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
       {/if}
     </button>
-    <span class="text-xs tabular-nums text-slate-400">{fmtTime(playerState.currentTime)} / {fmtTime(playerState.duration)}</span>
+    <span class="text-xs tabular-nums text-ink-muted">{fmtTime(playerState.currentTime)} / {fmtTime(playerState.duration)}</span>
   </div>
   <div class="mt-2 flex items-center gap-2">
-    <label for="speed-select" class="shrink-0 text-xs text-slate-500">Speed</label>
+    <label for="speed-select" class="shrink-0 text-xs text-ink-muted">Speed</label>
     <select
       id="speed-select"
       value={playerState.speed}
       onchange={(e) => setSpeed(parseFloat((e.target as HTMLSelectElement).value))}
-      class="rounded border border-slate-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+      class="rounded border border-border bg-surface px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
     >
       <option value="0.5">0.5×</option>
       <option value="0.75">0.75×</option>

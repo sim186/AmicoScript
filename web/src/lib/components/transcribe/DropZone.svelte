@@ -128,9 +128,9 @@
   }}
   ondrop={onDrop}
   onpaste={onPaste}
-  class="group relative flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed bg-white px-8 py-16 text-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer {dragging
+  class="group relative flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed bg-surface px-8 py-16 text-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer {dragging
     ? 'border-brand bg-brand-muted/20'
-    : 'border-slate-300 hover:border-brand hover:bg-brand-muted/20'}"
+    : 'border-border hover:border-brand hover:bg-brand-muted/20'}"
 >
   <input bind:this={fileInput} id="file-input" type="file" class="hidden" multiple onchange={onFileInputChange} />
   <input
@@ -143,12 +143,12 @@
   />
 
   {#if !jobState.selectedFile}
-    <svg class="h-10 w-10 text-slate-400 transition group-hover:text-brand" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+    <svg class="h-10 w-10 text-ink-muted transition group-hover:text-brand" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
     </svg>
     <div>
-      <p class="text-base font-medium text-slate-700">Drop audio or video files here</p>
-      <p class="mt-1 text-sm text-slate-400">or click to browse — MP3, WAV, M4A, OGG, FLAC, MP4, MOV, MKV, OPUS</p>
+      <p class="text-base font-medium text-ink">Drop audio or video files here</p>
+      <p class="mt-1 text-sm text-ink-muted">or click to browse — MP3, WAV, M4A, OGG, FLAC, MP4, MOV, MKV, OPUS</p>
     </div>
     <div class="flex items-center gap-3">
       <button
@@ -157,14 +157,14 @@
           e.stopPropagation();
           folderInput?.click();
         }}
-        class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition hover:border-brand hover:text-brand"
+        class="rounded-lg border border-border px-3 py-1.5 text-xs text-ink-muted transition hover:border-brand hover:text-brand"
       >
         Choose a folder
       </button>
       <button
         id="paste-link-btn"
         onclick={onPasteLink}
-        class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition hover:border-brand hover:text-brand"
+        class="rounded-lg border border-border px-3 py-1.5 text-xs text-ink-muted transition hover:border-brand hover:text-brand"
       >
         Paste a video URL
       </button>
@@ -175,8 +175,8 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
       <div class="text-left">
-        <p id="file-name" class="text-sm font-medium text-slate-700">{jobState.selectedFile.name}</p>
-        <p id="file-size" class="text-xs text-slate-400">{fmtBytes(jobState.selectedFile.size)}</p>
+        <p id="file-name" class="text-sm font-medium text-ink">{jobState.selectedFile.name}</p>
+        <p id="file-size" class="text-xs text-ink-muted">{fmtBytes(jobState.selectedFile.size)}</p>
       </div>
       <button
         id="clear-file-btn"
@@ -184,7 +184,7 @@
           e.stopPropagation();
           clearFile();
         }}
-        class="ml-2 text-slate-300 transition hover:text-red-400"
+        class="ml-2 text-ink-muted transition hover:text-red-300"
         aria-label="Remove file"
       >
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -196,7 +196,7 @@
 
   <div
     id="drop-overlay"
-    class="pointer-events-none absolute inset-0 flex scale-[0.98] items-center justify-center rounded-2xl border-2 border-brand bg-white/90 opacity-0 backdrop-blur-sm transition-all duration-200"
+    class="pointer-events-none absolute inset-0 flex scale-[0.98] items-center justify-center rounded-2xl border-2 border-brand bg-surface/90 opacity-0 backdrop-blur-sm transition-all duration-200"
     style={dragging ? "opacity:1;transform:scale(1)" : ""}
   >
     <p class="text-sm font-medium text-brand">Drop to queue</p>

@@ -19,10 +19,10 @@
 </script>
 
 {#if loginOverlay.visible}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-    <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-      <h1 class="mb-1 text-lg font-semibold text-slate-800">AmicoScript</h1>
-      <p id="login-message" class="mb-4 text-sm text-slate-500">{loginOverlay.message}</p>
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-canvas/60 backdrop-blur-sm">
+    <div class="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-xl">
+      <h1 class="mb-1 text-lg font-semibold text-ink">AmicoScript</h1>
+      <p id="login-message" class="mb-4 text-sm text-ink-muted">{loginOverlay.message}</p>
 
       {#if !loginOverlay.formHidden}
         <form onsubmit={submit} class="flex flex-col gap-3">
@@ -32,10 +32,10 @@
             autocomplete="current-password"
             placeholder="Password"
             bind:value={password}
-            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            class="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
           />
           {#if error}
-            <p class="text-xs text-red-600">{error}</p>
+            <p class="text-xs text-red-400">{error}</p>
           {/if}
           <button
             type="submit"

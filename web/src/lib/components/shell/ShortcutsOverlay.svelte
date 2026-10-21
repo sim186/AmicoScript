@@ -1,5 +1,6 @@
 <script lang="ts">
   import { modalState, toggleShortcutsOverlay } from "$lib/modals.svelte";
+  import ModalScrim from "./ModalScrim.svelte";
 
   const rows: [string, string][] = [
     ["Space", "Play / pause"],
@@ -11,22 +12,16 @@
   ];
 </script>
 
-{#if modalState.shortcutsVisible}
-  <div
-    role="presentation"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
-    onclick={() => toggleShortcutsOverlay(false)}
-  >
-    <div role="presentation" class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onclick={(e) => e.stopPropagation()}>
-      <h2 class="mb-3 text-sm font-semibold text-slate-800">Keyboard shortcuts</h2>
-      <dl class="flex flex-col gap-2">
-        {#each rows as [key, desc]}
-          <div class="flex items-center justify-between text-sm">
-            <dt class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-slate-600">{key}</dt>
-            <dd class="text-slate-500">{desc}</dd>
-          </div>
-        {/each}
-      </dl>
-    </div>
+<ModalScrim open={modalState.shortcutsVisible} onClose={() => toggleShortcutsOverlay(false)}>
+  <div role="presentation" class="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-xl" onclick={(e) => e.stopPropagation()}>
+    <h2 class="mb-3 text-sm font-semibold text-ink">Keyboard shortcuts</h2>
+    <dl class="flex flex-col gap-2">
+      {#each rows as [key, desc]}
+        <div class="flex items-center justify-between text-sm">
+          <dt class="rounded border border-border bg-surface-alt px-1.5 py-0.5 font-mono text-xs text-ink-muted">{key}</dt>
+          <dd class="text-ink-muted">{desc}</dd>
+        </div>
+      {/each}
+    </dl>
   </div>
-{/if}
+</ModalScrim>

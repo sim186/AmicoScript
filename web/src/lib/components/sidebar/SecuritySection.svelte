@@ -56,27 +56,27 @@
 
 {#if authState.enabled}
   <div class="flex flex-col gap-3 text-xs">
-    <p id="auth-state-line" class="text-slate-500">{stateLine}</p>
+    <p id="auth-state-line" class="text-ink-muted">{stateLine}</p>
 
     {#if authState.passwordSet}
       <div>
-        <label for="auth-current-password" class="mb-1 block text-slate-500">Current password</label>
+        <label for="auth-current-password" class="mb-1 block text-ink-muted">Current password</label>
         <input
           id="auth-current-password"
           type="password"
           bind:value={currentPassword}
-          class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+          class="w-full rounded-lg border border-border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
         />
       </div>
     {/if}
 
     <div>
-      <label for="auth-new-password" class="mb-1 block text-slate-500">{authState.passwordSet ? "New password" : "Set a password"}</label>
+      <label for="auth-new-password" class="mb-1 block text-ink-muted">{authState.passwordSet ? "New password" : "Set a password"}</label>
       <input
         id="auth-new-password"
         type="password"
         bind:value={newPassword}
-        class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+        class="w-full rounded-lg border border-border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
       />
     </div>
 
@@ -94,7 +94,7 @@
           id="auth-remove-btn"
           onclick={onRemove}
           disabled={busy}
-          class="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 transition hover:border-red-300 hover:text-red-500"
+          class="rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-muted transition hover:border-red-400 hover:text-red-400"
         >
           Remove
         </button>
@@ -102,18 +102,18 @@
     </div>
 
     {#if feedback}
-      <p id="auth-feedback" class="{tone === 'error' ? 'text-red-600' : tone === 'ok' ? 'text-green-600' : 'text-slate-500'}">{feedback}</p>
+      <p id="auth-feedback" class="{tone === 'error' ? 'text-red-400' : tone === 'ok' ? 'text-good' : 'text-ink-muted'}">{feedback}</p>
     {/if}
 
     {#if apiToken}
       <div id="auth-token-row">
-        <label for="auth-api-token" class="mb-1 block text-slate-500">API token (for TUI / scripts)</label>
+        <label for="auth-api-token" class="mb-1 block text-ink-muted">API token (for TUI / scripts)</label>
         <input
           id="auth-api-token"
           type="text"
           readonly
           value={apiToken}
-          class="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-[10px] text-slate-600"
+          class="w-full rounded-lg border border-border bg-surface-alt px-2.5 py-1.5 font-mono text-[10px] text-ink-muted"
         />
       </div>
     {/if}

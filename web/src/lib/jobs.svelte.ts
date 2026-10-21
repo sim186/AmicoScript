@@ -286,6 +286,8 @@ export async function startUrlTranscription(urlArg: string): Promise<void> {
   hideError();
   clearFile();
   setProcessing(true);
+  resetTranscript();
+  switchTab("transcript");
   jobState.filename = urlValue;
   jobState.jobMessage = "Queueing URL...";
   jobState.jobProgress = 0;
@@ -340,6 +342,8 @@ export async function startTranscription(): Promise<void> {
   const fd = buildTranscriptionFormData({ file });
 
   setProcessing(true);
+  resetTranscript();
+  switchTab("transcript");
   jobState.filename = file.name;
   jobState.jobMessage = "Uploading…";
 

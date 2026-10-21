@@ -15,12 +15,12 @@
   );
   const statusClass = $derived(
     watcherState.alive && watcherState.unsupported
-      ? "text-amber-600"
+      ? "text-amber-400"
       : watcherState.alive
-        ? "text-emerald-600"
+        ? "text-good"
         : watcherState.canInstall
-          ? "text-amber-600"
-          : "text-slate-400",
+          ? "text-amber-400"
+          : "text-ink-muted",
   );
 </script>
 
@@ -32,7 +32,7 @@
       onchange={toggleMeetingCapture}
       label="Enable meeting auto-capture"
     />
-    <span class="text-sm text-slate-700">Meeting auto-capture</span>
+    <span class="text-sm text-ink">Meeting auto-capture</span>
   </div>
 
   <p id="watcher-state-line" class="text-[10px] leading-tight {statusClass}">{statusLine}</p>
@@ -49,11 +49,11 @@
     </a>
   {/if}
 
-  <div class="flex items-center gap-2 border-t border-slate-100 pt-3">
+  <div class="flex items-center gap-2 border-t border-border pt-3">
     <Toggle id="auto-summary-toggle" checked={autoSummaryState.enabled} onchange={toggleAutoSummary} label="Auto-summarize meetings" />
-    <span class="text-sm text-slate-700">Auto-summarize meetings</span>
+    <span class="text-sm text-ink">Auto-summarize meetings</span>
   </div>
   {#if !autoSummaryState.llmConfigured}
-    <p id="auto-summary-hint" class="text-[10px] leading-tight text-slate-400">Configure an LLM below to enable this.</p>
+    <p id="auto-summary-hint" class="text-[10px] leading-tight text-ink-muted">Configure an LLM below to enable this.</p>
   {/if}
 </div>

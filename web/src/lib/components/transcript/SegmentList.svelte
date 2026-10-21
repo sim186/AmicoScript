@@ -1,14 +1,22 @@
 <script lang="ts">
-  import { transcriptState } from "$lib/transcript.svelte";
+  import { transcriptState, type TranscriptSegment } from "$lib/transcript.svelte";
   import SegmentRow from "./SegmentRow.svelte";
 
-  let { onRenameSpeaker }: { onRenameSpeaker: (name: string) => void } = $props();
+  let {
+    onRenameSpeaker,
+    segments = transcriptState.filteredSegments,
+    liveMode = false,
+  }: {
+    onRenameSpeaker: (name: string) => void;
+    segments?: TranscriptSegment[];
+    liveMode?: boolean;
+  } = $props();
 
-  const showActions = $derived(!!transcriptState.recordingId);
+  const showActions = $derived(!liveMode && !!transcriptState.recordingId);
 </script>
 
 <div id="segments-list" role="list" aria-label="Transcript segments" class="space-y-1.5">
-  {#each transcriptState.filteredSegments as segment (segment.id)}
+  {#each segments as segment (segment.id)}
     <SegmentRow {segment} query={transcriptState.searchQuery} {showActions} {onRenameSpeaker} />
   {/each}
 </div>

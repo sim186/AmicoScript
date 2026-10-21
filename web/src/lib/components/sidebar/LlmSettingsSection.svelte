@@ -70,19 +70,19 @@
 
 <div class="flex flex-col gap-3 text-xs">
   <div>
-    <label for="llm-provider-select" class="mb-1 block font-semibold uppercase tracking-wide text-slate-500">Provider</label>
+    <label for="llm-provider-select" class="mb-1 block font-semibold uppercase tracking-wide text-ink-muted">Provider</label>
     <select
       id="llm-provider-select"
       value={llmSettings.provider}
       onchange={onProviderChange}
-      class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+      class="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
     >
       {#each llmCatalog.providers as p}
         <option value={p.id}>{p.label}</option>
       {/each}
     </select>
     {#if provider}
-      <p id="llm-provider-notes" class="mt-1 text-slate-500">{providerNotes(provider)}</p>
+      <p id="llm-provider-notes" class="mt-1 text-ink-muted">{providerNotes(provider)}</p>
       {#if provider.docs_url}
         <a id="llm-provider-docs" href={provider.docs_url} target="_blank" rel="noopener" class="text-brand hover:underline">Docs ↗</a>
       {/if}
@@ -94,22 +94,22 @@
       id="llm-detect-btn"
       onclick={onDetect}
       disabled={detecting}
-      class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 transition hover:border-brand hover:text-brand"
+      class="w-full rounded-lg border border-border px-2.5 py-1.5 text-xs text-ink-muted transition hover:border-brand hover:text-brand"
     >
       {detecting ? "Scanning…" : "Auto-detect a running server"}
     </button>
     {#if detectStatus}
-      <p id="llm-detect-status" class="mt-1 {detectTone === 'error' ? 'text-red-600' : detectTone === 'ok' ? 'text-green-600' : 'text-slate-500'}">
+      <p id="llm-detect-status" class="mt-1 {detectTone === 'error' ? 'text-red-400' : detectTone === 'ok' ? 'text-good' : 'text-ink-muted'}">
         {detectStatus}
       </p>
     {/if}
     {#if detectResults.length}
       <div id="llm-detect-results" class="mt-1 flex flex-col gap-1.5">
         {#each detectResults as server}
-          <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-1.5">
+          <div class="flex items-center justify-between gap-2 rounded-lg border border-border p-1.5">
             <div class="min-w-0">
-              <p class="truncate text-xs font-semibold text-slate-700">{server.label}</p>
-              <p class="truncate text-[10px] text-slate-400">
+              <p class="truncate text-xs font-semibold text-ink">{server.label}</p>
+              <p class="truncate text-[10px] text-ink-muted">
                 {server.base_url} · {server.needs_api_key ? "needs an API key" : `${server.model_count || 0} model(s)`}
               </p>
             </div>
@@ -123,55 +123,55 @@
   </div>
 
   <div>
-    <label for="llm-base-url" class="mb-1 block text-slate-500">Base URL</label>
+    <label for="llm-base-url" class="mb-1 block text-ink-muted">Base URL</label>
     <input
       id="llm-base-url"
       type="text"
       placeholder={provider?.base_url || "https://your-server.example.com"}
       bind:value={llmSettings.baseUrl}
       oninput={debouncedSave}
-      class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+      class="w-full rounded-lg border border-border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
     />
     {#if llmSettings.urlNote}
-      <p id="llm-url-note" class="mt-1 text-slate-500">{llmSettings.urlNote}</p>
+      <p id="llm-url-note" class="mt-1 text-ink-muted">{llmSettings.urlNote}</p>
     {/if}
   </div>
 
   <div class="relative">
-    <label for="llm-model-input" class="mb-1 block text-slate-500">Model</label>
+    <label for="llm-model-input" class="mb-1 block text-ink-muted">Model</label>
     <div class="flex gap-1">
       <input
         id="llm-model-input"
         type="text"
         bind:value={llmSettings.modelName}
         oninput={debouncedSave}
-        class="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+        class="flex-1 rounded-lg border border-border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
       />
       <button
         id="llm-browse-models-btn"
         onclick={onBrowseModels}
         title={provider?.supports_pull ? "Browse and download models" : "Browse the models this server has loaded"}
-        class="shrink-0 rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:border-brand hover:text-brand"
+        class="shrink-0 rounded-lg border border-border px-2 py-1.5 text-ink-muted transition hover:border-brand hover:text-brand"
       >
         Browse
       </button>
     </div>
 
     {#if modelsBrowser.open}
-      <div id="llm-models-panel" class="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
-        <div class="flex items-center justify-between border-b border-slate-100 px-3 py-1.5">
-          <span class="font-medium text-slate-600">Models</span>
-          <button id="llm-refresh-models-btn" onclick={() => refreshModelsBrowser()} class="text-slate-400 hover:text-brand">↻ Refresh</button>
+      <div id="llm-models-panel" class="absolute z-10 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg">
+        <div class="flex items-center justify-between border-b border-border px-3 py-1.5">
+          <span class="font-medium text-ink-muted">Models</span>
+          <button id="llm-refresh-models-btn" onclick={() => refreshModelsBrowser()} class="text-ink-muted hover:text-brand">↻ Refresh</button>
         </div>
         {#if modelsBrowser.installed.length}
           <div id="llm-installed-section">
             <div id="llm-installed-list">
               {#each modelsBrowser.installed as m}
-                <div class="flex items-center px-3 py-1.5 text-xs hover:bg-slate-50">
-                  <button onclick={() => selectLlmModel(m.id)} class="flex-1 truncate text-left font-medium text-slate-700 transition hover:text-brand">
+                <div class="flex items-center px-3 py-1.5 text-xs hover:bg-surface-alt">
+                  <button onclick={() => selectLlmModel(m.id)} class="flex-1 truncate text-left font-medium text-ink transition hover:text-brand">
                     {m.id}
                   </button>
-                  <span class="shrink-0 text-slate-400">installed</span>
+                  <span class="shrink-0 text-ink-muted">installed</span>
                 </div>
               {/each}
             </div>
@@ -179,12 +179,12 @@
         {/if}
         <div id="llm-popular-list">
           {#each popularModels() as m}
-            <div class="flex items-center justify-between gap-2 px-3 py-1.5 text-xs hover:bg-slate-50">
-              <button onclick={() => selectLlmModel(m.id)} class="flex-1 truncate text-left text-slate-700 transition hover:text-brand">{m.label}</button>
+            <div class="flex items-center justify-between gap-2 px-3 py-1.5 text-xs hover:bg-surface-alt">
+              <button onclick={() => selectLlmModel(m.id)} class="flex-1 truncate text-left text-ink transition hover:text-brand">{m.label}</button>
               <button
                 onclick={() => pullLlmModel(m.id)}
                 disabled={modelsBrowser.pulling[m.id] === "pulling"}
-                class="shrink-0 rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 transition hover:border-brand hover:text-brand"
+                class="shrink-0 rounded border border-border px-2 py-0.5 text-[10px] text-ink-muted transition hover:border-brand hover:text-brand"
               >
                 {modelsBrowser.pulling[m.id] === "pulling" ? "…" : modelsBrowser.pulling[m.id] === "ok" ? "✓" : modelsBrowser.pulling[m.id] === "error" ? "✗" : "Pull"}
               </button>
@@ -196,7 +196,7 @@
   </div>
 
   <div>
-    <label for="llm-api-key" class="mb-1 block text-slate-500">API key {apiKeyRequirement}</label>
+    <label for="llm-api-key" class="mb-1 block text-ink-muted">API key {apiKeyRequirement}</label>
     <div class="relative">
       <input
         id="llm-api-key"
@@ -209,13 +209,13 @@
           }
         }}
         oninput={debouncedSave}
-        class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+        class="w-full rounded-lg border border-border px-2.5 py-1.5 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
       />
       <button
         id="llm-key-eye"
         type="button"
         onclick={() => (showApiKey = !showApiKey)}
-        class="absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 hover:text-slate-600"
+        class="absolute inset-y-0 right-0 flex items-center px-2 text-ink-muted hover:text-ink"
       >
         {showApiKey ? "🙈" : "👁"}
       </button>
@@ -223,26 +223,26 @@
   </div>
 
   {#if provider?.cloud}
-    <label id="llm-cloud-consent" class="flex items-center gap-2 text-slate-600">
+    <label id="llm-cloud-consent" class="flex items-center gap-2 text-ink-muted">
       <input
         id="llm-allow-cloud"
         type="checkbox"
         bind:checked={llmSettings.allowCloud}
         onchange={debouncedSave}
-        class="rounded border-slate-300 text-brand focus:ring-brand"
+        class="rounded border-border text-brand focus:ring-brand"
       />
       I consent to sending transcript data to this cloud provider.
     </label>
   {/if}
 
   <div>
-    <label for="llm-context-tokens" class="mb-1 block text-slate-500">Context budget (tokens)</label>
+    <label for="llm-context-tokens" class="mb-1 block text-ink-muted">Context budget (tokens)</label>
     <input
       id="llm-context-tokens"
       type="number"
       bind:value={llmSettings.contextTokens}
       oninput={debouncedSave}
-      class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+      class="w-full rounded-lg border border-border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand"
     />
   </div>
 
@@ -250,13 +250,13 @@
     <button
       id="llm-test-btn"
       onclick={testLlmConnection}
-      class="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-600 transition hover:border-brand hover:text-brand"
+      class="flex-1 rounded-lg border border-border px-2.5 py-1.5 text-ink-muted transition hover:border-brand hover:text-brand"
     >
       Test Connection
     </button>
   </div>
   {#if llmSettings.testStatus}
-    <p id="llm-test-status" class="{llmSettings.testTone === 'ok' ? 'text-emerald-500' : llmSettings.testTone === 'error' ? 'text-red-500' : 'text-slate-400'}">
+    <p id="llm-test-status" class="{llmSettings.testTone === 'ok' ? 'text-good' : llmSettings.testTone === 'error' ? 'text-red-500' : 'text-ink-muted'}">
       {llmSettings.testStatus}
     </p>
   {/if}

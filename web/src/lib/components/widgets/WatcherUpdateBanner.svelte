@@ -14,7 +14,7 @@
 </script>
 
 {#if watcherState.updateBannerVisible}
-  <div class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+  <div class="flex items-center justify-between gap-3 border-b border-warning/30 bg-warning/10 px-4 py-3 text-amber-300">
     <p id="watcher-update-text" class="text-sm">
       {errorMsg || "A newer version of the meeting-capture helper is available."}
     </p>
@@ -26,7 +26,7 @@
       >
         {updating ? "Updating…" : "Update now"}
       </button>
-      <button onclick={dismissWatcherUpdateBanner} class="text-amber-500 hover:text-amber-700" aria-label="Dismiss">
+      <button onclick={dismissWatcherUpdateBanner} class="text-amber-400 hover:text-amber-300" aria-label="Dismiss">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>

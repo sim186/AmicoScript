@@ -20,9 +20,9 @@
   <ActiveJobBar />
 
   {#if jobState.errorMessage}
-    <div id="error-msg" class="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+    <div id="error-msg" class="mb-4 flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
       <span>{jobState.errorMessage}</span>
-      <button onclick={hideError} class="text-red-400 hover:text-red-600" aria-label="Dismiss">✕</button>
+      <button onclick={hideError} class="text-red-400 hover:text-red-300" aria-label="Dismiss">✕</button>
     </div>
   {/if}
 

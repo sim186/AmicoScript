@@ -3,16 +3,31 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
+/* Single dark theme (Command Center). No dark: variant/toggle in scope -
+   don't half-build one; ship a light theme as a separate deliberate effort. */
 @theme {
   --color-brand: #6c63ff;
   --color-brand-hover: #7d75ff;
   --color-brand-muted: #ede9ff;
+  --color-brand-dark-bg: #8f86ff;
+  --color-canvas: #0d0e14;
+  --color-surface: #15161f;
+  --color-surface-alt: #1b1c28;
+  --color-border: #262838;
+  --color-ink: #e8e8ef;
+  --color-ink-muted: #8b8ca0;
+  --color-good: #3ac48c;
+  --color-warning: #e0a542;
   --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 html,
-body {
+body,
+#app {
   height: 100%;
 }
 
@@ -22,13 +37,14 @@ body {
 
 mark {
   background: #fef08a;
+  color: #1f2430;
   border-radius: 2px;
   padding: 0 1px;
 }
 
 .model-card.selected {
   border-color: var(--color-brand);
-  background: var(--color-brand-muted);
+  background: rgba(108, 99, 255, 0.15);
 }
 
 .palette-badge {
@@ -36,14 +52,14 @@ mark {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-brand);
-  background: var(--color-brand-muted);
+  color: var(--color-brand-dark-bg);
+  background: rgba(108, 99, 255, 0.15);
   border-radius: 999px;
   padding: 2px 7px;
 }
 
 .palette-dur {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--color-ink-muted);
   font-variant-numeric: tabular-nums;
 }
