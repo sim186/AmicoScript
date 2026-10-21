@@ -245,7 +245,7 @@ pytest -q
 > is the recommended route and avoids Gatekeeper / SmartScreen warnings entirely.
 
 If you want a traditional downloaded app instead:
-In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS.
+In the [releases](https://github.com/sim186/AmicoScript/releases) page you can download the application for Windows or Mac (Linux is coming). Be careful that the .exe (or. the dmg) might be recognized as suspicious by the OS. See the [code signing policy](#-code-signing-policy).
 
 There is one download per platform — no separate CPU and GPU builds. The app
 checks for an NVIDIA GPU on the machine it is running on and fetches the
@@ -270,6 +270,38 @@ installed into your own environment is not one.
 `run.py` will download `ffmpeg` automatically on first run.
 
 ---
+
+## 🔏 Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+> Windows release binaries will carry this signature once SignPath Foundation onboarding completes; until then they are unsigned. macOS builds are not signed.
+
+Only artifacts built by this repository's [GitHub Actions release workflow](.github/workflows/release.yml) from source in this repository are submitted for signing, and every signing request is approved manually.
+
+**Team roles**
+
+- Committers and reviewers: [@sim186](https://github.com/sim186)
+- Approvers: [@sim186](https://github.com/sim186)
+
+Pull requests from anyone outside these roles are reviewed by a committer before merging.
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Audio, transcripts and library data stay on your machine.
+
+The app does make these network requests, none of which include your recordings or transcripts:
+
+- **Update check** — on startup, reads the latest release version from the GitHub API (`api.github.com`).
+- **First-use downloads** — fetches the ffmpeg binary (via `ffbinaries.com`) if none is installed, Whisper models from Hugging Face the first time you pick a model, and the PyTorch runtime (from PyPI / the PyTorch package index) the first time a job needs diarization or a GPU. See [docs/runtime-pack.md](docs/runtime-pack.md) to work offline.
+
+Features you turn on yourself send data to the endpoint you choose, under that service's own privacy policy:
+
+- **Speaker diarization** downloads pyannote models from Hugging Face using your own token.
+- **URL import** downloads media from the site you paste (YouTube, Vimeo, …) via yt-dlp.
+- **AI analysis** sends transcript text to the LLM server you configure (local Ollama by default; a remote provider such as OpenRouter only if you set one).
+- **Cloud Power** sends audio to your own Google Colab session through the ngrok URL you paste.
+- **Benchmark** downloads a short public sample clip from GitHub.
 
 ## 🧪 Performance
 
