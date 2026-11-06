@@ -22,7 +22,8 @@ from core.job_helpers import (
     sync_job_to_db,
 )
 from core.jobs import JobType
-from core.runtime_config import download_concurrency, word_timestamps_default
+from core.runtime_config import download_concurrency, whisper_batch_size, word_timestamps_default
+from core import onnx_asr_engine
 from core.messages import (
     DOWNLOAD_PREPARING,
     DOWNLOAD_STARTING,
@@ -154,6 +155,137 @@ def _ensure_cuda_runtime(job_id: str, requested_device: str) -> None:
         append_job_log(job_id, "WARN", f"GPU runtime unavailable ({exc}); using the CPU")
 
 
+def _prepare_ffmpeg(diarize: bool) -> None:
+    """Make ffmpeg findable, or start fetching it when this job can do without."""
+    if diarize:
+        ffmpeg_path = ffmpeg_helper.get_ffmpeg_path()
+        if ffmpeg_path is not None:
+            os.environ["PATH"] = str(Path(ffmpeg_path).parent) + os.pathsep + os.environ.get("PATH", "")
+        if not shutil.which("ffmpeg"):
+            raise RuntimeError(
+                "FFmpeg is required for diarization but was not found. Install ffmpeg or allow the app to download it."
+            )
+    else:
+        try:
+            ffmpeg_helper.start_background_download()
+        except (RuntimeError, OSError):
+            pass
+
+
+def _model_runs_on_gpu(model: Any, model_device: str) -> bool:
+    """Whether *model* really landed on a GPU.
+
+    ``get_whisper_model`` hands back the device that was *requested*, which is
+    "auto" far more often than not, so the answer has to come from CTranslate2.
+    """
+    actual = getattr(getattr(model, "model", None), "device", None)
+    if isinstance(actual, str):
+        return actual.lower().startswith("cuda")
+    return str(model_device or "").lower().startswith("cuda")
+
+
+def _batched_pipeline(model: Any) -> Any | None:
+    """faster-whisper's batched pipeline around *model*, or None if it lacks one.
+
+    Batching decodes several 30 s chunks per forward pass instead of walking
+    the file one window at a time. It arrived in faster-whisper 1.1, so an older
+    install quietly keeps the sequential path.
+    """
+    try:
+        from faster_whisper import BatchedInferencePipeline, WhisperModel
+    except ImportError:
+        return None
+    # The pipeline reaches into the model's internals; anything that is not a
+    # real WhisperModel (a stand-in, a future wrapper) keeps the plain path.
+    if not isinstance(model, WhisperModel):
+        return None
+    return BatchedInferencePipeline(model=model)
+
+
+def _publish_segment(
+    job_id: str,
+    job: dict,
+    segments_list: list[dict],
+    seg_dict: dict,
+    duration: float,
+) -> None:
+    """Record *seg_dict* and tell the client how far along the job is."""
+    segments_list.append(seg_dict)
+    progress = 0.05 + 0.75 * min(seg_dict["end"] / duration, 1.0)
+    progress = max(float(job.get("progress", 0.0) or 0.0), progress)
+    push_event(
+        job_id,
+        "transcribing",
+        progress,
+        f"Transcribing... {format_timestamp(seg_dict['end'])} / {format_timestamp(duration)}",
+        data={
+            "segment": {
+                "id": seg_dict["id"],
+                "start": seg_dict["start"],
+                "end": seg_dict["end"],
+                "text": seg_dict["text"],
+            }
+        },
+    )
+
+
+def _run_onnx_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
+    """Transcribe with a Parakeet model (see core.onnx_asr_engine)."""
+    job = state.jobs[job_id]
+    opts = job["options"]
+    requested_device = opts.get("device", "auto")
+
+    asr, vad, model_device = onnx_asr_engine.get_onnx_model(opts["model"], requested_device)
+    append_job_log(job_id, "INFO", f"Transcribing with {opts['model']} on {model_device}")
+    if opts.get("language"):
+        append_job_log(
+            job_id,
+            "INFO",
+            "Parakeet detects the language itself; the language setting is ignored.",
+        )
+    push_event(
+        job_id,
+        "transcribing",
+        max(float(job.get("progress", 0.0) or 0.0), 0.05),
+        TRANSCRIPTION_STARTING,
+    )
+
+    _prepare_ffmpeg(bool(opts.get("diarize")))
+    # Always normalise: onnx-asr reads PCM WAV only, so a FLAC or a 44.1 kHz
+    # stereo WAV that Whisper accepts as-is has to be converted for it.
+    audio_path = convert_audio_for_transcription(job_id, job["file_path"], force=True)
+    duration = onnx_asr_engine.wav_duration(audio_path) or 1.0
+
+    segments_list: list[dict] = []
+    segments_iter = onnx_asr_engine.iter_segments(asr, vad, audio_path)
+    try:
+        for start, end, text in segments_iter:
+            if job["cancel_flag"].is_set():
+                push_event(job_id, "cancelled", 0.0, TRANSCRIPTION_CANCELLED)
+                sync_job_to_db(job_id)
+                return [], {"cancelled": True}
+            _publish_segment(
+                job_id,
+                job,
+                segments_list,
+                {
+                    "id": len(segments_list),
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "text": text,
+                    "speaker": "",
+                    # Parakeet reports per-token, not per-word, timing; the
+                    # waveform view that wants words simply has none for it.
+                    "words": [],
+                },
+                duration,
+            )
+    finally:
+        segments_iter.close()
+
+    return segments_list, {"language": "", "duration": round(duration, 3)}
+
+
 def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
     """Run the Whisper transcription phase and return segments and metadata."""
     job = state.jobs[job_id]
@@ -167,6 +299,9 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
         max(current_progress, 0.03),
         TRANSCRIPTION_LOADING_MODEL.format(model=opts["model"]),
     )
+
+    if onnx_asr_engine.is_onnx_model(opts["model"]):
+        return _run_onnx_transcription_phase(job_id)
 
     requested_device = opts.get("device", "auto")
     _ensure_cuda_runtime(job_id, requested_device)
@@ -202,19 +337,7 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
         TRANSCRIPTION_STARTING,
     )
 
-    if opts.get("diarize"):
-        ffmpeg_path = ffmpeg_helper.get_ffmpeg_path()
-        if ffmpeg_path is not None:
-            os.environ["PATH"] = str(Path(ffmpeg_path).parent) + os.pathsep + os.environ.get("PATH", "")
-        if not shutil.which("ffmpeg"):
-            raise RuntimeError(
-                "FFmpeg is required for diarization but was not found. Install ffmpeg or allow the app to download it."
-            )
-    else:
-        try:
-            ffmpeg_helper.start_background_download()
-        except (RuntimeError, OSError):
-            pass
+    _prepare_ffmpeg(bool(opts.get("diarize")))
 
     lang = opts.get("language") or None
     use_word_timestamps = bool(opts.get("word_timestamps", word_timestamps_default()))
@@ -256,30 +379,37 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
 
     segments_gen = None
     try:
-        beam_size = int(opts.get("beam_size", 5))
-        best_of = int(opts.get("best_of", 5))
+        beam_size = int(opts.get("beam_size", 1))
+        best_of = int(opts.get("best_of", 1))
 
-        try:
-            segments_gen, info = model.transcribe(
-                whisper_input,
+        def _start(engine_model: Any, *, vad: bool, batch: int) -> tuple[Any, Any]:
+            common = dict(
                 language=lang,
                 word_timestamps=use_word_timestamps,
-                vad_filter=use_vad_filter,
+                vad_filter=vad,
                 beam_size=beam_size,
                 best_of=best_of,
             )
+            pipeline = _batched_pipeline(engine_model) if batch > 1 and vad else None
+            if pipeline is not None:
+                return pipeline.transcribe(whisper_input, batch_size=batch, **common)
+            return engine_model.transcribe(whisper_input, **common)
+
+        # Batching needs the VAD to cut the audio into chunks, so it is off
+        # whenever the VAD is.
+        batch_size = int(opts.get("batch_size") or 0)
+        if batch_size <= 0:
+            batch_size = whisper_batch_size(_model_runs_on_gpu(model, model_device))
+        if batch_size > 1 and use_vad_filter:
+            append_job_log(job_id, "INFO", f"Batched decoding (batch_size={batch_size}, beam_size={beam_size})")
+
+        try:
+            segments_gen, info = _start(model, vad=use_vad_filter, batch=batch_size)
         except Exception as exc:
             if use_vad_filter and is_missing_vad_asset_error(exc):
                 use_vad_filter = False
                 append_job_log(job_id, "WARN", "VAD asset missing; retrying with vad_filter=False")
-                segments_gen, info = model.transcribe(
-                    whisper_input,
-                    language=lang,
-                    word_timestamps=use_word_timestamps,
-                    vad_filter=False,
-                    beam_size=beam_size,
-                    best_of=best_of,
-                )
+                segments_gen, info = _start(model, vad=False, batch=1)
             elif model_device != "cpu" and is_missing_cuda_runtime_error(exc):
                 push_event(job_id, "transcribing", 0.05, TRANSCRIPTION_GPU_FALLBACK)
                 model, _ = get_whisper_model(
@@ -288,13 +418,10 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                     device="cpu",
                     device_index=0,
                 )
-                segments_gen, info = model.transcribe(
-                    whisper_input,
-                    language=lang,
-                    word_timestamps=use_word_timestamps,
-                    vad_filter=use_vad_filter,
-                    beam_size=beam_size,
-                    best_of=best_of,
+                segments_gen, info = _start(
+                    model,
+                    vad=use_vad_filter,
+                    batch=whisper_batch_size(False) if use_vad_filter else 1,
                 )
             else:
                 raise
@@ -312,39 +439,27 @@ def run_transcription_phase(job_id: str) -> tuple[list[dict], dict]:
                 sync_job_to_db(job_id)
                 return [], {"cancelled": True}
 
-            progress = 0.05 + 0.75 * min(seg.end / duration, 1.0)
-            progress = max(float(job.get("progress", 0.0) or 0.0), progress)
-            seg_dict = {
-                "id": len(segments_list),
-                "start": round(seg.start, 3),
-                "end": round(seg.end, 3),
-                "text": seg.text.strip(),
-                "speaker": "",
-                "words": [
-                    {
-                        "word": w.word,
-                        "start": round(w.start, 3),
-                        "end": round(w.end, 3),
-                        "probability": round(w.probability, 4),
-                    }
-                    for w in (seg.words or [])
-                ],
-            }
-            segments_list.append(seg_dict)
-
-            push_event(
+            _publish_segment(
                 job_id,
-                "transcribing",
-                progress,
-                f"Transcribing... {format_timestamp(seg.end)} / {format_timestamp(duration)}",
-                data={
-                    "segment": {
-                        "id": seg_dict["id"],
-                        "start": seg_dict["start"],
-                        "end": seg_dict["end"],
-                        "text": seg_dict["text"],
-                    }
+                job,
+                segments_list,
+                {
+                    "id": len(segments_list),
+                    "start": round(seg.start, 3),
+                    "end": round(seg.end, 3),
+                    "text": seg.text.strip(),
+                    "speaker": "",
+                    "words": [
+                        {
+                            "word": w.word,
+                            "start": round(w.start, 3),
+                            "end": round(w.end, 3),
+                            "probability": round(w.probability, 4),
+                        }
+                        for w in (seg.words or [])
+                    ],
                 },
+                duration,
             )
 
         return segments_list, {"language": info.language or "", "duration": round(duration, 3)}

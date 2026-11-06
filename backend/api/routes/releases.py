@@ -14,6 +14,13 @@ MODELS_META = [
     {"id": "medium", "name": "Medium", "params": "~769M", "ram": "~5 GB", "speed": 2, "accuracy": 4},
     {"id": "large-v2", "name": "Large v2", "params": "~1.5B", "ram": "~10 GB", "speed": 1, "accuracy": 5},
     {"id": "large-v3", "name": "Large v3", "params": "~1.5B", "ram": "~10 GB", "speed": 1, "accuracy": 5},
+    # Large-v3 quality at roughly the cost of a medium model: the decoder is cut
+    # from 32 layers to 4. faster-whisper downloads the converted weights itself.
+    {"id": "large-v3-turbo", "name": "Large v3 Turbo", "params": "~809M", "ram": "~6 GB", "speed": 3, "accuracy": 5},
+    {"id": "distil-large-v3", "name": "Distil Large v3", "params": "~756M", "ram": "~5 GB", "speed": 4, "accuracy": 4},
+    # Not Whisper: run on ONNX Runtime by core.onnx_asr_engine (needs onnx-asr).
+    {"id": "parakeet-v3", "name": "Parakeet v3", "params": "~600M", "ram": "~2 GB", "speed": 5, "accuracy": 4, "engine": "onnx"},
+    {"id": "parakeet-v2", "name": "Parakeet v2 (English)", "params": "~600M", "ram": "~2 GB", "speed": 5, "accuracy": 4, "engine": "onnx"},
 ]
 
 router = APIRouter()

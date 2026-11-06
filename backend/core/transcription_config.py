@@ -1,6 +1,8 @@
 """Typed configuration model for Whisper transcription options."""
 from pydantic import BaseModel, Field
 
+from core.runtime_config import default_beam_size
+
 
 class TranscriptionConfig(BaseModel):
     """Runtime transcription options accepted per job."""
@@ -21,6 +23,8 @@ class TranscriptionConfig(BaseModel):
 
     vad_filter: bool = Field(default=True)
     word_timestamps: bool = Field(default=False)
-    beam_size: int = Field(default=5)
-    best_of: int = Field(default=5)
+    beam_size: int = Field(default_factory=default_beam_size)
+    # best_of only matters once temperature fallback kicks in; 1 keeps a bad
+    # window from being decoded five times over.
+    best_of: int = Field(default=1)
     force_normalize_audio: bool = Field(default=False)

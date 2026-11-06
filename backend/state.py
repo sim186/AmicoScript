@@ -26,6 +26,14 @@ _cached_model_key: Optional[tuple] = None
 _model_lock: threading.Lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
+# ONNX speech model cache + lock (Parakeet, see core.onnx_asr_engine)
+# ---------------------------------------------------------------------------
+
+_cached_onnx = None  # (asr, vad) pair
+_cached_onnx_key: Optional[tuple] = None
+_onnx_lock: threading.Lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
 # Diarization pipeline cache + lock
 # ---------------------------------------------------------------------------
 # Separate from the Whisper cache and its lock: the two are loaded in the same

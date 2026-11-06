@@ -6,6 +6,20 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### Faster transcription
+
+- **Batched Whisper decoding.** Audio is cut at pauses and several 30 s chunks
+  are decoded per forward pass (faster-whisper's `BatchedInferencePipeline`;
+  the floor is now `faster-whisper>=1.1.0`). Batch size is 8 on a GPU and 4 on a
+  CPU; set `AMICO_BATCH_SIZE` to change it, or to `1` to turn batching off.
+  Batching needs the VAD, so it is skipped automatically if the VAD asset is missing.
+- **Greedy decoding by default.** `beam_size` and `best_of` now default to 1
+  instead of 5. Set `AMICO_BEAM_SIZE=5` to restore the old behaviour.
+- **New models:** `large-v3-turbo` and `distil-large-v3` (Whisper), and
+  **Parakeet v3 / v2** run through ONNX Runtime. Parakeet is the fastest option
+  on a CPU, but has no translation and no per-word timing, and v2 is English
+  only. It is optional: `pip install "amicoscript[fast]"`.
+
 
 
 ## [1.20.1] - 2026-08-18

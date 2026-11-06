@@ -22,6 +22,18 @@ _FALSEY = {"0", "false", "no", "off"}
 DEFAULT_DOWNLOAD_CONCURRENCY = 2
 MAX_DOWNLOAD_CONCURRENCY = 8
 
+#: Greedy decoding. Beam search at 5 costs roughly 2-3x the decode time of
+#: greedy for a small accuracy gain on clean speech; users who want it back set
+#: AMICO_BEAM_SIZE.
+DEFAULT_BEAM_SIZE = 1
+MAX_BEAM_SIZE = 10
+
+#: Chunks Whisper decodes in one forward pass when batching is on. 8 is
+#: faster-whisper's own default and fits a 6 GB card with large-v3 at float16.
+DEFAULT_GPU_BATCH_SIZE = 8
+DEFAULT_CPU_BATCH_SIZE = 4
+MAX_BATCH_SIZE = 64
+
 DEFAULT_COOKIE_BROWSERS = ["chrome", "firefox", "safari", "edge"]
 
 
@@ -61,6 +73,33 @@ def word_timestamps_default() -> bool:
     waveform view uses it.
     """
     return _flag("AMICO_WORD_TIMESTAMPS", False)
+
+
+def default_beam_size() -> int:
+    """Beam width when a job does not ask for one (AMICO_BEAM_SIZE, default 1)."""
+    try:
+        value = int(os.environ.get("AMICO_BEAM_SIZE", ""))
+    except ValueError:
+        return DEFAULT_BEAM_SIZE
+    return max(1, min(value, MAX_BEAM_SIZE))
+
+
+def whisper_batch_size(on_gpu: bool) -> int:
+    """Chunks per batched Whisper pass (AMICO_BATCH_SIZE); 1 or less turns batching off.
+
+    Unset means "pick for the device": a GPU gains most from a wide batch, a
+    CPU from a narrow one. A nonsense value falls back to that same choice
+    rather than silently disabling the speed-up.
+    """
+    fallback = DEFAULT_GPU_BATCH_SIZE if on_gpu else DEFAULT_CPU_BATCH_SIZE
+    raw = os.environ.get("AMICO_BATCH_SIZE", "").strip()
+    if not raw:
+        return fallback
+    try:
+        value = int(raw)
+    except ValueError:
+        return fallback
+    return max(0, min(value, MAX_BATCH_SIZE))
 
 
 def ytdlp_auto_cookies() -> bool:

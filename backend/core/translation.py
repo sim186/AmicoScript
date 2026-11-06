@@ -7,6 +7,7 @@ import tempfile
 import time
 
 import state
+from core import onnx_asr_engine
 from core.job_helpers import append_job_log, handle_job_error, push_event
 from db import new_session
 from models import Recording, Transcript
@@ -54,7 +55,7 @@ def translate_audio_chunk(
 
     try:
         subprocess.run(cmd, check=True, timeout=30)
-        model, _ = get_whisper_model(model_name)
+        model, _ = get_whisper_model(onnx_asr_engine.whisper_model_for_translation(model_name))
         segments, _ = model.transcribe(chunk_path, task="translate")
         return " ".join(s.text.strip() for s in segments).strip()
     except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as exc:
@@ -73,7 +74,11 @@ def process_translation_job(job_id: str) -> None:
 
     job = state.jobs[job_id]
     recording_id = job["recording_id"]
-    model_name = job["options"].get("model", "small")
+    # A recording transcribed with Parakeet has no translate task to call; use
+    # a Whisper model for it instead of failing on an id faster-whisper rejects.
+    model_name = onnx_asr_engine.whisper_model_for_translation(
+        job["options"].get("model", "small")
+    )
 
     try:
         append_job_log(job_id, "INFO", f"Translation worker started for recording {recording_id}")

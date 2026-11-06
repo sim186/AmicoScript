@@ -55,6 +55,11 @@ const MODELS = [
   { id: 'medium', name: 'Medium', params: '~769M', speed: 2, note: 'High accuracy' },
   { id: 'large-v2', name: 'Large v2', params: '~1.5B', speed: 1, note: 'Best accuracy' },
   { id: 'large-v3', name: 'Large v3', params: '~1.5B', speed: 1, note: 'Best accuracy+' },
+  { id: 'large-v3-turbo', name: 'Large v3 Turbo', params: '~809M', speed: 3, note: 'Near-large accuracy, much faster' },
+  { id: 'distil-large-v3', name: 'Distil Large v3', params: '~756M', speed: 4, note: 'Fast · English works best' },
+  // Not Whisper: needs `pip install "amicoscript[fast]"`. No translation, no word timing.
+  { id: 'parakeet-v3', name: 'Parakeet v3', params: '~600M', speed: 5, note: 'Fastest on CPU · 25 European languages' },
+  { id: 'parakeet-v2', name: 'Parakeet v2', params: '~600M', speed: 5, note: 'Fastest on CPU · English only' },
 ];
 
 export function renderModelGrid() {

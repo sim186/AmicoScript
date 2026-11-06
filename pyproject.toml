@@ -37,7 +37,7 @@ dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",
     "python-multipart>=0.0.9",
-    "faster-whisper>=1.0.3",
+    "faster-whisper>=1.1.0",
     "sse-starlette>=2.1.0",
     "aiofiles>=23.2.1",
     "pydantic>=2.7.1",
@@ -70,6 +70,15 @@ diarization = [
     "pyannote.audio>=4.0.7",
     "torch>=2.8.0",
     "torchaudio>=2.8.0",
+]
+
+# Parakeet models (NVIDIA's transducer ASR), run on ONNX Runtime by
+# backend/core/onnx_asr_engine.py. Several times faster than Whisper on a CPU,
+# at the cost of translation and per-word timing. Kept optional so the default
+# install does not grow; the model picker offers Parakeet either way and says
+# how to install this when it is missing.
+fast = [
+    "onnx-asr[cpu,hub]>=0.11.0",
 ]
 
 # The embedded meeting watcher. Mirrors scripts/meeting_watcher/requirements.txt.

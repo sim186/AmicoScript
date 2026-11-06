@@ -69,7 +69,11 @@ def test_but_a_job_still_carries_them(field):
 
 
 def test_the_job_options_are_unchanged_for_a_default_request(clean_settings):
-    """Dropping the fields must not alter what any existing client gets."""
+    """Dropping the fields must not alter what any existing client gets.
+
+    The one deliberate change is decoding: beam_size and best_of default to 1
+    (greedy) instead of 5, for speed. AMICO_BEAM_SIZE brings the beam back.
+    """
     assert _build() == {
         "model": "small",
         "language": "",
@@ -84,8 +88,8 @@ def test_the_job_options_are_unchanged_for_a_default_request(clean_settings):
         "device_index": 0,
         "vad_filter": True,
         "word_timestamps": False,
-        "beam_size": 5,
-        "best_of": 5,
+        "beam_size": 1,
+        "best_of": 1,
         "force_normalize_audio": False,
     }
 

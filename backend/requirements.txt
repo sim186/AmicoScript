@@ -1,7 +1,8 @@
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9
-faster-whisper>=1.0.3
+# 1.1 added BatchedInferencePipeline, which core/transcription.py uses.
+faster-whisper>=1.1.0
 sse-starlette>=2.1.0
 aiofiles>=23.2.1
 pydantic>=2.7.1
@@ -15,3 +16,6 @@ yt-dlp>=2024.12.13
 # packaged app downloads it the first time a job asks for speaker labels
 # instead of shipping it (backend/runtime_pack.py). Install it alongside this
 # file for development, for the Docker images, and to run the test suite.
+
+# Optional: Parakeet models (backend/core/onnx_asr_engine.py). Install
+# `onnx-asr[cpu,hub]` to offer them; nothing else imports it.
